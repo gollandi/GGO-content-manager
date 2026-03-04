@@ -1,0 +1,174 @@
+.page {
+  display: flex;
+  flex-direction: column;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.iconButton {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  border: none;
+  background: var(--blue-100);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconButton img {
+  width: 16px;
+  height: 16px;
+}
+
+.iconBadge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 12px;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(260px, 1fr);
+  gap: 16px;
+  padding: 24px 32px;
+  overflow-x: auto;
+}
+
+.column {
+  background: #fff;
+  border-radius: 24px;
+  padding: 16px;
+  border: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 640px;
+}
+
+.columnHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.count {
+  background: #fff;
+  border-radius: 9999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+}
+
+.card {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid var(--border-soft);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+}
+
+.priority {
+  font-size: 11px;
+  background: var(--red-50);
+  color: var(--red-500);
+  border-radius: 9999px;
+  padding: 4px 8px;
+  width: fit-content;
+}
+
+.cardTitle {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.cardDesc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.tagRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tag {
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 8px;
+  background: var(--blue-100);
+  color: var(--primary);
+}
+
+.progressRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.progressBar {
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: 9999px;
+  background: #f3f4f6;
+  overflow: hidden;
+}
+
+.progressBar div {
+  height: 100%;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%);
+}
+
+.meta {
+  font-size: 11px;
+  color: var(--text-subtle);
+}
+
+.addCard {
+  border: 1px dashed #cbd5f5;
+  background: #f5f3ff;
+  border-radius: 16px;
+  padding: 12px;
+  font-size: 13px;
+  color: var(--primary);
+  cursor: pointer;
+}
+
+.blue .columnHeader {
+  color: #2563eb;
+}
+
+.purple .columnHeader {
+  color: #7c3aed;
+}
+
+.orange .columnHeader {
+  color: #ea580c;
+}
+
+.yellow .columnHeader {
+  color: #ca8a04;
+}

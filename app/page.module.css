@@ -1,0 +1,271 @@
+.page {
+  display: flex;
+  flex-direction: column;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.iconButton {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  border: none;
+  background: var(--blue-100);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.iconButton img {
+  width: 16px;
+  height: 16px;
+}
+
+.iconBadge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 12px;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.statCard {
+  background: #fff;
+  border: 1px solid var(--border-soft);
+  border-radius: 20px;
+  padding: 20px;
+}
+
+.statHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.statIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(50, 8, 245, 0.1);
+}
+
+.statLabel {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.statValue {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.statMeta {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+.blue .statIcon {
+  background: rgba(50, 8, 245, 0.12);
+}
+
+.green .statIcon {
+  background: rgba(22, 163, 74, 0.12);
+}
+
+.orange .statIcon {
+  background: rgba(249, 115, 22, 0.12);
+}
+
+.purple .statIcon {
+  background: rgba(236, 72, 153, 0.12);
+}
+
+.mainGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 24px;
+}
+
+.leftColumn,
+.rightColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.chartPlaceholder {
+  height: 220px;
+  margin-top: 20px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(50, 8, 245, 0.1), rgba(0, 238, 182, 0.15));
+  position: relative;
+  overflow: hidden;
+}
+
+.chartPlaceholder::after {
+  content: "";
+  position: absolute;
+  inset: 20px 30px 30px 30px;
+  border-radius: 16px;
+  border: 1px dashed rgba(50, 8, 245, 0.3);
+}
+
+.activityCard {
+  padding-bottom: 16px;
+}
+
+.activityList {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.activityItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.activityItem:last-child {
+  border-bottom: none;
+}
+
+.activityDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+}
+
+.activityContent {
+  flex: 1;
+}
+
+.activityTitle {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.activityDetail {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.activityTime {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+.categoryList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.categoryRow {
+  display: grid;
+  grid-template-columns: 100px 1fr 40px;
+  gap: 12px;
+  align-items: center;
+}
+
+.categoryLabel {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.categoryBar {
+  height: 10px;
+  background: #f3f4f6;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.categoryFill {
+  height: 100%;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%);
+}
+
+.categoryValue {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.riskCard ul {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.riskCard li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.linkButton {
+  margin-top: 16px;
+  border: none;
+  background: none;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+@media (max-width: 1200px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mainGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .categoryRow {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+  }
+
+  .categoryValue {
+    justify-self: flex-end;
+  }
+}
