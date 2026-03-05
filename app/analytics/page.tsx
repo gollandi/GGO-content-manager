@@ -18,31 +18,25 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchData() {
+    async function fetchAllData() {
       try {
-        const [contentRes, complianceRes, evidenceRes] = await Promise.all([
+        const [contentRes, complianceRes] = await Promise.all([
           fetch("/api/notion/content"),
-          fetch("/api/notion/compliance"),
-          fetch("/api/notion/evidence")
+          fetch("/api/notion/compliance")
         ]);
 
-        const [contentData, complianceData, evidenceData] = await Promise.all([
-          contentRes.json(),
-          complianceRes.json(),
-          evidenceRes.json()
-        ]);
+        const contentData = await contentRes.json();
+        const complianceData = await complianceRes.json();
 
-        setContent(contentData);
-        setCompliance(complianceData);
-        setEvidence(evidenceData);
+        if (Array.isArray(contentData)) setContent(contentData);
+        if (Array.isArray(complianceData)) setCompliance(complianceData);
       } catch (error) {
         console.error("Error fetching analytics data:", error);
       } finally {
         setLoading(false);
       }
     }
-
-    fetchData();
+    fetchAllData();
   }, []);
 
   const totalContent = content.length || 228; // Fallback to mock if empty during dev

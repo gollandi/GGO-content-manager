@@ -31,12 +31,19 @@ export default function EvidenceRepositoryPage() {
       try {
         const res = await fetch("/api/notion/evidence");
         const data = await res.json();
-        setEvidenceItems(data);
-        if (data.length > 0) {
-          setSelectedItem(data[0]);
+
+        if (Array.isArray(data)) {
+          setEvidenceItems(data);
+          if (data.length > 0) {
+            setSelectedItem(data[0]);
+          }
+        } else {
+          console.error("Notion API returned non-array data:", data);
+          setEvidenceItems([]);
         }
       } catch (error) {
         console.error("Error fetching evidence items:", error);
+        setEvidenceItems([]);
       } finally {
         setLoading(false);
       }

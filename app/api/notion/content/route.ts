@@ -6,6 +6,7 @@ export async function GET() {
         const data = await getContentAssets();
         return NextResponse.json(data);
     } catch (error: any) {
+        console.error("Notion API Error (Content):", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

@@ -17,9 +17,16 @@ export default function ContentExplorerPage() {
       try {
         const res = await fetch("/api/notion/content");
         const data = await res.json();
-        setContentItems(data);
+
+        if (Array.isArray(data)) {
+          setContentItems(data);
+        } else {
+          console.error("Notion API returned non-array data:", data);
+          setContentItems([]); // Fallback to empty array
+        }
       } catch (error) {
         console.error("Error fetching content items:", error);
+        setContentItems([]);
       } finally {
         setLoading(false);
       }
