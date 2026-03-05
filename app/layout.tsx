@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const plusJakarta = Plus_Jakarta_Sans({
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-sans"
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-inter"
 });
 
 export const metadata: Metadata = {
-  title: "GGO Med Compliance Tracker",
-  description: "Compliance tracking dashboard UI"
+  title: "GGO Med Content Manager",
+  description: "Advanced content management and compliance tracking for GGOMed"
 };
 
 export default function RootLayout({
@@ -19,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={plusJakarta.variable}>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );

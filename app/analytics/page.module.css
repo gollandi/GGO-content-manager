@@ -1,194 +1,256 @@
 .page {
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
 }
 
 .headerActions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
 .iconButton {
   position: relative;
-  width: 40px;
-  height: 40px;
-  border-radius: 9999px;
-  border: none;
-  background: var(--blue-100);
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border-soft);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.iconButton img {
-  width: 16px;
-  height: 16px;
+.iconButton:hover {
+  background: var(--glass-hover);
+  border-color: var(--primary-light);
 }
 
 .iconBadge {
   position: absolute;
-  top: -4px;
-  right: -4px;
-  background: #ef4444;
+  top: -6px;
+  right: -6px;
+  background: var(--danger);
   color: #fff;
-  font-size: 12px;
-  width: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 20px;
   height: 20px;
-  border-radius: 9999px;
+  padding: 0 6px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border: 2px solid var(--bg);
 }
 
 .chartGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 24px;
+  margin-bottom: 32px;
 }
 
 .chartCard {
-  background: #fff;
+  background: var(--white);
   border: 1px solid var(--border-soft);
-  border-radius: 24px;
-  padding: 20px;
+  border-radius: 32px;
+  padding: 32px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.chartCard:hover {
+  border-color: var(--primary-light);
+  box-shadow: var(--shadow-md);
 }
 
 .donut {
-  width: 180px;
-  height: 180px;
+  width: 200px;
+  height: 200px;
   border-radius: 50%;
-  background: conic-gradient(#10b981 0 65%, #f59e0b 65% 85%, #ef4444 85% 100%);
+  background: conic-gradient(var(--green) 0 65%,
+      var(--orange) 65% 85%,
+      var(--danger) 85% 100%);
   align-self: center;
+  position: relative;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.1);
+}
+
+.donut::after {
+  content: "";
+  position: absolute;
+  inset: 40px;
+  background: var(--white);
+  border-radius: 50%;
 }
 
 .coverageList {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  font-size: 12px;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text-muted);
+}
+
+.coverageList div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .coverageList strong {
   color: var(--text);
+  font-weight: 800;
 }
 
 .dotGreen,
 .dotYellow,
 .dotRed {
   display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 9999px;
-  margin-right: 8px;
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  margin-right: 12px;
 }
 
 .dotGreen {
-  background: #10b981;
+  background: var(--green);
 }
 
 .dotYellow {
-  background: #f59e0b;
+  background: var(--orange);
 }
 
 .dotRed {
-  background: #ef4444;
+  background: var(--danger);
 }
 
 .barChart {
-  height: 160px;
-  border-radius: 16px;
-  background: linear-gradient(90deg, #10b981 0 25%, #f59e0b 25% 50%, #f97316 50% 75%, #ef4444 75% 100%);
+  height: 180px;
+  border-radius: 20px;
+  background: linear-gradient(90deg,
+      var(--green-soft) 0 25%,
+      var(--orange-soft) 25% 50%,
+      var(--orange) 50% 75%,
+      var(--red-soft) 75% 100%);
+  opacity: 0.8;
 }
 
 .horizontalBars {
-  height: 160px;
-  border-radius: 16px;
-  background: repeating-linear-gradient(
-    to bottom,
-    #312e81,
-    #312e81 18px,
-    #fff 18px,
-    #fff 28px
-  );
+  height: 180px;
+  border-radius: 20px;
+  background: repeating-linear-gradient(to bottom,
+      var(--blue-soft),
+      var(--blue-soft) 20px,
+      transparent 20px,
+      transparent 32px);
 }
 
 .lineChart {
-  height: 140px;
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0));
+  height: 180px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, var(--blue-soft), transparent);
   position: relative;
   overflow: hidden;
+  border: 1px solid var(--border-soft);
 }
 
 .lineChart::after {
   content: "";
   position: absolute;
-  inset: 20px;
-  border-radius: 12px;
-  border: 1px dashed rgba(59, 130, 246, 0.4);
+  inset: 24px;
+  border-radius: 16px;
+  border: 2px dashed var(--primary-light);
+  opacity: 0.3;
 }
 
 .linkButton {
   border: none;
   background: none;
   color: var(--primary);
-  font-weight: 600;
-  font-size: 12px;
+  font-weight: 800;
+  font-size: 13px;
   align-self: flex-end;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.linkButton:hover {
+  color: var(--primary-dark);
+  text-decoration: underline;
 }
 
 .lowerGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 24px;
+  margin-bottom: 32px;
 }
 
 .widgetCard {
-  background: #fff;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
   border: 1px solid var(--border-soft);
-  border-radius: 24px;
-  padding: 20px;
+  border-radius: 32px;
+  padding: 32px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
 }
 
 .circleStat {
-  width: 160px;
-  height: 160px;
+  width: 180px;
+  height: 180px;
   border-radius: 50%;
-  border: 8px solid #1d4ed8;
+  border: 12px solid var(--primary);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   margin: 0 auto;
+  background: var(--white);
+  box-shadow: var(--shadow-md);
 }
 
 .circleValue {
-  font-size: 28px;
-  font-weight: 700;
+  font-size: 36px;
+  font-weight: 900;
+  color: var(--text);
+  line-height: 1;
 }
 
 .circleLabel {
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 4px;
 }
 
 .miniList {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  font-size: 12px;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text-muted);
+}
+
+.miniList div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .badgeGreen,
@@ -197,109 +259,124 @@
   display: inline-block;
   width: 10px;
   height: 10px;
-  border-radius: 9999px;
-  margin-right: 8px;
+  border-radius: 50%;
+  margin-right: 12px;
 }
 
 .badgeGreen {
-  background: #22c55e;
+  background: var(--green);
 }
 
 .badgeYellow {
-  background: #f59e0b;
+  background: var(--orange);
 }
 
 .badgeRed {
-  background: #ef4444;
+  background: var(--danger);
 }
 
 .principleList {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .principleRow {
   display: grid;
-  grid-template-columns: 120px 40px 1fr;
-  gap: 8px;
+  grid-template-columns: 140px 50px 1fr;
+  gap: 12px;
   align-items: center;
-  font-size: 12px;
-  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
 }
 
 .principleBar {
-  height: 8px;
-  background: #f3f4f6;
-  border-radius: 9999px;
+  height: 10px;
+  background: var(--bg);
+  border-radius: 5px;
   overflow: hidden;
+  border: 1px solid var(--border-soft);
 }
 
 .principleBar div {
   height: 100%;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%);
+  background: var(--primary);
+  border-radius: 5px;
 }
 
 .tone-green {
-  color: var(--green-500);
-  font-weight: 700;
+  color: var(--green-dark);
 }
 
 .tone-yellow {
-  color: var(--yellow-500);
-  font-weight: 700;
+  color: var(--orange-dark);
 }
 
 .tone-red {
-  color: var(--red-500);
-  font-weight: 700;
+  color: var(--red-dark);
 }
 
 .summaryGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  gap: 20px;
 }
 
 .summaryCard {
-  border-radius: 20px;
-  padding: 20px;
+  border-radius: 24px;
+  padding: 24px;
   color: #fff;
-  background: linear-gradient(135deg, #3b82f6 0%, #3208f5 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.summaryCard:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
 }
 
 .summaryLabel {
   font-size: 12px;
-  opacity: 0.85;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.9;
 }
 
 .summaryValue {
-  font-size: 28px;
-  font-weight: 700;
+  font-size: 36px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .summaryMeta {
   font-size: 12px;
+  font-weight: 600;
   opacity: 0.8;
 }
 
 .blue {
-  background: linear-gradient(135deg, #3b82f6 0%, #3208f5 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
 }
 
 .green {
-  background: linear-gradient(135deg, #4ade80 0%, #00eeb6 100%);
+  background: linear-gradient(135deg, var(--green) 0%, var(--green-dark) 100%);
 }
 
 .orange {
-  background: linear-gradient(135deg, #fb923c 0%, #ef4444 100%);
+  background: linear-gradient(135deg, var(--orange) 0%, var(--danger) 100%);
 }
 
 .purple {
-  background: linear-gradient(135deg, #c084fc 0%, #ec4899 100%);
+  background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%);
 }
 
 @media (max-width: 1200px) {
+
   .chartGrid,
   .lowerGrid,
   .summaryGrid {

@@ -1,15 +1,24 @@
 import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
-
-const imgBell = "https://www.figma.com/api/mcp/asset/7af2e5ae-3cff-4293-831a-80775c434da8";
+import {
+  IconBell,
+  IconPlus,
+  IconKey,
+  IconCalendar,
+  IconUsers,
+  IconEdit,
+  IconShield,
+  IconSettings,
+  IconSave
+} from "../../components/Icons";
 
 const navItems = [
-  "API Keys",
-  "Review Schedules",
-  "User Permissions",
-  "Customization",
-  "Notifications",
-  "Security"
+  { label: "API Keys", icon: <IconKey style={{ width: '16px' }} /> },
+  { label: "Review Schedules", icon: <IconCalendar style={{ width: '16px' }} /> },
+  { label: "User Permissions", icon: <IconUsers style={{ width: '16px' }} /> },
+  { label: "Customization", icon: <IconEdit style={{ width: '16px' }} /> },
+  { label: "Notifications", icon: <IconBell style={{ width: '16px' }} /> },
+  { label: "Security", icon: <IconShield style={{ width: '16px' }} /> }
 ];
 
 export default function SettingsPage() {
@@ -23,10 +32,13 @@ export default function SettingsPage() {
           </div>
           <div className={styles.headerActions}>
             <button className={styles.iconButton} aria-label="Notifications">
-              <img src={imgBell} alt="" />
+              <IconBell />
               <span className={styles.iconBadge}>3</span>
             </button>
-            <button className="btn-gradient">Save Changes</button>
+            <button className="btn-gradient">
+              <IconSave style={{ width: '16px', marginRight: '8px' }} />
+              Save Changes
+            </button>
           </div>
         </header>
 
@@ -34,10 +46,12 @@ export default function SettingsPage() {
           <aside className={styles.settingsNav}>
             {navItems.map((item, index) => (
               <button
-                key={item}
+                key={item.label}
                 className={index === 0 ? styles.navActive : styles.navItem}
+                style={{ display: 'flex', alignItems: 'center', gap: '12px' }}
               >
-                {item}
+                {item.icon}
+                {item.label}
               </button>
             ))}
           </aside>
@@ -49,10 +63,16 @@ export default function SettingsPage() {
                   <h3>API Keys</h3>
                   <p>Manage your Notion and Gemini API keys</p>
                 </div>
-                <button className="btn-gradient">Add New Key</button>
+                <button className="btn-gradient">
+                  <IconPlus style={{ width: '14px', marginRight: '6px' }} />
+                  Add New Key
+                </button>
               </div>
               <div className={styles.notice}>
-                <strong>API Key Security</strong>
+                <strong>
+                  <IconShield style={{ width: '16px' }} />
+                  API Key Security
+                </strong>
                 <p>
                   Never share your API keys. Store them securely and rotate them
                   regularly. Keys are encrypted at rest.
@@ -63,7 +83,12 @@ export default function SettingsPage() {
                   <div className={styles.keyTitle}>Notion API Key</div>
                   <div className={styles.keySubtitle}>Production environment</div>
                 </div>
-                <span className={styles.keyStatus}>Active</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <span className={styles.keyStatus}>Active</span>
+                  <button className="btn-ghost" style={{ padding: '8px' }}>
+                    <IconSettings style={{ width: '16px' }} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>

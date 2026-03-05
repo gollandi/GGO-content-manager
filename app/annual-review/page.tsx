@@ -1,7 +1,13 @@
 import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
-
-const imgBell = "https://www.figma.com/api/mcp/asset/7af2e5ae-3cff-4293-831a-80775c434da8";
+import {
+  IconBell,
+  IconPlus,
+  IconSearch,
+  IconFilter,
+  IconChevronRight,
+  IconExternalLink
+} from "../../components/Icons";
 
 const stats = [
   { label: "Completed Reviews", value: "142" },
@@ -40,6 +46,15 @@ const rows = [
   }
 ];
 
+const getOutcomeClass = (outcome: string) => {
+  switch (outcome) {
+    case 'Approved': return styles['outcome-approved'];
+    case 'Needs Changes': return styles['outcome-needs-changes'];
+    case 'Overdue': return styles['outcome-overdue'];
+    default: return styles.outcome;
+  }
+};
+
 export default function AnnualReviewPage() {
   return (
     <AppShell>
@@ -51,10 +66,13 @@ export default function AnnualReviewPage() {
           </div>
           <div className={styles.headerActions}>
             <button className={styles.iconButton} aria-label="Notifications">
-              <img src={imgBell} alt="" />
+              <IconBell />
               <span className={styles.iconBadge}>3</span>
             </button>
-            <button className="btn-gradient">Generate Review Pack</button>
+            <button className="btn-gradient">
+              <IconPlus style={{ marginRight: '8px' }} />
+              Generate Review Pack
+            </button>
           </div>
         </header>
 
@@ -89,9 +107,18 @@ export default function AnnualReviewPage() {
                 <p className="card-subtitle">Complete review history and required actions</p>
               </div>
               <div className={styles.tableActions}>
-                <button className="btn-pill">Search reviews...</button>
-                <button className="btn-pill">Filter</button>
-                <button className="btn-pill">Export</button>
+                <button className="btn-pill">
+                  <IconSearch style={{ width: '14px', marginRight: '6px' }} />
+                  Search reviews...
+                </button>
+                <button className="btn-pill">
+                  <IconFilter style={{ width: '14px', marginRight: '6px' }} />
+                  Filter
+                </button>
+                <button className="btn-pill">
+                  <IconExternalLink style={{ width: '14px', marginRight: '6px' }} />
+                  Export
+                </button>
               </div>
             </div>
             <div className={styles.tableWrap}>
@@ -104,6 +131,7 @@ export default function AnnualReviewPage() {
                     <th>Outcome</th>
                     <th>Required Actions</th>
                     <th>Next Review</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -116,12 +144,17 @@ export default function AnnualReviewPage() {
                       <td>{row.lastReview}</td>
                       <td>{row.reviewer}</td>
                       <td>
-                        <span className={styles.outcome}>{row.outcome}</span>
+                        <span className={getOutcomeClass(row.outcome)}>{row.outcome}</span>
                       </td>
                       <td>
                         <span className={styles.action}>{row.action}</span>
                       </td>
                       <td>{row.nextReview}</td>
+                      <td>
+                        <button className="icon-btn">
+                          <IconChevronRight />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

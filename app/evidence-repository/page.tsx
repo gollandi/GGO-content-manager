@@ -1,97 +1,73 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
+import {
+  IconBell as BellIcon,
+  IconSearch as SearchIcon,
+  IconFilter as FilterIcon,
+  IconChevronRight as ChevronRightIcon,
+  IconPlus as PlusIcon,
+  IconEdit as EditIcon,
+  IconExternalLink as ExternalLinkIcon,
+  IconFileText as IconFileText, // Placeholder for missing icons
+  IconShield as IconShield // Placeholder for missing icons
+} from "../../components/Icons";
+import { EvidenceItem } from "../../lib/notion/types";
 
-const imgBell = "https://www.figma.com/api/mcp/asset/7af2e5ae-3cff-4293-831a-80775c434da8";
-
-const filters = [
-  { label: "Evidence Type", value: "All Types" },
-  { label: "Topic Area", value: "All Topics" },
-  { label: "Evidence Age", value: "All Ages" },
-  { label: "Status", value: "All Status" }
-];
-
-const evidenceItems = [
-  {
-    title: "EAU Guidelines on Male Sexual and Reproductive Health 2023",
-    description:
-      "Comprehensive clinical practice guidelines covering erectile dysfunction, ejaculatory disorders, and Peyronie's disease management.",
-    tags: ["Guidelines", "Current"],
-    meta: "Published: Jan 2023",
-    status: "Active",
-    statusTone: "success",
-    linked: "15 linked items",
-    review: "Last reviewed: 2 months ago",
-    next: "Next review: Oct 2024"
-  },
-  {
-    title: "Efficacy of PDE5 Inhibitors: Systematic Review and Meta-analysis",
-    description:
-      "Meta-analysis of 82 RCTs examining comparative effectiveness of sildenafil, tadalafil, and vardenafil in ED treatment.",
-    tags: ["Meta-analysis", "Aging"],
-    meta: "Published: Mar 2019",
-    status: "Under Review",
-    statusTone: "warning",
-    linked: "8 linked items",
-    review: "Last reviewed: 8 months ago",
-    next: "Next review: Due now"
-  },
-  {
-    title: "Testosterone Replacement Therapy in Hypogonadal Men: RCT Results",
-    description:
-      "Randomized controlled trial evaluating safety and efficacy of TRT in 400 men with hypogonadism.",
-    tags: ["RCT", "Current"],
-    meta: "Published: Aug 2022",
-    status: "Active",
-    statusTone: "success",
-    linked: "12 linked items",
-    review: "Last reviewed: 1 month ago",
-    next: "Next review: Jan 2025"
-  },
-  {
-    title: "Surgical Management of Varicocele: Clinical Guidelines 2015",
-    description:
-      "Clinical practice guidelines for varicocele diagnosis and surgical intervention strategies in male infertility cases.",
-    tags: ["Guidelines", "Outdated"],
-    meta: "Published: Jun 2015",
-    status: "Flagged",
-    statusTone: "danger",
-    linked: "4 linked items",
-    review: "Last reviewed: 18 months ago",
-    next: "Review overdue"
-  }
-];
-
-const details = {
-  title: "EAU Guidelines on Male Sexual and Reproductive Health 2023",
-  tags: ["Guidelines", "Current"],
-  citation:
-    "Salonia A, Bettocchi C, Boeri L, et al. European Association of Urology Guidelines on Sexual and Reproductive Health - 2023 Update: Male Sexual Dysfunction. Eur Urol. 2023;84(1):80-101.",
-  notes:
-    "Provides comprehensive, evidence-based recommendations for diagnosis and management of erectile dysfunction, ejaculatory disorders, and Peyronie's disease. Directly supports clinical content accuracy and treatment pathway guidance.",
-  aging: 85,
-  agingMeta: "Published 20 months ago - Expected lifespan: 5 years",
-  linked: ["ED Treatment Guidelines", "PDE5 Inhibitor Overview", "Peyronie's Disease Guide"],
-  history: [
-    "Last reviewed: August 15, 2024 by Dr. James Wilson",
-    "Next review due: October 2024"
-  ]
-};
+// Mocking missing icons for now to fix build
+const CloseIcon = (props: any) => <span {...props}>✕</span>;
+const FlagIcon = (props: any) => <IconShield {...props} />;
+const ArchiveIcon = (props: any) => <IconFileText {...props} />;
 
 export default function EvidenceRepositoryPage() {
+  const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([]);
+  const [selectedItem, setSelectedItem] = useState<EvidenceItem | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const res = await fetch("/api/notion/evidence");
+        const data = await res.json();
+        setEvidenceItems(data);
+        if (data.length > 0) {
+          setSelectedItem(data[0]);
+        }
+      } catch (error) {
+        console.error("Error fetching evidence items:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  const filters = [
+    { label: "Evidence Type", value: "All Types" },
+    { label: "Topic Area", value: "All Topics" },
+    { label: "Evidence Age", value: "All Ages" },
+    { label: "Status", value: "All Status" }
+  ];
+
   return (
     <AppShell>
       <div className={styles.page}>
         <header className="page-header">
           <div>
             <h1 className="page-title">Evidence Repository</h1>
-            <p className="page-subtitle">Manage and track all evidence sources</p>
+            <p className="page-subtitle">Manage and track {evidenceItems.length} evidence sources from Notion</p>
           </div>
           <div className={styles.headerActions}>
             <button className={styles.iconButton} aria-label="Notifications">
-              <img src={imgBell} alt="" />
+              <BellIcon />
               <span className={styles.iconBadge}>3</span>
             </button>
-            <button className="btn-gradient">+ Add Evidence</button>
+            <button className="btn-gradient">
+              <PlusIcon style={{ marginRight: '8px', width: '20px' }} />
+              Add Evidence
+            </button>
           </div>
         </header>
 
@@ -99,42 +75,58 @@ export default function EvidenceRepositoryPage() {
           <div className={styles.listColumn}>
             <div className={styles.filters}>
               <div className={styles.filterHeader}>
-                <span>Filters</span>
-                <button className={styles.clearButton}>Clear all</button>
+                <span>Advanced Filters</span>
+                <button className={styles.clearButton}>Clear all filters</button>
               </div>
               <div className={styles.filterGrid}>
                 {filters.map((filter) => (
                   <div key={filter.label} className={styles.filterItem}>
                     <span>{filter.label}</span>
-                    <button>{filter.value}</button>
+                    <button>
+                      {filter.value}
+                      <FilterIcon style={{ width: '14px', height: '14px', opacity: 0.5 }} />
+                    </button>
                   </div>
                 ))}
               </div>
             </div>
 
             <div className={styles.evidenceList}>
-              {evidenceItems.map((item) => (
-                <div key={item.title} className={styles.evidenceCard}>
+              {loading ? (
+                <div style={{ padding: '20px', textAlign: 'center' }}>Loading evidence from Notion...</div>
+              ) : evidenceItems.map((item) => (
+                <div
+                  key={item.id}
+                  className={`${styles.evidenceCard} ${selectedItem?.id === item.id ? styles.selected : ''}`}
+                  onClick={() => setSelectedItem(item)}
+                >
                   <div className={styles.evidenceHeader}>
                     <div className={styles.evidenceTitle}>{item.title}</div>
-                    <span className={styles[`status-${item.statusTone}`]}>
-                      {item.status}
+                    <span className={styles[`status-${item.currencyStatus === 'Current' ? 'success' : 'warning'}`]}>
+                      {item.currencyStatus || 'N/A'}
                     </span>
                   </div>
-                  <div className={styles.evidenceDesc}>{item.description}</div>
+                  <div className={styles.evidenceDesc}>{item.notes || 'No description available.'}</div>
                   <div className={styles.tagRow}>
-                    {item.tags.map((tag) => (
-                      <span key={tag} className={styles.tag}>
-                        {tag}
+                    {item.organisation && (
+                      <span className={styles.tag}>
+                        {item.organisation}
+                      </span>
+                    )}
+                    {item.topicsCovered && item.topicsCovered.map(topic => (
+                      <span key={topic} className={styles.tag}>
+                        {topic}
                       </span>
                     ))}
-                    <span className={styles.meta}>{item.meta}</span>
-                    <span className={styles.meta}>{item.linked}</span>
+                    <span className={styles.meta}>Added: {new Date(item.createdTime).toLocaleDateString()}</span>
                   </div>
                   <div className={styles.reviewRow}>
-                    <span>{item.review}</span>
-                    <span>{item.next}</span>
-                    <button className={styles.viewLink}>View details</button>
+                    <span>Last updated: {item.lastUpdated || 'N/A'}</span>
+                    <span>Published: {item.datePublished || 'N/A'}</span>
+                    <button className={styles.viewLink}>
+                      View details
+                      <ChevronRightIcon style={{ marginLeft: '4px', width: '16px' }} />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -142,61 +134,80 @@ export default function EvidenceRepositoryPage() {
           </div>
 
           <aside className={styles.detailPanel}>
-            <div className={styles.panelHeader}>
-              <h3>Evidence Details</h3>
-              <button className={styles.closeButton}>X</button>
-            </div>
-            <div className={styles.panelBody}>
-              <div className={styles.detailTitle}>{details.title}</div>
-              <div className={styles.tagRow}>
-                {details.tags.map((tag) => (
-                  <span key={tag} className={styles.tag}>
-                    {tag}
-                  </span>
-                ))}
-              </div>
-              <div className={styles.panelSection}>
-                <h4>Citation</h4>
-                <div className={styles.citationBox}>{details.citation}</div>
-                <button className={styles.linkButton}>View full source</button>
-              </div>
-              <div className={styles.panelSection}>
-                <h4>Relevance Notes</h4>
-                <p>{details.notes}</p>
-              </div>
-              <div className={styles.panelSection}>
-                <h4>Evidence Aging Indicator</h4>
-                <div className={styles.agingBar}>
-                  <div style={{ width: `${details.aging}%` }} />
+            {selectedItem ? (
+              <>
+                <div className={styles.panelHeader}>
+                  <h3>Evidence Details</h3>
+                  <button className={styles.closeButton} onClick={() => setSelectedItem(null)}>
+                    <CloseIcon />
+                  </button>
                 </div>
-                <div className={styles.agingMeta}>{details.agingMeta}</div>
-              </div>
-              <div className={styles.panelSection}>
-                <h4>Linked Content</h4>
-                <div className={styles.linkedList}>
-                  {details.linked.map((item) => (
-                    <div key={item} className={styles.linkedItem}>
-                      {item}
-                      <span>&gt;</span>
+                <div className={styles.panelBody}>
+                  <div className={styles.detailTitle}>{selectedItem.title}</div>
+                  <div className={styles.tagRow}>
+                    {selectedItem.organisation && (
+                      <span className={styles.tag}>
+                        {selectedItem.organisation}
+                      </span>
+                    )}
+                    {selectedItem.topicsCovered && selectedItem.topicsCovered.map(topic => (
+                      <span key={topic} className={styles.tag}>
+                        {topic}
+                      </span>
+                    ))}
+                  </div>
+                  <div className={styles.panelSection}>
+                    <h4>Source URL</h4>
+                    <div className={styles.citationBox}>
+                      {selectedItem.url ? (
+                        <a href={selectedItem.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
+                          {selectedItem.url}
+                        </a>
+                      ) : 'No URL provided'}
                     </div>
-                  ))}
+                    {selectedItem.url && (
+                      <a href={selectedItem.url} target="_blank" rel="noopener noreferrer" className={styles.linkButton} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                        <ExternalLinkIcon style={{ width: '14px', height: '14px' }} />
+                        View full source
+                      </a>
+                    )}
+                  </div>
+                  <div className={styles.panelSection}>
+                    <h4>Relevance Notes</h4>
+                    <p style={{ fontSize: '14px', lineHeight: '1.6', color: 'var(--text-muted)' }}>
+                      {selectedItem.notes || 'No notes provided for this evidence source.'}
+                    </p>
+                  </div>
+                  <div className={styles.panelSection}>
+                    <h4>Evidence Tracking</h4>
+                    <div className={styles.agingBar}>
+                      <div style={{ width: `75%` }} />
+                    </div>
+                    <div className={styles.agingMeta}>
+                      Last updated: {selectedItem.lastUpdated || 'N/A'} | Published: {selectedItem.datePublished || 'N/A'}
+                    </div>
+                  </div>
+                  <div className={styles.panelActions}>
+                    <button className="btn-gradient">
+                      <EditIcon style={{ marginRight: '8px' }} />
+                      Edit in Notion
+                    </button>
+                    <button className={styles.dangerButton}>
+                      <FlagIcon style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                      Flag as Outdated
+                    </button>
+                    <button className={styles.outlineButton}>
+                      <ArchiveIcon style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                      Archive Evidence
+                    </button>
+                  </div>
                 </div>
-                <button className={styles.linkButton}>View all 15 linked items</button>
+              </>
+            ) : (
+              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                Select an item to view details
               </div>
-              <div className={styles.panelSection}>
-                <h4>Review History</h4>
-                <ul className={styles.historyList}>
-                  {details.history.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className={styles.panelActions}>
-                <button className="btn-gradient">Edit Evidence</button>
-                <button className={styles.dangerButton}>Flag as Outdated</button>
-                <button className={styles.outlineButton}>Archive Evidence</button>
-              </div>
-            </div>
+            )}
           </aside>
         </section>
       </div>

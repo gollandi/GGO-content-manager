@@ -1,7 +1,11 @@
 import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
-
-const imgBell = "https://www.figma.com/api/mcp/asset/7af2e5ae-3cff-4293-831a-80775c434da8";
+import {
+  IconBell,
+  IconPlus,
+  IconFilter,
+  IconChevronRight
+} from "../../components/Icons";
 
 const columns = [
   {
@@ -10,7 +14,7 @@ const columns = [
     color: "blue",
     items: [
       {
-        priority: "High Priority",
+        priority: "High",
         title: "Vasectomy Reversal Guide",
         desc: "New patient information on reversal procedures and success rates",
         tags: ["Urology", "Patient"],
@@ -18,7 +22,7 @@ const columns = [
         meta: "Dr. James Wilson - 2 days ago"
       },
       {
-        priority: "Medium Priority",
+        priority: "Medium",
         title: "IVF Success Factors",
         desc: "Content explaining factors affecting IVF outcomes",
         tags: ["Fertility", "Web"],
@@ -33,7 +37,7 @@ const columns = [
     color: "purple",
     items: [
       {
-        priority: "High Priority",
+        priority: "High",
         title: "Prostate Cancer Screening",
         desc: "Updated guidelines on PSA testing and screening protocols",
         tags: ["Urology", "Print"],
@@ -41,7 +45,7 @@ const columns = [
         meta: "Dr. Emily Chen - 5 days ago"
       },
       {
-        priority: "Medium Priority",
+        priority: "Medium",
         title: "Male Infertility Testing",
         desc: "Comprehensive guide on diagnostic procedures",
         tags: ["Fertility", "Web"],
@@ -56,7 +60,7 @@ const columns = [
     color: "orange",
     items: [
       {
-        priority: "High Priority",
+        priority: "High",
         title: "ED Treatment Options",
         desc: "Comprehensive overview of medical and surgical treatments",
         tags: ["Andrology", "Patient"],
@@ -64,7 +68,7 @@ const columns = [
         meta: "Mark Thompson - 1 week ago"
       },
       {
-        priority: "Low Priority",
+        priority: "Low",
         title: "Kidney Stone Prevention",
         desc: "Dietary and lifestyle recommendations",
         tags: ["Urology", "Video"],
@@ -79,7 +83,7 @@ const columns = [
     color: "yellow",
     items: [
       {
-        priority: "Medium Priority",
+        priority: "Medium",
         title: "Testosterone Therapy Risks",
         desc: "Benefits and contraindications of TRT",
         tags: ["Andrology", "Web"],
@@ -90,6 +94,15 @@ const columns = [
   }
 ];
 
+const getPriorityClass = (priority: string) => {
+  switch (priority.toLowerCase()) {
+    case 'high': return styles.priorityHigh;
+    case 'medium': return styles.priorityMedium;
+    case 'low': return styles.priorityLow;
+    default: return '';
+  }
+};
+
 export default function ContentRequestsPage() {
   return (
     <AppShell>
@@ -98,29 +111,37 @@ export default function ContentRequestsPage() {
           <div>
             <h1 className="page-title">Content Request Pipeline</h1>
             <p className="page-subtitle">
-              Track and manage content requests through workflow stages
+              Effectively track and manage content workflow stages
             </p>
           </div>
           <div className={styles.headerActions}>
             <button className={styles.iconButton} aria-label="Notifications">
-              <img src={imgBell} alt="" />
+              <IconBell />
               <span className={styles.iconBadge}>3</span>
             </button>
-            <button className="btn-pill">All Priorities</button>
-            <button className="btn-gradient">+ New Request</button>
+            <button className="btn-pill">
+              <IconFilter style={{ marginRight: '8px', width: '14px' }} />
+              All Priorities
+            </button>
+            <button className="btn-gradient">
+              <IconPlus style={{ marginRight: '8px' }} />
+              New Request
+            </button>
           </div>
         </header>
 
         <section className={styles.board}>
           {columns.map((column) => (
-            <div key={column.title} className={`${styles.column} ${styles[column.color]}`}>
+            <div key={column.title} className={styles.column}>
               <div className={styles.columnHeader}>
                 <span>{column.title}</span>
                 <span className={styles.count}>{column.count}</span>
               </div>
               {column.items.map((item) => (
                 <div key={item.title} className={styles.card}>
-                  <span className={styles.priority}>{item.priority}</span>
+                  <span className={`${styles.priority} ${getPriorityClass(item.priority)}`}>
+                    {item.priority} Priority
+                  </span>
                   <div className={styles.cardTitle}>{item.title}</div>
                   <div className={styles.cardDesc}>{item.desc}</div>
                   <div className={styles.tagRow}>
@@ -132,8 +153,10 @@ export default function ContentRequestsPage() {
                   </div>
                   {item.progress && (
                     <div className={styles.progressRow}>
-                      <span>Draft progress</span>
-                      <span>{item.progress}</span>
+                      <div className={styles.progressInfo}>
+                        <span>Draft progress</span>
+                        <span>{item.progress}</span>
+                      </div>
                       <div className={styles.progressBar}>
                         <div style={{ width: item.progress }} />
                       </div>
@@ -142,7 +165,10 @@ export default function ContentRequestsPage() {
                   <div className={styles.meta}>{item.meta}</div>
                 </div>
               ))}
-              <button className={styles.addCard}>+ Add Card</button>
+              <button className={styles.addCard}>
+                <IconPlus style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                Add Card
+              </button>
             </div>
           ))}
         </section>

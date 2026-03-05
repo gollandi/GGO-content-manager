@@ -1,13 +1,14 @@
 .shell {
   display: grid;
-  grid-template-columns: 256px 1fr;
+  grid-template-columns: 300px 1fr;
   min-height: 100vh;
   background: var(--bg);
 }
 
 .main {
-  min-height: 100vh;
-  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
   overflow-x: hidden;
 }
 

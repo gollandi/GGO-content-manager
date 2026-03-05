@@ -1,8 +1,11 @@
 import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
-
-const imgBell = "https://www.figma.com/api/mcp/asset/7af2e5ae-3cff-4293-831a-80775c434da8";
-const imgSearch = "https://www.figma.com/api/mcp/asset/d0b94e03-5de8-461f-9203-926143213efd";
+import {
+  IconBell,
+  IconPlus,
+  IconSearch,
+  IconFilter
+} from "../../components/Icons";
 
 const filters = ["All (21)", "Critical (3)", "High (5)", "Medium (8)", "Low (5)"];
 
@@ -39,6 +42,14 @@ const requiredActions = [
   "Trigger revalidation review"
 ];
 
+const getStatusClass = (tone: string) => {
+  switch (tone) {
+    case 'danger': return styles['status-danger'];
+    case 'warning': return styles['status-warning'];
+    default: return styles['status-info'];
+  }
+};
+
 export default function FeedbackQueuePage() {
   return (
     <AppShell>
@@ -47,25 +58,27 @@ export default function FeedbackQueuePage() {
           <div>
             <h1 className="page-title">Stakeholder Feedback Queue</h1>
             <p className="page-subtitle">
-              Review and action feedback from patients, clinicians, and internal teams
+              Effectively review and action feedback from stakeholders
             </p>
           </div>
           <div className={styles.headerActions}>
             <button className={styles.iconButton} aria-label="Notifications">
-              <img src={imgBell} alt="" />
+              <IconBell />
               <span className={styles.iconBadge}>3</span>
             </button>
-            <button className="btn-gradient">+ Log Feedback</button>
+            <button className="btn-gradient">
+              <IconPlus style={{ marginRight: '8px' }} />
+              Log Feedback
+            </button>
           </div>
         </header>
 
         <section className="page-section">
           <div className={styles.toolbar}>
             <div className={styles.searchBox}>
-              <img src={imgSearch} alt="" />
-              <input placeholder="Search feedback..." />
+              <IconSearch style={{ width: '18px', color: 'var(--text-subtle)' }} />
+              <input placeholder="Search feedback items..." />
             </div>
-            <button className="btn-pill">Filters</button>
           </div>
 
           <div className={styles.filterRow}>
@@ -88,7 +101,7 @@ export default function FeedbackQueuePage() {
                       <div className={styles.itemTitle}>{item.title}</div>
                       <div className={styles.itemMeta}>{item.meta}</div>
                     </div>
-                    <span className={styles[`status-${item.tone}`]}>{item.status}</span>
+                    <span className={getStatusClass(item.tone)}>{item.status}</span>
                   </div>
                   <div className={styles.tagRow}>
                     {item.tags.map((tag) => (
@@ -104,17 +117,19 @@ export default function FeedbackQueuePage() {
 
             <aside className={styles.panel}>
               <div className={styles.panelHeader}>
-                <h3>Outdated fertility success rates cited</h3>
                 <span className={styles.panelStatus}>Critical</span>
+                <h3>Outdated fertility success rates cited</h3>
               </div>
+
               <div className={styles.panelSection}>
                 <h4>Feedback Source</h4>
                 <p>Dr. James Patterson - Fertility Consultant</p>
-                <div className={styles.tagRow}>
+                <div className={styles.tagRow} style={{ border: 'none', marginTop: '8px', paddingTop: 0 }}>
                   <span className={styles.tag}>Clinician</span>
-                  <span className={styles.tag}>External</span>
+                  <span className={styles.tag}>External Source</span>
                 </div>
               </div>
+
               <div className={styles.panelSection}>
                 <h4>Feedback Summary</h4>
                 <p>
@@ -123,24 +138,27 @@ export default function FeedbackQueuePage() {
                   women over 40.
                 </p>
               </div>
+
               <div className={styles.panelSection}>
                 <h4>Impact Assessment</h4>
                 <div className={styles.impactList}>
-                  <span className={styles.impactChip}>Severity Level: Critical</span>
-                  <span className={styles.impactChip}>Patient Safety Impact</span>
-                  <span className={styles.impactChip}>Revalidation Required</span>
+                  <span className={styles.impactChip}>Severity: Critical</span>
+                  <span className={styles.impactChip}>Patient Safety</span>
+                  <span className={styles.impactChip}>Revalidation Needed</span>
                 </div>
               </div>
+
               <div className={styles.panelSection}>
                 <h4>Linked Content</h4>
                 <div className={styles.linkedCard}>
                   <div>
                     <div className={styles.linkedTitle}>Fertility Treatment Guide</div>
-                    <div className={styles.linkedMeta}>Published - Last updated Jan 2023</div>
+                    <div className={styles.linkedMeta}>Last updated Jan 2023</div>
                   </div>
                   <button className={styles.viewLink}>View</button>
                 </div>
               </div>
+
               <div className={styles.panelSection}>
                 <h4>Required Actions</h4>
                 <ul className={styles.actionList}>
@@ -149,8 +167,9 @@ export default function FeedbackQueuePage() {
                   ))}
                 </ul>
               </div>
+
               <div className={styles.panelButtons}>
-                <button className="btn-gradient">Mark as Resolved</button>
+                <button className="btn-gradient" style={{ flex: 1 }}>Mark Resolved</button>
                 <button className="btn-pill">Add Note</button>
               </div>
             </aside>

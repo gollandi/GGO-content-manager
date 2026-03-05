@@ -1,9 +1,6 @@
 import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
-
-const imgBell = "https://www.figma.com/api/mcp/asset/7af2e5ae-3cff-4293-831a-80775c434da8";
-const imgSearch = "https://www.figma.com/api/mcp/asset/d0b94e03-5de8-461f-9203-926143213efd";
-const imgFilter = "https://www.figma.com/api/mcp/asset/4dfb9bd3-b0f6-4f00-b8a4-b3845cebc248";
+import * as Icons from "../../components/Icons";
 
 const tabs = [
   { label: "Pass (28)", tone: "success" },
@@ -125,25 +122,29 @@ export default function ValidationHubPage() {
             <p className="page-subtitle">PIF Tick principle-by-principle evaluation</p>
           </div>
           <div className={styles.headerActions}>
-            <button className={styles.iconButton} aria-label="Notifications">
-              <img src={imgBell} alt="" />
-              <span className={styles.iconBadge}>3</span>
+            <div className={styles.iconButtons}>
+              <button className={styles.iconButton} aria-label="Notifications">
+                <Icons.IconBell className={styles.iconSm} />
+                <span className={styles.iconBadge}>3</span>
+              </button>
+            </div>
+            <button className="btn-gradient">
+              <Icons.IconSync className={styles.iconSm} style={{ marginRight: '8px' }} />
+              Run Validation
             </button>
-            <button className="btn-gradient">Run Validation</button>
           </div>
         </header>
 
         <section className="page-section">
           <div className={styles.toolbar}>
             <div className={styles.searchBox}>
-              <img src={imgSearch} alt="" />
+              <Icons.IconSearch className={styles.iconSm} style={{ color: 'var(--text-muted)' }} />
               <input placeholder="Search content..." />
             </div>
             <button className="btn-pill">
-              <img src={imgFilter} alt="" />
+              <Icons.IconFilter className={styles.iconSm} style={{ marginRight: '8px' }} />
               Filters
             </button>
-            <button className="btn-pill">Sort by</button>
             <div className={styles.toolbarMeta}>Showing 47 validations</div>
           </div>
 
@@ -170,12 +171,12 @@ export default function ValidationHubPage() {
                           {item.status}
                         </span>
                         <span>{item.updated}</span>
-                        <span>- {item.topic}</span>
-                        <span>- {item.type}</span>
+                        <span>• {item.topic}</span>
+                        <span>• {item.type}</span>
                       </div>
                       <div className={styles.validationMeta}>
                         <span>{item.evidence}</span>
-                        <span>- {item.risk}</span>
+                        <span>• {item.risk}</span>
                       </div>
                     </div>
                     <button className={styles.detailButton}>{item.action}</button>
@@ -235,15 +236,14 @@ export default function ValidationHubPage() {
                 <div className={styles.actionList}>
                   {actions.map((action) => (
                     <label key={action} className={styles.actionItem}>
-                      <input type="checkbox" />
+                      <input type="checkbox" style={{ marginTop: '2px' }} />
                       <span>{action}</span>
                     </label>
                   ))}
                 </div>
                 <div className={styles.panelButtons}>
-                  <button className="btn-gradient">Edit Content</button>
-                  <button className={styles.iconGhost}>Refresh</button>
-                  <button className={styles.iconGhost}>Open</button>
+                  <button className="btn-gradient">Apply Changes</button>
+                  <button className={styles.iconGhost}>Review Full Guide</button>
                 </div>
               </div>
 

@@ -1,7 +1,14 @@
 import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
-
-const imgBell = "https://www.figma.com/api/mcp/asset/7af2e5ae-3cff-4293-831a-80775c434da8";
+import {
+  IconBell,
+  IconPlus,
+  IconLink,
+  IconFileText,
+  IconUpload,
+  IconSave,
+  IconValidation
+} from "../../components/Icons";
 
 const steps = [
   { title: "1. Submit content", desc: "Provide URL, text, or upload files" },
@@ -20,10 +27,13 @@ export default function AssistantPage() {
           </div>
           <div className={styles.headerActions}>
             <button className={styles.iconButton} aria-label="Notifications">
-              <img src={imgBell} alt="" />
+              <IconBell />
               <span className={styles.iconBadge}>3</span>
             </button>
-            <button className="btn-gradient">New Review</button>
+            <button className="btn-gradient">
+              <IconPlus style={{ width: '16px', marginRight: '8px' }} />
+              New Review
+            </button>
           </div>
         </header>
 
@@ -39,17 +49,26 @@ export default function AssistantPage() {
 
           <div className={styles.formGrid}>
             <div className={styles.formCard}>
-              <h3>URL Input</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <IconLink className="text-primary" style={{ width: '24px' }} />
+                <h3>URL Input</h3>
+              </div>
               <p>Paste a content URL to validate</p>
               <input placeholder="https://..." />
             </div>
             <div className={styles.formCard}>
-              <h3>Text Snippet</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <IconFileText className="text-primary" style={{ width: '24px' }} />
+                <h3>Text Snippet</h3>
+              </div>
               <p>Provide a text excerpt for quick analysis</p>
               <textarea placeholder="Paste text here..." rows={6} />
             </div>
             <div className={styles.formCard}>
-              <h3>Upload Files</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <IconUpload className="text-primary" style={{ width: '24px' }} />
+                <h3>Upload Files</h3>
+              </div>
               <p>Drag and drop PDFs, docs, or images</p>
               <div className={styles.uploadBox}>Drop files here</div>
             </div>
@@ -85,8 +104,14 @@ export default function AssistantPage() {
           </div>
 
           <div className={styles.footerActions}>
-            <button className="btn-pill">Save Draft</button>
-            <button className="btn-gradient">Run Validation</button>
+            <button className="btn-pill">
+              <IconSave style={{ width: '14px', marginRight: '6px' }} />
+              Save Draft
+            </button>
+            <button className="btn-gradient">
+              <IconValidation style={{ width: '16px', marginRight: '8px' }} />
+              Run Validation
+            </button>
           </div>
         </section>
       </div>

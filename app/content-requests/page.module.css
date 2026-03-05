@@ -1,174 +1,255 @@
 .page {
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
 }
 
 .headerActions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
 .iconButton {
   position: relative;
-  width: 40px;
-  height: 40px;
-  border-radius: 9999px;
-  border: none;
-  background: var(--blue-100);
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border-soft);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.iconButton img {
-  width: 16px;
-  height: 16px;
+.iconButton:hover {
+  background: var(--glass-hover);
+  border-color: var(--primary-light);
 }
 
 .iconBadge {
   position: absolute;
-  top: -4px;
-  right: -4px;
-  background: #ef4444;
+  top: -6px;
+  right: -6px;
+  background: var(--danger);
   color: #fff;
-  font-size: 12px;
-  width: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 20px;
   height: 20px;
-  border-radius: 9999px;
+  padding: 0 6px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border: 2px solid var(--bg);
 }
 
 .board {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(260px, 1fr);
-  gap: 16px;
-  padding: 24px 32px;
+  grid-auto-columns: 320px;
+  gap: 24px;
+  padding: 32px;
   overflow-x: auto;
+  min-height: calc(100vh - 120px);
+  padding-bottom: 48px;
 }
 
 .column {
-  background: #fff;
-  border-radius: 24px;
-  padding: 16px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border-radius: 28px;
+  padding: 20px;
   border: 1px solid var(--border-soft);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  min-height: 640px;
+  gap: 16px;
+  height: fit-content;
+  max-height: 100%;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s ease;
+}
+
+.column:hover {
+  border-color: var(--primary-light);
+  box-shadow: var(--shadow-md);
 }
 
 .columnHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-weight: 600;
+  padding: 4px 8px 12px 8px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.columnHeader span:first-child {
+  font-weight: 800;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--gradient-blue-purple);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .count {
-  background: #fff;
-  border-radius: 9999px;
-  padding: 2px 8px;
+  background: var(--white);
+  border-radius: 10px;
+  padding: 4px 10px;
   font-size: 12px;
-  border: 1px solid var(--border);
+  font-weight: 700;
+  border: 1px solid var(--border-soft);
+  color: var(--text-muted);
 }
 
 .card {
-  background: #fff;
-  border-radius: 16px;
+  background: var(--white);
+  border-radius: 20px;
   border: 1px solid var(--border-soft);
-  padding: 14px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+  gap: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: grab;
+}
+
+.card:hover {
+  transform: translateY(-2px) scale(1.02);
+  border-color: var(--primary-light);
+  box-shadow: var(--shadow-md);
 }
 
 .priority {
   font-size: 11px;
-  background: var(--red-50);
-  color: var(--red-500);
-  border-radius: 9999px;
-  padding: 4px 8px;
+  font-weight: 800;
+  border-radius: 8px;
+  padding: 4px 10px;
   width: fit-content;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.priorityHigh {
+  background: var(--red-soft);
+  color: var(--red-dark);
+  border: 1px solid var(--red-light);
+}
+
+.priorityMedium {
+  background: var(--orange-soft);
+  color: var(--orange-dark);
+  border: 1px solid var(--orange-light);
+}
+
+.priorityLow {
+  background: var(--blue-soft);
+  color: var(--primary);
+  border: 1px solid var(--primary-light);
 }
 
 .cardTitle {
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--text);
+  line-height: 1.4;
 }
 
 .cardDesc {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-muted);
+  line-height: 1.5;
 }
 
 .tagRow {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .tag {
   font-size: 11px;
-  padding: 3px 6px;
+  font-weight: 700;
+  padding: 4px 8px;
   border-radius: 8px;
-  background: var(--blue-100);
+  background: var(--blue-soft);
   color: var(--primary);
+  border: 1px solid var(--primary-light);
 }
 
 .progressRow {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 6px;
-  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
   color: var(--text-muted);
+  padding: 12px;
+  background: var(--bg);
+  border-radius: 12px;
+}
+
+.progressInfo {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
 }
 
 .progressBar {
-  grid-column: 1 / -1;
-  height: 6px;
-  border-radius: 9999px;
-  background: #f3f4f6;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border-soft);
   overflow: hidden;
 }
 
 .progressBar div {
   height: 100%;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%);
+  background: var(--gradient-green-teal);
+  border-radius: 4px;
 }
 
 .meta {
   font-size: 11px;
+  font-weight: 600;
   color: var(--text-subtle);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meta::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 50%;
 }
 
 .addCard {
-  border: 1px dashed #cbd5f5;
-  background: #f5f3ff;
-  border-radius: 16px;
-  padding: 12px;
-  font-size: 13px;
+  border: 2px dashed var(--primary-light);
+  background: var(--blue-soft);
+  border-radius: 20px;
+  padding: 16px;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--primary);
   cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: auto;
 }
 
-.blue .columnHeader {
-  color: #2563eb;
+.addCard:hover {
+  background: var(--white);
+  border-style: solid;
+  transform: translateY(-1px);
 }
 
-.purple .columnHeader {
-  color: #7c3aed;
-}
-
-.orange .columnHeader {
-  color: #ea580c;
-}
-
-.yellow .columnHeader {
-  color: #ca8a04;
-}
+/* Specific column color refinements can be added here if needed, 
+   but GGOMed uses a consistent glassmorphic look primarily */
