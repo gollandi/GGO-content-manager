@@ -7,7 +7,7 @@ import * as Icons from "./Icons";
 const navItems = [
   { href: "/", label: "Dashboard", Icon: Icons.IconDashboard },
   { href: "/content-explorer", label: "Content Explorer", Icon: Icons.IconExplorer },
-  { href: "/validation-hub", label: "Validation Hub", Icon: Icons.IconValidation },
+  { href: "/validation-hub", label: "PIF Tick Validation", Icon: Icons.IconPifTick },
   { href: "/evidence-repository", label: "Evidence Repository", Icon: Icons.IconEvidence },
   { href: "/content-requests", label: "Content Requests", Icon: Icons.IconRequests },
   { href: "/feedback-queue", label: "Feedback Queue", Icon: Icons.IconFeedback },

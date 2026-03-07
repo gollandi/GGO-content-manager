@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- PIF TICK official-style logo -->
+  <circle cx="100" cy="100" r="90" fill="#00A88F" />
+  <circle cx="100" cy="100" r="78" fill="white" />
+  <circle cx="100" cy="100" r="70" fill="#00A88F" />
+  <!-- Tick mark -->
+  <path d="M60 100 L88 128 L140 72" stroke="white" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <!-- Text arc would be here in real logo - simplified -->
+</svg>
