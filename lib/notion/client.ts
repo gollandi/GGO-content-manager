@@ -1,9 +1,10 @@
 import { Client } from "@notionhq/client";
 
-if (!process.env.NOTION_API_KEY) {
-    throw new Error("Missing NOTION_API_KEY environment variable");
-}
-
 export const notion = new Client({
     auth: process.env.NOTION_API_KEY,
 });
+
+// Helper to check if Notion is configured
+export const isNotionConfigured = () => {
+    return !!process.env.NOTION_API_KEY;
+};

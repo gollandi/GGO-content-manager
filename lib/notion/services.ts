@@ -5,14 +5,16 @@ import {
     mapPifValidationItem,
     mapEvidenceItem,
     mapKeywordItem,
-    mapSchemaValidationItem
+    mapSchemaValidationItem,
+    mapPatientJourneyItem
 } from "./mappers";
 import {
     ContentItem,
     PifValidationItem,
     EvidenceItem,
     KeywordItem,
-    SchemaValidationItem
+    SchemaValidationItem,
+    PatientJourneyItem
 } from "./types";
 import { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 
@@ -28,7 +30,7 @@ async function fetchAll<T>(
     let cursor: string | undefined = undefined;
 
     do {
-        // @ts-ignore - notion.databases.query exists but type inference is failing in this environment
+        // @ts-ignore - notion.databases.query exists in 2.2.3
         const response: any = await notion.databases.query({
             database_id: databaseId,
             start_cursor: cursor,
@@ -75,6 +77,13 @@ export async function getKeywords(): Promise<KeywordItem[]> {
  */
 export async function getSchemaValidations(): Promise<SchemaValidationItem[]> {
     return fetchAll(SCHEMA.SchemaValidation.databaseId, mapSchemaValidationItem);
+}
+
+/**
+ * Patient Journeys Service
+ */
+export async function getPatientJourneys(): Promise<PatientJourneyItem[]> {
+    return fetchAll(SCHEMA.PatientJourneys.databaseId, mapPatientJourneyItem);
 }
 
 /**

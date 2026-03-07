@@ -1,6 +1,9 @@
-/** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true
+  reactStrictMode: true,
+  turbopack: {
+    // Force the root to the project directory to ignore stray package-lock.json in home folder
+    root: '.'
+  }
 };
 
 module.exports = nextConfig;

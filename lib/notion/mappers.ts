@@ -6,6 +6,7 @@ import {
     EvidenceItem,
     KeywordItem,
     SchemaValidationItem,
+    PatientJourneyItem,
     ContentType,
     ContentStatus
 } from "./types";
@@ -134,13 +135,41 @@ export function mapKeywordItem(page: PageObjectResponse): KeywordItem {
         id: page.id,
         keyword: extractTitle(getProp(props, S.keyword)),
         volume: extractNumber(getProp(props, S.volume)),
+        searchVolume: extractNumber(getProp(props, S.searchVolume)),
         difficulty: extractNumber(getProp(props, S.difficulty)),
         intent: extractMultiSelect(getProp(props, S.intent)),
         currentRanking: extractNumber(getProp(props, S.currentRanking)),
+        positionChange: extractNumber(getProp(props, S.positionChange)),
+        traffic: extractNumber(getProp(props, S.traffic)),
+        cpc: extractNumber(getProp(props, S.cpc)),
+        competitiveDensity: extractNumber(getProp(props, S.competitiveDensity)),
+        trend: extractRichText(getProp(props, S.trend)),
+        serpFeatures: extractMultiSelect(getProp(props, S.serpFeatures)),
+        lastUpdated: extractDate(getProp(props, S.lastUpdated)),
+        lastSemrushUpdate: extractDate(getProp(props, S.lastSemrushUpdate)),
+        semrushUrl: extractUrl(getProp(props, S.semrushUrl)),
         notes: extractRichText(getProp(props, S.notes)),
 
         contentAssetIds: extractRelation(getProp(props, S.contentAssets)),
 
+        createdTime: page.created_time,
+    };
+}
+
+export function mapPatientJourneyItem(page: PageObjectResponse): PatientJourneyItem {
+    const props = page.properties;
+    const S = SCHEMA.PatientJourneys;
+
+    return {
+        id: page.id,
+        patientLanguage: extractTitle(getProp(props, S.patientLanguage)),
+        exampleQuestion: extractRichText(getProp(props, S.exampleQuestion)),
+        journeyStage: extractSelect(getProp(props, S.journeyStage)),
+        urgency: extractSelect(getProp(props, S.urgency)),
+        pathway: extractSelect(getProp(props, S.pathway)),
+        medicalTerms: extractRichText(getProp(props, S.medicalTerms)),
+        contentAssetIds: extractRelation(getProp(props, S.contentAssets)),
+        notes: extractRichText(getProp(props, S.notes)),
         createdTime: page.created_time,
     };
 }
