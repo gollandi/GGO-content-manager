@@ -105,13 +105,36 @@ export interface KeywordItem {
     id: string;
     keyword: string;
     volume: number | null;
+    searchVolume: number | null;
     difficulty: number | null;
     intent: string[];
     currentRanking: number | null;
+    positionChange: number | null;
+    traffic: number | null;
+    cpc: number | null;
+    competitiveDensity: number | null;
+    trend: string;
+    serpFeatures: string[];
+    lastUpdated: string | null;
+    lastSemrushUpdate: string | null;
+    semrushUrl: string | null;
     notes: string;
 
     contentAssetIds: string[];
 
+    createdTime: string;
+}
+
+export interface PatientJourneyItem {
+    id: string;
+    patientLanguage: string;
+    exampleQuestion: string;
+    journeyStage: string | null;
+    urgency: string | null;
+    pathway: string | null;
+    medicalTerms: string;
+    contentAssetIds: string[];
+    notes: string;
     createdTime: string;
 }
 

@@ -8,10 +8,13 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@notionhq/client": "^5.11.1",
+    "@notionhq/client": "^2.2.3",
+    "@tailwindcss/cli": "^4.2.1",
+    "@tailwindcss/postcss": "^4.2.1",
     "next": "^16.1.6",
     "react": "18.2.0",
-    "react-dom": "18.2.0"
+    "react-dom": "18.2.0",
+    "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
     "@types/node": "20.11.30",
