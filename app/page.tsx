@@ -60,7 +60,7 @@ export default function DashboardPage() {
           <h1 className="page-title">Operational Dashboard</h1>
           <p className="page-subtitle">PIF Tick Compliance & Content Governance Overview</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 flex-wrap">
           <button className="btn-pill" onClick={() => window.location.reload()}>
             <Icons.IconSync className="w-4 h-4" />
             Fetch Updates

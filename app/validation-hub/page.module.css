@@ -763,4 +763,20 @@
   .statsGrid {
     grid-template-columns: 1fr;
   }
+  .pifHeader {
+    gap: 12px;
+  }
+  .pifLogo {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+  .headerActions {
+    gap: 8px;
+  }
+  .iconButton {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
 }
