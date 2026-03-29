@@ -39,29 +39,39 @@ export default function AnalyticsPage() {
     fetchAllData();
   }, []);
 
-  const totalContent = content.length || 228; // Fallback to mock if empty during dev
-  const pendingReviews = content.filter(item => item.status === "👁️ Review").length || 47;
-  const totalEvidence = evidence.length || 265;
+  const totalContent = content.length;
+  const pendingReviews = content.filter(item => item.status === "👁️ Review" || item.status === "⚠️ Needs Update").length;
 
   const compliantCount = compliance.filter(item => item.status === "✅ YES").length;
-  const partiallyCompliant = compliance.length - compliantCount; // Simplified calculation for now
-  const avgCompliance = compliance.length > 0 ? Math.round((compliantCount / compliance.length) * 100) : 84;
+  const partiallyCompliant = compliance.length - compliantCount;
+  const avgCompliance = compliance.length > 0 ? Math.round((compliantCount / compliance.length) * 100) : 0;
 
   const summaryCards = [
     { label: "Total Content", value: totalContent.toString(), accent: "blue" },
     { label: "Avg Compliance", value: `${avgCompliance}%`, accent: "green" },
     { label: "Pending Reviews", value: pendingReviews.toString(), accent: "orange" },
-    { label: "Evidence Items", value: totalEvidence.toString(), accent: "purple" }
+    { label: "Compliant Assets", value: compliantCount.toString(), accent: "purple" }
   ];
 
+  const calculateAvg = (key: keyof PifValidationItem) => {
+    if (compliance.length === 0) return 0;
+    const passed = compliance.filter(c => c[key] === true).length;
+    return Math.round((passed / compliance.length) * 100);
+  };
+
+  const getTone = (val: number) => {
+    if (val >= 85) return "green";
+    if (val >= 70) return "yellow";
+    return "red";
+  };
+
   const principles = [
-    { label: "Accuracy", value: 91, tone: "green" },
-    { label: "Evidence Base", value: 89, tone: "green" },
-    { label: "Balance", value: 76, tone: "yellow" },
-    { label: "Clarity", value: 91, tone: "green" },
-    { label: "Transparency", value: 82, tone: "yellow" },
-    { label: "Accessibility", value: 88, tone: "green" },
-    { label: "Relevance", value: 68, tone: "red" }
+    { label: "Accuracy (Peer Review)", value: calculateAvg("expertPeerReview"), tone: getTone(calculateAvg("expertPeerReview")) },
+    { label: "Evidence Base", value: calculateAvg("evidenceBasedReview"), tone: getTone(calculateAvg("evidenceBasedReview")) },
+    { label: "Content Need", value: calculateAvg("contentNeedDocumented"), tone: getTone(calculateAvg("contentNeedDocumented")) },
+    { label: "Patient Readability", value: calculateAvg("patientReadability"), tone: getTone(calculateAvg("patientReadability")) },
+    { label: "Accessibility", value: calculateAvg("inclusivityAssessment"), tone: getTone(calculateAvg("inclusivityAssessment")) },
+    { label: "Transparency", value: calculateAvg("pifTickDeclaration"), tone: getTone(calculateAvg("pifTickDeclaration")) }
   ];
 
   return (

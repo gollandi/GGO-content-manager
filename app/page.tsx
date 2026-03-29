@@ -32,14 +32,36 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
-  // Derived Stats
+  // Derived Operational Stats
+  const now = new Date();
+  const SIX_MONTHS_AGO = new Date(now.getTime() - (180 * 24 * 60 * 60 * 1000));
+
+  const upcomingReviews = content
+    .filter(c => {
+      if (c.status === "👁️ Review" || c.status === "⚠️ Needs Update") return true;
+      if (!c.lastReviewed) return true;
+      return new Date(c.lastReviewed) < SIX_MONTHS_AGO;
+    })
+    .sort((a, b) => {
+      if (!a.lastReviewed) return -1;
+      if (!b.lastReviewed) return 1;
+      return new Date(a.lastReviewed).getTime() - new Date(b.lastReviewed).getTime();
+    })
+    .slice(0, 5);
+
+  const inventoryBreakdown = {
+    website: content.filter(c => c.platform?.includes("Website")).length,
+    video: content.filter(c => c.platform?.includes("YouTube")).length,
+    other: content.filter(c => !c.platform?.includes("Website") && !c.platform?.includes("YouTube")).length
+  };
+
   const activeContentCount = content.length;
   const compliantCount = compliance.filter(c => c.status === "✅ YES").length;
   const complianceScore = compliance.length > 0 ? Math.round((compliantCount / compliance.length) * 100) : 0;
-  const validationRequests = content.filter(c => c.status === "👁️ Review").length;
+  const overdueCount = upcomingReviews.length;
   const riskAlerts = compliance.filter(c => c.status === "❌ NO").length;
 
-  // Recent Activity
+  // Recent Activity (Existing)
   const recentItems = [...content]
     .sort((a, b) => new Date(b.lastEditedTime).getTime() - new Date(a.lastEditedTime).getTime())
     .slice(0, 3);
@@ -70,9 +92,9 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2 ml-2 pl-4 border-l border-border-default">
             <button className="w-10 h-10 rounded-full border border-border-default bg-white flex items-center justify-center text-charcoal relative hover:bg-surface-base hover:text-ggo-purple hover:border-ggo-purple transition-colors">
               <Icons.IconBell className="w-[18px] h-[18px]" />
-              {validationRequests > 0 && (
+              {overdueCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center border-2 border-white">
-                  {validationRequests}
+                  {overdueCount}
                 </span>
               )}
             </button>
@@ -116,12 +138,12 @@ export default function DashboardPage() {
               <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-mint/30 text-emerald-700">
                 <Icons.IconRequests className="w-[18px] h-[18px]" />
               </div>
-              <span className="pill pill-yellow">{validationRequests} Pending</span>
+              <span className="pill pill-yellow">{overdueCount} Pending</span>
             </div>
             <div className="text-[28px] font-bold tracking-tighter">
-              {isLoading ? "..." : validationRequests}
+              {isLoading ? "..." : overdueCount}
             </div>
-            <div className="card-subtitle">Validation Requests</div>
+            <div className="card-subtitle">Items Due for Review</div>
           </div>
 
           <div className="card">
@@ -145,49 +167,34 @@ export default function DashboardPage() {
           <div className="card">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="card-title">Compliance by Principle</h2>
-                <p className="text-[11px] text-subtle mt-1">Average 'YES' status across all reviewed assets</p>
+                <h2 className="card-title">Content Inventory</h2>
+                <p className="text-[11px] text-subtle mt-1">Breakdown by publishing platform</p>
               </div>
-              <select className="py-1.5 px-3 rounded-lg border border-border-default bg-surface-base text-xs font-medium text-charcoal">
-                <option>All Assets</option>
-              </select>
             </div>
 
-            <div className="h-[340px] flex items-end py-10">
-              <div className="flex-1 h-full flex items-end justify-around gap-6 border-b-2 border-border-soft pb-2 px-4">
-                {[
-                  { label: "Evidence", key: "evidenceBasedReview" },
-                  { label: "Need", key: "contentNeedDocumented" },
-                  { label: "Readability", key: "patientReadability" },
-                  { label: "Inclusivity", key: "inclusivityAssessment" },
-                  { label: "Peer Review", key: "expertPeerReview" },
-                ].map((principle) => {
-                  const total = compliance.length;
-                  const passed = compliance.filter(c => (c as any)[principle.key] === true).length;
-                  const percent = total > 0 ? Math.round((passed / total) * 100) : 0;
-
-                  return (
-                    <div key={principle.key} className="flex-1 flex flex-col items-center group relative h-full justify-end">
-                      {/* Tooltip */}
-                      <div className="absolute -top-12 bg-charcoal text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                        {principle.label}: {percent}%
-                      </div>
-
-                      <div
-                        className="w-full max-w-[60px] rounded-t-lg bg-gradient-to-t from-ggo-purple/80 to-ggo-teal/80 hover:from-ggo-purple hover:to-ggo-teal transition-all relative overflow-hidden"
-                        style={{ height: `${Math.max(percent, 5)}%` }}
-                      >
-                        <div className="absolute top-2 left-0 right-0 text-center text-[10px] font-bold text-white">
-                          {percent}%
-                        </div>
-                      </div>
-                      <div className="absolute -bottom-10 text-[10px] font-medium text-subtle text-center whitespace-nowrap rotate-[-25deg] origin-top">
-                        {principle.label}
+            <div className="h-[340px] flex items-center justify-center gap-12 px-8">
+              {[
+                { label: "Website", count: inventoryBreakdown.website, color: "bg-ggo-purple", icon: <Icons.IconFilter /> },
+                { label: "YouTube Video", count: inventoryBreakdown.video, color: "bg-red-500", icon: <Icons.IconSync /> },
+                { label: "Other", count: inventoryBreakdown.other, color: "bg-ggo-teal", icon: <Icons.IconSearch /> },
+              ].map((type) => {
+                const percent = activeContentCount > 0 ? Math.round((type.count / activeContentCount) * 100) : 0;
+                return (
+                  <div key={type.label} className="flex-1 flex flex-col items-center">
+                    <div className={`w-20 h-20 rounded-2xl ${type.color}/10 flex items-center justify-center mb-4 text-charcoal`}>
+                      <div className="flex flex-col items-center">
+                        <span className="text-2xl font-bold">{percent}%</span>
+                        <span className="text-[10px] uppercase tracking-wider font-semibold opacity-60">Total</span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="text-sm font-semibold text-near-black mb-1">{type.label}</div>
+                    <div className="text-[11px] text-subtle">{type.count} Assets</div>
+                    <div className="w-full bg-gray-100 h-1.5 rounded-full mt-4 overflow-hidden">
+                      <div className={`h-full ${type.color}`} style={{ width: `${percent}%` }}></div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -214,26 +221,33 @@ export default function DashboardPage() {
             </div>
 
             <div className="card">
-              <h2 className="card-title">Compliance Metrics</h2>
-              <div className="flex flex-col gap-4 mt-5">
-                {[
-                  { name: "Clinical Accuracy", score: 98, color: "bg-ggo-purple" },
-                  { name: "Source Credibility", score: 85, color: "bg-ggo-teal" },
-                  { name: "Content Freshness", score: 72, color: "bg-mint" }
-                ].map((cat, i) => (
-                  <div key={i}>
-                    <div className="flex items-center justify-between mb-1.5 text-[13px]">
-                      <span className="text-charcoal">{cat.name}</span>
-                      <span className="font-semibold text-near-black">{cat.score}%</span>
+              <h2 className="card-title text-red-600 flex items-center gap-2">
+                <Icons.IconAlertCircle className="w-4 h-4" />
+                Upcoming Reviews
+              </h2>
+              <div className="flex flex-col gap-3 mt-5">
+                {isLoading ? (
+                  <div className="text-sm text-subtle">Checking deadlines...</div>
+                ) : upcomingReviews.length > 0 ? upcomingReviews.map((item) => (
+                  <div key={item.id} className="p-3 rounded-lg border border-border-soft bg-surface-base hover:border-red-200 transition-colors">
+                    <div className="text-[13px] font-semibold text-near-black truncate mb-1" title={item.title}>
+                      {item.title}
                     </div>
-                    <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${cat.color}`}
-                        style={{ width: `${cat.score}%` }}
-                      />
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-subtle px-1.5 py-0.5 bg-white rounded border border-border-default uppercase">
+                        {item.status.replace(/^[^a-zA-Z0-9]+/, '')}
+                      </span>
+                      <span className="text-[11px] font-medium text-red-500">
+                        {item.lastReviewed ? `Due: ${new Date(new Date(item.lastReviewed).getTime() + 180 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}` : 'Missing Review'}
+                      </span>
                     </div>
                   </div>
-                ))}
+                )) : (
+                  <div className="py-4 text-center">
+                    <Icons.IconCheck className="w-8 h-8 text-green-500 mx-auto mb-2 opacity-20" />
+                    <p className="text-sm text-subtle">No pending reviews</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

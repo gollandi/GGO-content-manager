@@ -53,9 +53,34 @@ export async function getContentAssets(): Promise<ContentItem[]> {
 
 /**
  * PIF TICK Compliance Service
+ * Joins PIF validations with related Content Asset metadata
  */
 export async function getPifValidations(): Promise<PifValidationItem[]> {
-    return fetchAll(SCHEMA.PifValidation.databaseId, mapPifValidationItem);
+    const validations = await fetchAll(SCHEMA.PifValidation.databaseId, mapPifValidationItem);
+
+    // Get unique related content IDs
+    const contentIds = Array.from(new Set(validations.map(v => v.contentAssetId).filter(id => !!id))) as string[];
+
+    if (contentIds.length === 0) return validations;
+
+    // Fetch related content assets 
+    // Instead of making N parallel requests, fetch all assets natively to save API limits & prevent timeouts
+    const contentAssets = await getContentAssets();
+    const assetMap = new Map(contentAssets.map(a => [a.id, a]));
+
+    // Merge data
+    return validations.map(v => {
+        if (v.contentAssetId && assetMap.has(v.contentAssetId)) {
+            const asset = assetMap.get(v.contentAssetId)!;
+            return {
+                ...v,
+                contentAssetTitle: asset.title,
+                contentAssetUrl: asset.liveUrl || undefined,
+                contentAssetNotes: asset.notes
+            };
+        }
+        return v;
+    });
 }
 
 /**

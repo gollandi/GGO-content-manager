@@ -55,20 +55,25 @@ export const SCHEMA = {
         pifTickDeclaration: "PIF TICK Declaration",
 
         // Scores
-        readabilityScore: "Readability Score", // Number
-        readingLevel: "Reading Level", // Select
+        readabilityTier1: "Readability Tier 1", // Number
+        readabilityTier2: "Readability Tier 2", // Number
 
         // Relations
         contentAsset: "Content Asset (relation)",
         evidenceSourcesUsed: "Evidence Sources Used",
 
         // Notes
-        complianceNotes: "Compliance Notes",
-        evidenceNotes: "Evidence Notes 1",
+        automationLog: "Automation Log",
+        complianceMismatch: "Compliance Mismatch",
+        llmProvisionalResult: "LLM Provisional Result",
+        patientInvolvementActions: "Patient Involvement Actions",
+        patientInvolvementMethod: "Patient Involvement Method",
+        patientInvolvementSampleSize: "Patient Involvement Sample Size",
+        patientInvolvementDone: "Patient Involvement Done",
+        patientInvolvementOutput: "Patient Involvement Output",
+        bannerAllowed: "Banner Allowed?",
         inclusivityNotes: "Inclusivity Notes",
         contentNeedNotes: "Content Need Notes",
-        version: "Version",
-        peerReviewerName: "Peer Reviewer Name",
     },
 
     Evidence: {
@@ -87,7 +92,6 @@ export const SCHEMA = {
 
         // Relations
         contentAssets: "Content Assets",
-        usedInValidations: "🏅 PIF TICK Compliance",
     },
 
     SchemaValidation: {

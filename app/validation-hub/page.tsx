@@ -13,6 +13,15 @@ export default function ValidationHubPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [modalData, setModalData] = useState<{
+    principle: string;
+    notes: string;
+    itemId: string;
+    type: "readability" | "inclusivity" | "default";
+  } | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchValidations() {
@@ -32,10 +41,42 @@ export default function ValidationHubPage() {
     fetchValidations();
   }, []);
 
+  const toggleExpand = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const next = new Set(expandedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setExpandedIds(next);
+  };
+
+  const runSelectiveAI = async (type: string, itemId: string) => {
+    setAiLoading(true);
+    setAiResult(null);
+    try {
+      const item = allValidations.find(v => v.id === itemId);
+      const res = await fetch("/api/ai/validate", {
+        method: "POST",
+        body: JSON.stringify({
+          text: item?.contentAssetNotes || "",
+          url: item?.contentAssetUrl || "",
+          mode: type
+        })
+      });
+      const data = await res.json();
+      setAiResult(data.analysis || data.summary || "No specific findings returned.");
+    } catch (error) {
+      setAiResult("Error running AI analysis.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const filteredValidations = useMemo(() => {
     return allValidations.filter(v => {
-      const matchesSearch = v.title.toLowerCase().includes(searchQuery.toLowerCase());
-      if (!matchesSearch) return false;
+      const titleMatch = v.title.toLowerCase().includes(searchQuery.toLowerCase());
+      const assetMatch = v.contentAssetTitle?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
+      if (!titleMatch && !assetMatch) return false;
+
       const isPass = v.status === "✅ YES";
       if (activeTab === "pass") return isPass;
       if (activeTab === "fail") return !isPass;
@@ -73,18 +114,17 @@ export default function ValidationHubPage() {
   };
 
   const principles = selectedItem ? [
-    { label: "Evidence-Based Review", passed: selectedItem.evidenceBasedReview, note: selectedItem.evidenceNotes },
-    { label: "Content Need Documented", passed: selectedItem.contentNeedDocumented, note: selectedItem.contentNeedNotes },
-    { label: "Patient Readability", passed: selectedItem.patientReadability, note: `Reading Level: ${selectedItem.readingLevel || 'N/A'}` },
-    { label: "Inclusivity Assessment", passed: selectedItem.inclusivityAssessment, note: selectedItem.inclusivityNotes },
-    { label: "Expert Peer Review", passed: selectedItem.expertPeerReview, note: selectedItem.peerReviewerName ? `Reviewer: ${selectedItem.peerReviewerName}` : 'No reviewer assigned' },
-    { label: "PIF TICK Declaration", passed: selectedItem.pifTickDeclaration, note: selectedItem.pifTickDeclaration ? 'Declaration signed' : 'Pending declaration' },
+    { label: "Evidence-Based Review", passed: selectedItem.evidenceBasedReview, note: selectedItem.automationLog, notesField: 'automationLog', type: 'default' },
+    { label: "Content Need Documented", passed: selectedItem.contentNeedDocumented, note: selectedItem.contentNeedNotes, notesField: 'contentNeedNotes', type: 'default' },
+    { label: "Patient Readability", passed: selectedItem.patientReadability, note: `Tier 1: ${selectedItem.readabilityTier1 || 'N/A'} - Tier 2: ${selectedItem.readabilityTier2 || 'N/A'}`, notesField: 'automationLog', type: 'readability' },
+    { label: "Inclusivity Assessment", passed: selectedItem.inclusivityAssessment, note: selectedItem.inclusivityNotes, notesField: 'inclusivityNotes', type: 'inclusivity' },
+    { label: "Expert Peer Review", passed: selectedItem.expertPeerReview, note: selectedItem.expertPeerReview ? 'Peer reviewed' : 'Pending', notesField: 'automationLog', type: 'default' },
+    { label: "PIF Tick Online Status", passed: selectedItem.pifTickDeclaration, note: selectedItem.pifTickDeclaration ? 'Certification visible on website' : 'Certification NOT visible online', notesField: 'complianceNotes', type: 'online-status' },
   ] : [];
 
   return (
     <AppShell>
       <div className={styles.page}>
-        {/* Header with PIF Tick logo */}
         <header className="page-header">
           <div className={styles.pifHeader}>
             <div className={styles.pifLogo}>
@@ -110,7 +150,6 @@ export default function ValidationHubPage() {
         </header>
 
         <section className="page-section">
-          {/* Stats Overview */}
           <div className={styles.statsGrid}>
             <div className={styles.statCard}>
               <div className={`${styles.statIcon} ${styles.statIconTotal}`}>
@@ -152,12 +191,11 @@ export default function ValidationHubPage() {
             </div>
           </div>
 
-          {/* Toolbar */}
           <div className={styles.toolbar}>
             <div className={styles.searchBox}>
               <Icons.IconSearch className={styles.iconSm} style={{ color: 'var(--text-muted)' }} />
               <input
-                placeholder="Search content by title..."
+                placeholder="Search content or assets..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -169,7 +207,6 @@ export default function ValidationHubPage() {
             <div className={styles.toolbarMeta}>Showing {filteredValidations.length} items</div>
           </div>
 
-          {/* Tabs */}
           <div className={styles.tabRow}>
             {tabs.map((tab) => (
               <button
@@ -182,9 +219,7 @@ export default function ValidationHubPage() {
             ))}
           </div>
 
-          {/* Main Grid: List + Detail Panel */}
           <div className={styles.grid}>
-            {/* Left: Validation Queue */}
             <div className={styles.list}>
               <div className={styles.listHeader}>
                 <div className={styles.listHeaderTitle}>
@@ -194,12 +229,12 @@ export default function ValidationHubPage() {
               </div>
               <div className={styles.listBody}>
                 {loading ? (
-                  <div className={styles.loadingState}>Loading PIF reviews from Notion...</div>
+                  <div className={styles.loadingState}>Loading PIF reviews...</div>
                 ) : filteredValidations.length === 0 ? (
-                  <div className={styles.emptyState}>No validation items found</div>
+                  <div className={styles.emptyState}>No items found</div>
                 ) : filteredValidations.map((item) => {
                   const isCompliant = item.status === "✅ YES";
-                  const isSelected = selectedItem?.id === item.id;
+                  const isSelected = selectedId === item.id;
                   const passCount = [item.evidenceBasedReview, item.contentNeedDocumented, item.patientReadability, item.inclusivityAssessment, item.expertPeerReview, item.pifTickDeclaration].filter(Boolean).length;
 
                   return (
@@ -224,42 +259,90 @@ export default function ValidationHubPage() {
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div className={styles.validationTitle}>{item.title}</div>
+                            {item.contentAssetTitle && (
+                              <div className={styles.contentTitle}>{item.contentAssetTitle}</div>
+                            )}
+                            {item.contentAssetUrl && (
+                              <a
+                                href={item.contentAssetUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={styles.assetUrl}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {item.contentAssetUrl}
+                                <Icons.IconExternalLink style={{ width: 10, height: 10 }} />
+                              </a>
+                            )}
                             <div className={styles.validationMeta}>
                               <span>Review: {formatDate(item.reviewDate)}</span>
-                              <span style={{ width: 3, height: 3, borderRadius: '50%', background: '#d1d5db', display: 'inline-block' }} />
-                              <span>{item.reviewer?.[0] || 'Unassigned'}</span>
                               <span style={{ width: 3, height: 3, borderRadius: '50%', background: '#d1d5db', display: 'inline-block' }} />
                               <span>{passCount}/6 checks</span>
                             </div>
                           </div>
                         </div>
-                        <div className={`${styles.statusPill} ${isCompliant ? styles.statusPass : styles.statusFail}`}>
-                          <span className={`${styles.statusDot} ${isCompliant ? styles.statusDotPass : styles.statusDotFail}`} />
-                          {isCompliant ? 'Valid' : 'Issues'}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+                          <div className={`${styles.statusPill} ${isCompliant ? styles.statusPass : styles.statusFail}`}>
+                            <span className={`${styles.statusDot} ${isCompliant ? styles.statusDotPass : styles.statusDotFail}`} />
+                            {isCompliant ? 'Valid' : 'Issues'}
+                          </div>
+                          <button
+                            className={`${styles.expandButton} ${expandedIds.has(item.id) ? styles.expandButtonActive : ''}`}
+                            onClick={(e) => toggleExpand(e, item.id)}
+                          >
+                            <Icons.IconChevronDown style={{ width: 16, height: 16 }} />
+                          </button>
                         </div>
                       </div>
 
-                      {/* Color-coded metric pills */}
+                      {expandedIds.has(item.id) && (
+                        <div className={styles.cardExpandedContent}>
+                          <div className={styles.expandedSummary}>
+                            {item.contentAssetNotes || "No summary available."}
+                          </div>
+                        </div>
+                      )}
+
                       <div className={styles.metricRow}>
                         {[
-                          { label: "Evidence", passed: item.evidenceBasedReview },
-                          { label: "Readability", passed: item.patientReadability },
-                          { label: "Inclusivity", passed: item.inclusivityAssessment },
-                          { label: "Peer Review", passed: item.expertPeerReview },
-                          { label: "Content Need", passed: item.contentNeedDocumented },
-                          { label: "Declaration", passed: item.pifTickDeclaration },
-                        ].map((metric) => (
-                          <div
-                            key={metric.label}
-                            className={`${styles.metricPill} ${metric.passed ? styles.metricPass : styles.metricFail}`}
-                          >
-                            {metric.passed
-                              ? <Icons.IconCheckCircleFilled className={styles.metricIcon} />
-                              : <Icons.IconXCircleFilled className={styles.metricIcon} />
-                            }
-                            <span className={styles.metricLabel}>{metric.label}</span>
-                          </div>
-                        ))}
+                          { label: "Evidence", passed: item.evidenceBasedReview, val: item.automationLog, type: 'default' },
+                          { label: "Readability", passed: item.patientReadability, val: item.automationLog, type: 'readability' },
+                          { label: "Inclusivity", passed: item.inclusivityAssessment, val: item.inclusivityNotes, type: 'inclusivity' },
+                          { label: "Peer Review", passed: item.expertPeerReview, val: item.automationLog, type: 'default' },
+                          { label: "Content Need", passed: item.contentNeedDocumented, val: item.contentNeedNotes, type: 'default' },
+                          { label: "Online Status", passed: item.pifTickDeclaration, val: item.pifTickDeclaration ? "Active" : "Disabled", type: 'online-status' },
+                        ].map((metric) => {
+                          const isMismatch = metric.label === "Online Status" && metric.passed !== isCompliant;
+                          const pillClass = isMismatch
+                            ? styles.metricWarning
+                            : metric.passed ? styles.metricPass : styles.metricFail;
+
+                          return (
+                            <div
+                              key={metric.label}
+                              className={`${styles.metricPill} ${pillClass}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAiResult(null);
+                                setModalData({
+                                  principle: metric.label,
+                                  notes: metric.label === "Online Status"
+                                    ? (isMismatch ? "⚠️ WARNING: Online certification status does not match internal compliance result." : "Online certification status matches internal compliance.")
+                                    : (metric.val || "No specific notes available."),
+                                  itemId: item.id,
+                                  type: metric.type as any
+                                });
+                              }}
+                            >
+                              {isMismatch ? <Icons.IconAlertCircle className={styles.metricIcon} /> : (
+                                metric.passed
+                                  ? <Icons.IconCheckCircleFilled className={styles.metricIcon} />
+                                  : <Icons.IconXCircleFilled className={styles.metricIcon} />
+                              )}
+                              <span className={styles.metricLabel}>{metric.label}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -267,11 +350,9 @@ export default function ValidationHubPage() {
               </div>
             </div>
 
-            {/* Right: Detail Panel */}
             <aside className={styles.panel}>
               {selectedItem ? (
                 <>
-                  {/* Selected Item Header */}
                   <div className={styles.panelCard}>
                     <div className={styles.panelCardBody}>
                       <div className={styles.detailHeader}>
@@ -284,139 +365,48 @@ export default function ValidationHubPage() {
                         <div style={{ flex: 1 }}>
                           <div className={`${styles.statusPill} ${selectedItem.status === "✅ YES" ? styles.statusPass : styles.statusFail}`} style={{ marginBottom: 8 }}>
                             <span className={`${styles.statusDot} ${selectedItem.status === "✅ YES" ? styles.statusDotPass : styles.statusDotFail}`} />
-                            {selectedItem.status === "✅ YES" ? 'PIF Tick Valid' : 'Incomplete / Failed'}
+                            {selectedItem.status === "✅ YES" ? 'PIF Tick Valid' : 'Issues Found'}
                           </div>
                           <div className={styles.detailTitle}>{selectedItem.title}</div>
                           <div className={styles.detailMeta}>
-                            <span>Version: {selectedItem.version || 'N/A'}</span>
                             <span>Reviewed: {formatDate(selectedItem.reviewDate)}</span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Readability metrics */}
                       <div className={styles.readabilityGrid}>
                         <div className={styles.readabilityItem}>
-                          <div className={styles.readabilityValue}>{selectedItem.readabilityScore || '—'}</div>
-                          <div className={styles.readabilityLabel}>Readability</div>
+                          <div className={styles.readabilityValue}>{selectedItem.readabilityTier1 || '—'}</div>
+                          <div className={styles.readabilityLabel}>Tier 1</div>
                         </div>
                         <div className={styles.readabilityItem}>
-                          <div className={styles.readabilityValue}>{selectedItem.readingLevel || '—'}</div>
-                          <div className={styles.readabilityLabel}>Reading Level</div>
+                          <div className={styles.readabilityValue}>{selectedItem.readabilityTier2 || '—'}</div>
+                          <div className={styles.readabilityLabel}>Tier 2</div>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* PIF Tick Principles */}
                   <div className={styles.panelCard}>
                     <div className={styles.panelCardHeader}>
                       <div className={styles.panelCardTitle}>
                         <span className={styles.panelCardTitleIcon} />
                         PIF Tick Principles
                       </div>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>
-                        {principles.filter(p => p.passed).length}/{principles.length} Passed
-                      </span>
                     </div>
                     <div className={styles.panelCardBody}>
                       <div className={styles.principleList}>
-                        {principles.map((p, idx) => {
-                          const statusClass = p.passed === true
-                            ? styles.principlePass
-                            : p.passed === false
-                              ? styles.principleFail
-                              : styles.principlePending;
-                          const iconClass = p.passed === true
-                            ? styles.principleIconPass
-                            : p.passed === false
-                              ? styles.principleIconFail
-                              : styles.principleIconPending;
-                          const statusPillClass = p.passed === true
-                            ? styles.principleStatusPass
-                            : p.passed === false
-                              ? styles.principleStatusFail
-                              : styles.principleStatusPending;
-
-                          return (
-                            <div key={idx} className={`${styles.principleItem} ${statusClass}`}>
-                              <div className={`${styles.principleIcon} ${iconClass}`}>
-                                {p.passed === true
-                                  ? <Icons.IconCheck style={{ width: 14, height: 14 }} />
-                                  : p.passed === false
-                                    ? <Icons.IconAlertCircle style={{ width: 14, height: 14 }} />
-                                    : <Icons.IconClock style={{ width: 14, height: 14 }} />
-                                }
-                              </div>
-                              <div className={styles.principleContent}>
-                                <div className={styles.principleName}>{p.label}</div>
-                                <div className={styles.principleNote}>
-                                  {p.note || 'No notes available'}
-                                </div>
-                              </div>
-                              <span className={`${styles.principleStatus} ${statusPillClass}`}>
-                                {p.passed === true ? 'Pass' : p.passed === false ? 'Fail' : 'Pending'}
-                              </span>
+                        {principles.map((p, idx) => (
+                          <div key={idx} className={`${styles.principleItem} ${p.passed ? styles.principlePass : styles.principleFail}`}>
+                            <div className={`${styles.principleIcon} ${p.passed ? styles.principleIconPass : styles.principleIconFail}`}>
+                              {p.passed ? <Icons.IconCheck style={{ width: 14, height: 14 }} /> : <Icons.IconAlertCircle style={{ width: 14, height: 14 }} />}
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Compliance Notes */}
-                  <div className={styles.panelCard}>
-                    <div className={styles.panelCardHeader}>
-                      <div className={styles.panelCardTitle}>
-                        <span className={styles.panelCardTitleIcon} />
-                        Compliance Notes
-                      </div>
-                    </div>
-                    <div className={styles.panelCardBody}>
-                      <div className={styles.complianceBox}>
-                        <div className={styles.complianceText}>
-                          {selectedItem.complianceNotes || "No specific compliance notes recorded for this item."}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Reviewer */}
-                  <div className={styles.panelCard}>
-                    <div className={styles.panelCardHeader}>
-                      <div className={styles.panelCardTitle}>
-                        <span className={styles.panelCardTitleIcon} />
-                        Reviewer
-                      </div>
-                    </div>
-                    <div className={styles.panelCardBody}>
-                      <div className={styles.reviewerRow}>
-                        <div className={styles.reviewerAvatar}>
-                          {selectedItem.reviewer?.[0]
-                            ? getInitials(selectedItem.reviewer[0])
-                            : '?'}
-                        </div>
-                        <div className={styles.reviewerInfo}>
-                          <div className={styles.reviewerName}>
-                            {selectedItem.reviewer?.[0] || "No reviewer assigned"}
+                            <div className={styles.principleContent}>
+                              <div className={styles.principleName}>{p.label}</div>
+                              <div className={styles.principleNote}>{p.note || 'No notes available'}</div>
+                            </div>
                           </div>
-                          <div className={styles.reviewerDetail}>
-                            {selectedItem.peerReviewerName
-                              ? `Peer reviewer: ${selectedItem.peerReviewerName}`
-                              : selectedItem.expertPeerReview
-                                ? "Review completed"
-                                : "Review pending"
-                            }
-                          </div>
-                        </div>
-                        <div
-                          style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: '50%',
-                            background: selectedItem.expertPeerReview ? '#10b981' : '#ef4444',
-                          }}
-                        />
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -424,9 +414,7 @@ export default function ValidationHubPage() {
               ) : (
                 <div className={styles.panelCard}>
                   <div className={styles.panelCardBody}>
-                    <div className={styles.emptyState}>
-                      Select an item to view compliance details
-                    </div>
+                    <div className={styles.emptyState}>Select an item to view details</div>
                   </div>
                 </div>
               )}
@@ -434,6 +422,60 @@ export default function ValidationHubPage() {
           </div>
         </section>
       </div>
+
+      {modalData && (
+        <div className={styles.modalOverlay} onClick={() => setModalData(null)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <header className={styles.modalHeader}>
+              <h3 className={styles.modalTitle}>{modalData.principle} Details</h3>
+              <button className={styles.modalClose} onClick={() => setModalData(null)}>
+                <Icons.IconX style={{ width: 24, height: 24 }} />
+              </button>
+            </header>
+            <div className={styles.modalBody}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-subtle)', marginBottom: 8, textTransform: 'uppercase' }}>
+                Status Details
+              </div>
+              <div className={styles.notesBox}>{modalData.notes}</div>
+
+              {(modalData.type === 'readability' || modalData.type === 'inclusivity') && (
+                <div className={styles.aiSection}>
+                  <button
+                    className={styles.aiTriggerBtn}
+                    onClick={() => runSelectiveAI(modalData.type, modalData.itemId)}
+                    disabled={aiLoading}
+                  >
+                    {aiLoading ? (
+                      <>
+                        <Icons.IconSync className="animate-spin" style={{ width: 16, height: 16 }} />
+                        Analyzing with Gemini...
+                      </>
+                    ) : (
+                      <>
+                        <Icons.IconSparkles style={{ width: 16, height: 16 }} />
+                        Run Selective AI {modalData.type === 'readability' ? 'Reading' : 'Inclusivity'} Check
+                      </>
+                    )}
+                  </button>
+
+                  {aiResult && (
+                    <div className={styles.aiResult}>
+                      <div className={styles.aiResultHeader}>
+                        <Icons.IconSparkles style={{ width: 14, height: 14 }} />
+                        Gemini Analysis Result
+                      </div>
+                      <div className={styles.aiResultText}>{aiResult}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <footer className={styles.modalFooter}>
+              <button className="btn-pill" onClick={() => setModalData(null)}>Close</button>
+            </footer>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
