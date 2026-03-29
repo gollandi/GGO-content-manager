@@ -87,18 +87,23 @@ export function mapPifValidationItem(page: PageObjectResponse): PifValidationIte
         expertPeerReview: extractCheckbox(getProp(props, S.expertPeerReview)),
         pifTickDeclaration: extractCheckbox(getProp(props, S.pifTickDeclaration)),
 
-        readabilityScore: extractNumber(getProp(props, S.readabilityScore)),
-        readingLevel: extractSelect(getProp(props, S.readingLevel)),
+        readabilityTier1: extractNumber(getProp(props, S.readabilityTier1)),
+        readabilityTier2: extractNumber(getProp(props, S.readabilityTier2)),
 
         contentAssetId: extractRelation(getProp(props, S.contentAsset))[0] ?? null,
         evidenceSourceIds: extractRelation(getProp(props, S.evidenceSourcesUsed)),
 
-        complianceNotes: extractRichText(getProp(props, S.complianceNotes)),
-        evidenceNotes: extractRichText(getProp(props, S.evidenceNotes)),
+        automationLog: extractRichText(getProp(props, S.automationLog)),
+        llmProvisionalResult: extractSelect(getProp(props, S.llmProvisionalResult)),
+        patientInvolvementActions: extractRichText(getProp(props, S.patientInvolvementActions)),
+        patientInvolvementMethod: extractSelect(getProp(props, S.patientInvolvementMethod)),
+        patientInvolvementSampleSize: extractNumber(getProp(props, S.patientInvolvementSampleSize)),
+        complianceMismatch: extractCheckbox(getProp(props, S.complianceMismatch)),
+        patientInvolvementDone: extractCheckbox(getProp(props, S.patientInvolvementDone)),
+        bannerAllowed: getProp(props, S.bannerAllowed)?.formula?.string || null,
         inclusivityNotes: extractRichText(getProp(props, S.inclusivityNotes)),
         contentNeedNotes: extractRichText(getProp(props, S.contentNeedNotes)),
-        version: extractRichText(getProp(props, S.version)),
-        peerReviewerName: extractRichText(getProp(props, S.peerReviewerName)),
+        patientInvolvementOutput: extractRichText(getProp(props, S.patientInvolvementOutput)),
 
         createdTime: page.created_time,
     };
@@ -121,7 +126,6 @@ export function mapEvidenceItem(page: PageObjectResponse): EvidenceItem {
         notes: extractRichText(getProp(props, S.notes)),
 
         contentAssetIds: extractRelation(getProp(props, S.contentAssets)),
-        validationIds: extractRelation(getProp(props, S.usedInValidations)),
 
         createdTime: page.created_time,
     };

@@ -66,19 +66,29 @@ export interface PifValidationItem {
     expertPeerReview: boolean;
     pifTickDeclaration: boolean;
 
-    readabilityScore: number | null;
-    readingLevel: string | null;
+    readabilityTier1: number | null;
+    readabilityTier2: number | null;
 
     // Relations
     contentAssetId: string | null;
     evidenceSourceIds: string[];
 
-    complianceNotes: string;
-    evidenceNotes: string;
+    // New joined fields
+    contentAssetTitle?: string;
+    contentAssetUrl?: string;
+    contentAssetNotes?: string;
+
+    automationLog: string;
+    llmProvisionalResult: string | null;
+    patientInvolvementActions: string;
+    patientInvolvementMethod: string | null;
+    patientInvolvementSampleSize: number | null;
+    complianceMismatch: boolean;
+    patientInvolvementDone: boolean;
+    bannerAllowed: string | null;
     inclusivityNotes: string;
     contentNeedNotes: string;
-    version: string;
-    peerReviewerName: string;
+    patientInvolvementOutput: string;
 
     createdTime: string;
 }
@@ -96,7 +106,6 @@ export interface EvidenceItem {
     notes: string;
 
     contentAssetIds: string[];
-    validationIds: string[];
 
     createdTime: string;
 }
