@@ -24,7 +24,21 @@ const extractCheckbox = (prop: any): boolean => prop?.checkbox ?? false;
 const extractUrl = (prop: any): string | null => prop?.url ?? null;
 const extractNumber = (prop: any): number | null => prop?.number ?? null;
 const extractRelation = (prop: any): string[] => prop?.relation?.map((r: any) => r.id) ?? [];
-const extractPeople = (prop: any): string[] => prop?.people?.map((p: any) => p.name) ?? [];
+const extractPeople = (prop: any): string[] => prop?.people?.map((p: any) => p.name ?? p.person?.email ?? "Unknown") ?? [];
+
+/**
+ * Safely extract a Notion formula field value.
+ * Formulas can return string, number, boolean, or date — handle all cases.
+ */
+const extractFormula = (prop: any): string | null => {
+    const formula = prop?.formula;
+    if (!formula) return null;
+    if (formula.type === "string") return formula.string ?? null;
+    if (formula.type === "number") return formula.number != null ? String(formula.number) : null;
+    if (formula.type === "boolean") return formula.boolean != null ? String(formula.boolean) : null;
+    if (formula.type === "date") return formula.date?.start ?? null;
+    return null;
+};
 
 export function mapContentItem(page: PageObjectResponse): ContentItem {
     const props = page.properties;
@@ -69,9 +83,8 @@ export function mapPifValidationItem(page: PageObjectResponse): PifValidationIte
     const props = page.properties;
     const S = SCHEMA.PifValidation;
 
-    // Handle the formula field safely (String formula)
-    const pifStatusFormula = getProp(props, S.pifTickStatus);
-    const pifStatus = pifStatusFormula?.formula?.string || "❌ NO";
+    // Handle formula field — can return string, number, boolean, or date
+    const pifStatus = extractFormula(getProp(props, S.pifTickStatus)) || "❌ NO";
 
     return {
         id: page.id,
@@ -100,7 +113,7 @@ export function mapPifValidationItem(page: PageObjectResponse): PifValidationIte
         patientInvolvementSampleSize: extractNumber(getProp(props, S.patientInvolvementSampleSize)),
         complianceMismatch: extractCheckbox(getProp(props, S.complianceMismatch)),
         patientInvolvementDone: extractCheckbox(getProp(props, S.patientInvolvementDone)),
-        bannerAllowed: getProp(props, S.bannerAllowed)?.formula?.string || null,
+        bannerAllowed: extractFormula(getProp(props, S.bannerAllowed)),
         inclusivityNotes: extractRichText(getProp(props, S.inclusivityNotes)),
         contentNeedNotes: extractRichText(getProp(props, S.contentNeedNotes)),
         patientInvolvementOutput: extractRichText(getProp(props, S.patientInvolvementOutput)),

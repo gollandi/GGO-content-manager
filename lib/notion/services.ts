@@ -17,6 +17,7 @@ import {
     PatientJourneyItem
 } from "./types";
 import { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
+import { cached } from "../cache";
 
 /**
  * Generic fetcher for Notion databases with mapping
@@ -53,7 +54,8 @@ export async function getContentAssets(): Promise<ContentItem[]> {
 
 /**
  * PIF TICK Compliance Service
- * Joins PIF validations with related Content Asset metadata
+ * Joins PIF validations with related Content Asset metadata.
+ * Reuses cached content assets to avoid redundant Notion API calls.
  */
 export async function getPifValidations(): Promise<PifValidationItem[]> {
     const validations = await fetchAll(SCHEMA.PifValidation.databaseId, mapPifValidationItem);
@@ -63,20 +65,21 @@ export async function getPifValidations(): Promise<PifValidationItem[]> {
 
     if (contentIds.length === 0) return validations;
 
-    // Fetch related content assets 
-    // Instead of making N parallel requests, fetch all assets natively to save API limits & prevent timeouts
-    const contentAssets = await getContentAssets();
+    // Reuse cached content assets instead of making a fresh Notion call
+    const contentAssets = await cached("content", () =>
+        fetchAll(SCHEMA.ContentMaster.databaseId, mapContentItem)
+    );
     const assetMap = new Map(contentAssets.map(a => [a.id, a]));
 
-    // Merge data
+    // Merge data with safe fallbacks for missing joins
     return validations.map(v => {
-        if (v.contentAssetId && assetMap.has(v.contentAssetId)) {
-            const asset = assetMap.get(v.contentAssetId)!;
+        if (v.contentAssetId) {
+            const asset = assetMap.get(v.contentAssetId);
             return {
                 ...v,
-                contentAssetTitle: asset.title,
-                contentAssetUrl: asset.liveUrl || undefined,
-                contentAssetNotes: asset.notes
+                contentAssetTitle: asset?.title ?? "Unknown Asset",
+                contentAssetUrl: asset?.liveUrl || undefined,
+                contentAssetNotes: asset?.notes ?? "",
             };
         }
         return v;
