@@ -49,10 +49,13 @@ export default function DashboardPage() {
     })
     .slice(0, 5);
 
+  const hasWebsite = (c: ContentItem) => c.platform?.some(p => p.includes("Website"));
+  const hasYouTube = (c: ContentItem) => c.platform?.some(p => p.includes("YouTube"));
+
   const inventoryBreakdown = {
-    website: content.filter(c => c.platform?.includes("Website")).length,
-    video: content.filter(c => c.platform?.includes("YouTube")).length,
-    other: content.filter(c => !c.platform?.includes("Website") && !c.platform?.includes("YouTube")).length
+    website: content.filter(c => hasWebsite(c)).length,
+    video: content.filter(c => hasYouTube(c)).length,
+    other: content.filter(c => !hasWebsite(c) && !hasYouTube(c)).length
   };
 
   const activeContentCount = content.length;
