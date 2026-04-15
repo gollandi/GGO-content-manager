@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 import * as Icons from "./Icons";
 
 const navItems = [
@@ -19,8 +20,15 @@ const navItems = [
   { href: "/schema-validation", label: "Schema Validation", Icon: Icons.IconCode },
 ];
 
+const ROLE_LABELS: Record<string, string> = {
+  admin: "Admin",
+  editor: "Editor",
+  viewer: "Viewer",
+};
+
 export default function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
 
   return (
     <aside className="bg-white border-r border-border-default flex flex-col justify-between min-h-screen sticky top-0 max-lg:min-h-auto max-lg:relative max-lg:border-r-0 max-lg:border-b max-lg:border-border-default">
@@ -73,27 +81,36 @@ export default function Sidebar() {
         </button>
         <div className="text-[11px] text-subtle text-center -mt-3">Last synced: 2 min ago</div>
 
-        <div className="bg-surface-base p-3 rounded-xl border border-border-soft">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-ggo-purple to-ggo-teal text-white flex items-center justify-center text-xs font-bold">
-              SM
+        {session?.user && (
+          <div className="bg-surface-base p-3 rounded-xl border border-border-soft">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-ggo-purple to-ggo-teal text-white flex items-center justify-center text-xs font-bold">
+                {session.user.name?.charAt(0)?.toUpperCase() ?? "U"}
+              </div>
+              <div className="flex-1">
+                <div className="text-[13px] font-semibold">{session.user.name ?? "User"}</div>
+                <div className="text-[11px] text-muted-foreground">{ROLE_LABELS[session.user.role] ?? "Viewer"}</div>
+              </div>
             </div>
-            <div className="flex-1">
-              <div className="text-[13px] font-semibold">Sarah Mitchell</div>
-              <div className="text-[11px] text-muted-foreground">Content Admin</div>
-            </div>
-          </div>
 
-          <div className="flex flex-col">
-            <Link
-              href="/settings"
-              className="flex items-center gap-2.5 p-2 rounded-md text-xs font-medium text-muted-foreground hover:bg-surface-muted hover:text-ggo-purple transition-colors"
-            >
-              <Icons.IconSettings className="w-3.5 h-3.5" />
-              <span>Settings</span>
-            </Link>
+            <div className="flex flex-col">
+              <Link
+                href="/settings"
+                className="flex items-center gap-2.5 p-2 rounded-md text-xs font-medium text-muted-foreground hover:bg-surface-muted hover:text-ggo-purple transition-colors"
+              >
+                <Icons.IconSettings className="w-3.5 h-3.5" />
+                <span>Settings</span>
+              </Link>
+              <button
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="flex items-center gap-2.5 p-2 rounded-md text-xs font-medium text-muted-foreground hover:bg-surface-muted hover:text-red-500 transition-colors text-left"
+              >
+                <Icons.IconExternalLink className="w-3.5 h-3.5" />
+                <span>Sign out</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </aside>
   );
