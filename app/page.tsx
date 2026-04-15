@@ -49,10 +49,12 @@ export default function DashboardPage() {
     })
     .slice(0, 5);
 
+  // Currently all content assets are website pages.
+  // Future databases will populate YouTube and other platforms.
   const inventoryBreakdown = {
-    website: content.filter(c => c.platform?.includes("Website")).length,
-    video: content.filter(c => c.platform?.includes("YouTube")).length,
-    other: content.filter(c => !c.platform?.includes("Website") && !c.platform?.includes("YouTube")).length
+    website: content.length,
+    video: 0,
+    other: 0
   };
 
   const activeContentCount = content.length;
@@ -61,9 +63,10 @@ export default function DashboardPage() {
   const overdueCount = upcomingReviews.length;
   const riskAlerts = compliance.filter(c => c.status === "❌ NO").length;
 
-  // Recent Activity (Existing)
+  // Recent Activity — sorted by last clinical review date (from Sanity), not Notion edit time
   const recentItems = [...content]
-    .sort((a, b) => new Date(b.lastEditedTime).getTime() - new Date(a.lastEditedTime).getTime())
+    .filter(c => c.lastReviewed)
+    .sort((a, b) => new Date(b.lastReviewed!).getTime() - new Date(a.lastReviewed!).getTime())
     .slice(0, 3);
 
   const formatDistance = (dateStr: string) => {
@@ -211,9 +214,9 @@ export default function DashboardPage() {
                       {item.reviewedBy[0]?.charAt(0) || "S"}
                     </div>
                     <div className="text-[13px] leading-relaxed text-charcoal">
-                      <strong className="text-near-black font-semibold">{item.reviewedBy[0] || "System"}</strong> edited{" "}
+                      <strong className="text-near-black font-semibold">{item.reviewedBy[0] || "System"}</strong> reviewed{" "}
                       <span className="text-ggo-purple font-medium">{item.title}</span>
-                      <div className="text-[11px] text-subtle mt-0.5">{formatDistance(item.lastEditedTime)}</div>
+                      <div className="text-[11px] text-subtle mt-0.5">{item.lastReviewed ? formatDistance(item.lastReviewed) : "No date"}</div>
                     </div>
                   </div>
                 ))}
