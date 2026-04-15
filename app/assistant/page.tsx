@@ -5,6 +5,18 @@ import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import * as Icons from "../../components/Icons";
 
+interface ValidationFinding {
+  principle: string;
+  pass: boolean;
+  note: string;
+}
+
+interface ValidationResult {
+  status: string;
+  findings: ValidationFinding[];
+  recommendations: string[];
+}
+
 const steps = [
   { title: "1. Submit content", desc: "Provide URL, text, or upload files" },
   { title: "2. Validate", desc: "Gemini AI checks against PIF Tick principles" },
@@ -15,7 +27,7 @@ export default function AssistantPage() {
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<ValidationResult | null>(null);
 
   const runValidation = async () => {
     if (!url && !text) return alert("Please provide a URL or text snippet");
@@ -31,8 +43,9 @@ export default function AssistantPage() {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setResult(data);
-    } catch (error: any) {
-      alert("Validation failed: " + error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      alert("Validation failed: " + message);
     } finally {
       setLoading(false);
     }
@@ -143,7 +156,7 @@ export default function AssistantPage() {
                 <div className={styles.findingsPanel}>
                   <h3>Principle Breakdown</h3>
                   <div className={styles.findingList}>
-                    {result.findings.map((f: any, i: number) => (
+                    {result.findings.map((f: ValidationFinding, i: number) => (
                       <div key={i} className={`${styles.findingCard} ${f.pass ? styles.passCard : styles.failCard}`}>
                         <div className={styles.findingHeader}>
                           <strong>{f.principle}</strong>

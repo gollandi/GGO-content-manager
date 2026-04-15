@@ -18,7 +18,7 @@ export default function ValidationHubPage() {
     principle: string;
     notes: string;
     itemId: string;
-    type: "readability" | "inclusivity" | "default";
+    type: "readability" | "inclusivity" | "default" | "online-status";
   } | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<string | null>(null);
@@ -305,12 +305,12 @@ export default function ValidationHubPage() {
 
                       <div className={styles.metricRow}>
                         {[
-                          { label: "Evidence", passed: item.evidenceBasedReview, val: item.automationLog, type: 'default' },
-                          { label: "Readability", passed: item.patientReadability, val: item.automationLog, type: 'readability' },
-                          { label: "Inclusivity", passed: item.inclusivityAssessment, val: item.inclusivityNotes, type: 'inclusivity' },
-                          { label: "Peer Review", passed: item.expertPeerReview, val: item.automationLog, type: 'default' },
-                          { label: "Content Need", passed: item.contentNeedDocumented, val: item.contentNeedNotes, type: 'default' },
-                          { label: "Online Status", passed: item.pifTickDeclaration, val: item.pifTickDeclaration ? "Active" : "Disabled", type: 'online-status' },
+                          { label: "Evidence", passed: item.evidenceBasedReview, val: item.automationLog, type: 'default' as const },
+                          { label: "Readability", passed: item.patientReadability, val: item.automationLog, type: 'readability' as const },
+                          { label: "Inclusivity", passed: item.inclusivityAssessment, val: item.inclusivityNotes, type: 'inclusivity' as const },
+                          { label: "Peer Review", passed: item.expertPeerReview, val: item.automationLog, type: 'default' as const },
+                          { label: "Content Need", passed: item.contentNeedDocumented, val: item.contentNeedNotes, type: 'default' as const },
+                          { label: "Online Status", passed: item.pifTickDeclaration, val: item.pifTickDeclaration ? "Active" : "Disabled", type: 'online-status' as const },
                         ].map((metric) => {
                           const isMismatch = metric.label === "Online Status" && metric.passed !== isCompliant;
                           const pillClass = isMismatch
@@ -330,7 +330,7 @@ export default function ValidationHubPage() {
                                     ? (isMismatch ? "⚠️ WARNING: Online certification status does not match internal compliance result." : "Online certification status matches internal compliance.")
                                     : (metric.val || "No specific notes available."),
                                   itemId: item.id,
-                                  type: metric.type as any
+                                  type: metric.type
                                 });
                               }}
                             >

@@ -11,27 +11,68 @@ import {
     ContentStatus
 } from "./types";
 
-// Helper to safely extract property values
-const getProp = (props: any, key: string) => props[key];
+/** A single Notion property value — the union the SDK uses inside PageObjectResponse */
+type NotionPropertyValue = PageObjectResponse["properties"][string];
 
-// Extractors
-const extractTitle = (prop: any): string => prop?.title?.[0]?.plain_text ?? "Untitled";
-const extractRichText = (prop: any): string => prop?.rich_text?.[0]?.plain_text ?? "";
-const extractSelect = (prop: any): string | null => prop?.select?.name ?? null;
-const extractMultiSelect = (prop: any): string[] => prop?.multi_select?.map((o: any) => o.name) ?? [];
-const extractDate = (prop: any): string | null => prop?.date?.start ?? null; // ISO string
-const extractCheckbox = (prop: any): boolean => prop?.checkbox ?? false;
-const extractUrl = (prop: any): string | null => prop?.url ?? null;
-const extractNumber = (prop: any): number | null => prop?.number ?? null;
-const extractRelation = (prop: any): string[] => prop?.relation?.map((r: any) => r.id) ?? [];
-const extractPeople = (prop: any): string[] => prop?.people?.map((p: any) => p.name ?? p.person?.email ?? "Unknown") ?? [];
+/** The full properties record from a Notion page */
+type NotionProperties = PageObjectResponse["properties"];
+
+// Helper to safely extract property values
+const getProp = (props: NotionProperties, key: string): NotionPropertyValue | undefined => props[key];
+
+// Extractors — use `unknown` and optional-chain into the runtime shape.
+// The Notion SDK union is too wide for narrowing each variant, so we treat the
+// property as `unknown` (safe) instead of `any` (unsafe) and rely on optional chaining.
+type Prop = NotionPropertyValue | undefined;
+
+const extractTitle = (prop: Prop): string => {
+    const p = prop as Record<string, unknown> | undefined;
+    return (p as { title?: { plain_text: string }[] })?.title?.[0]?.plain_text ?? "Untitled";
+};
+const extractRichText = (prop: Prop): string => {
+    const p = prop as { rich_text?: { plain_text: string }[] } | undefined;
+    return p?.rich_text?.[0]?.plain_text ?? "";
+};
+const extractSelect = (prop: Prop): string | null => {
+    const p = prop as { select?: { name: string } | null } | undefined;
+    return p?.select?.name ?? null;
+};
+const extractMultiSelect = (prop: Prop): string[] => {
+    const p = prop as { multi_select?: { name: string }[] } | undefined;
+    return p?.multi_select?.map((o) => o.name) ?? [];
+};
+const extractDate = (prop: Prop): string | null => {
+    const p = prop as { date?: { start: string } | null } | undefined;
+    return p?.date?.start ?? null;
+};
+const extractCheckbox = (prop: Prop): boolean => {
+    const p = prop as { checkbox?: boolean } | undefined;
+    return p?.checkbox ?? false;
+};
+const extractUrl = (prop: Prop): string | null => {
+    const p = prop as { url?: string | null } | undefined;
+    return p?.url ?? null;
+};
+const extractNumber = (prop: Prop): number | null => {
+    const p = prop as { number?: number | null } | undefined;
+    return p?.number ?? null;
+};
+const extractRelation = (prop: Prop): string[] => {
+    const p = prop as { relation?: { id: string }[] } | undefined;
+    return p?.relation?.map((r) => r.id) ?? [];
+};
+const extractPeople = (prop: Prop): string[] => {
+    const p = prop as { people?: { name?: string; person?: { email?: string } }[] } | undefined;
+    return p?.people?.map((person) => person.name ?? person.person?.email ?? "Unknown") ?? [];
+};
 
 /**
  * Safely extract a Notion formula field value.
  * Formulas can return string, number, boolean, or date — handle all cases.
  */
-const extractFormula = (prop: any): string | null => {
-    const formula = prop?.formula;
+const extractFormula = (prop: Prop): string | null => {
+    const p = prop as { formula?: { type: string; string?: string | null; number?: number | null; boolean?: boolean | null; date?: { start: string } | null } } | undefined;
+    const formula = p?.formula;
     if (!formula) return null;
     if (formula.type === "string") return formula.string ?? null;
     if (formula.type === "number") return formula.number != null ? String(formula.number) : null;

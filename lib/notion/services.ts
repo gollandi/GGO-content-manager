@@ -16,8 +16,11 @@ import {
     SchemaValidationItem,
     PatientJourneyItem
 } from "./types";
-import { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
+import { PageObjectResponse, QueryDatabaseResponse } from "@notionhq/client/build/src/api-endpoints";
 import { cached } from "../cache";
+
+/** Notion filter type — matches the SDK's accepted filter shapes */
+type NotionFilter = Parameters<typeof notion.databases.query>[0] extends { filter?: infer F } ? F : never;
 
 /**
  * Generic fetcher for Notion databases with mapping
@@ -25,14 +28,13 @@ import { cached } from "../cache";
 async function fetchAll<T>(
     databaseId: string,
     mapper: (page: PageObjectResponse) => T,
-    filter?: any
+    filter?: NotionFilter
 ): Promise<T[]> {
     const items: T[] = [];
     let cursor: string | undefined = undefined;
 
     do {
-        // @ts-ignore - notion.databases.query exists in 2.2.3
-        const response: any = await notion.databases.query({
+        const response: QueryDatabaseResponse = await notion.databases.query({
             database_id: databaseId,
             start_cursor: cursor,
             filter: filter,

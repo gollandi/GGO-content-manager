@@ -17,9 +17,9 @@ import {
 import { EvidenceItem } from "../../lib/notion/types";
 
 // Mocking missing icons for now to fix build
-const CloseIcon = (props: any) => <span {...props}>✕</span>;
-const FlagIcon = (props: any) => <IconShield {...props} />;
-const ArchiveIcon = (props: any) => <IconFileText {...props} />;
+const CloseIcon = (props: React.SVGProps<SVGSVGElement>) => <span {...props as React.HTMLAttributes<HTMLSpanElement>}>✕</span>;
+const FlagIcon = (props: React.SVGProps<SVGSVGElement>) => <IconShield {...props} />;
+const ArchiveIcon = (props: React.SVGProps<SVGSVGElement>) => <IconFileText {...props} />;
 
 export default function EvidenceRepositoryPage() {
   const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([]);
