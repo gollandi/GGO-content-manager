@@ -6,6 +6,10 @@ import styles from "./page.module.css";
 import * as Icons from "../../components/Icons";
 import { ContentItem } from "../../lib/notion/types";
 import { useNotionData } from "../../lib/hooks/useNotionData";
+import SearchBar from "../../components/SearchBar";
+import FilterBar from "../../components/FilterBar";
+import StatusBadge, { getStatusTone } from "../../components/StatusBadge";
+import DataTable from "../../components/DataTable";
 
 export default function ContentExplorerPage() {
   const { data: contentItems, loading, error } = useNotionData<ContentItem>("/api/notion/content");
@@ -20,13 +24,6 @@ export default function ContentExplorerPage() {
     return matchesSearch && matchesFilter;
   });
 
-  const getStatusTone = (status: string) => {
-    if (status.includes("Live")) return "success";
-    if (status.includes("Review")) return "info";
-    if (status.includes("Update") || status.includes("Draft")) return "warning";
-    if (status.includes("Archived")) return "danger";
-    return "secondary";
-  };
 
   return (
     <AppShell>
@@ -52,93 +49,50 @@ export default function ContentExplorerPage() {
 
         <section className="page-section">
           <div className={styles.toolbar}>
-            <div className={styles.searchBox}>
-              <Icons.IconSearch className={styles.iconSm} style={{ color: 'var(--text-muted)' }} />
-              <input
-                placeholder="Search content..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <button className="btn-pill">
-              <Icons.IconFilter className={styles.iconSm} style={{ marginRight: '8px' }} />
-              Filters
-            </button>
+            <SearchBar
+              placeholder="Search content..."
+              value={searchTerm}
+              onChange={setSearchTerm}
+            />
           </div>
 
-          <div className={styles.filterRow}>
-            {filters.map((filter) => (
-              <button
-                key={filter}
-                className={activeFilter === filter ? styles.filterActive : styles.filterPill}
-                onClick={() => setActiveFilter(filter)}
-              >
-                {filter}
-              </button>
+          <FilterBar
+            filters={filters}
+            active={activeFilter}
+            onChange={setActiveFilter}
+          />
+
+          <DataTable
+            title="Content Items"
+            subtitle={loading ? "Loading..." : `Showing ${filteredItems.length} items`}
+            columns={[
+              { key: "content", label: "Content" },
+              { key: "status", label: "Status" },
+              { key: "evidence", label: "Evidence" },
+              { key: "updated", label: "Last Updated" },
+              { key: "actions", label: "" },
+            ]}
+            loading={loading}
+            empty={filteredItems.length === 0}
+            emptyMessage="No content items match your filters"
+          >
+            {filteredItems.map((item) => (
+              <tr key={item.id}>
+                <td>
+                  <div className={styles.rowTitle}>{item.title}</div>
+                  <div className={styles.rowMeta}>{item.contentType} - {item.platform.join(", ")}</div>
+                </td>
+                <td>
+                  <StatusBadge tone={getStatusTone(item.status)} label={item.status} />
+                </td>
+                <td>{item.evidenceSourceIds.length} linked items</td>
+                <td className="muted">{new Date(item.lastEditedTime).toLocaleDateString()}</td>
+                <td>
+                  <button className={styles.viewButton}>View Details</button>
+                </td>
+              </tr>
             ))}
-          </div>
-
-          <div className={`card ${styles.tableCard}`}>
-            <div className={styles.tableHeader}>
-              <div>
-                <h3 className="card-title">Content Items</h3>
-                <p className="card-subtitle">
-                  {loading ? 'Loading...' : `Showing ${filteredItems.length} items`}
-                </p>
-              </div>
-              <button className="btn-pill opacity-50 cursor-not-allowed" disabled title="Coming soon">Export</button>
-            </div>
-            <div className={styles.tableWrap}>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Content</th>
-                    <th>Status</th>
-                    <th>Evidence</th>
-                    <th>Last Updated</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={5} style={{ textAlign: 'center', padding: '40px' }}>
-                        Loading content from Notion...
-                      </td>
-                    </tr>
-                  ) : filteredItems.map((item) => (
-                    <tr key={item.id}>
-                      <td>
-                        <div className={styles.rowTitle}>{item.title}</div>
-                        <div className={styles.rowMeta}>{item.contentType} - {item.platform.join(', ')}</div>
-                      </td>
-                      <td>
-                        <span className={styles[`status-${getStatusTone(item.status)}`]}>
-                          {item.status}
-                        </span>
-                      </td>
-                      <td>{item.evidenceSourceIds.length} linked items</td>
-                      <td className="muted">{new Date(item.lastEditedTime).toLocaleDateString()}</td>
-                      <td>
-                        <button className={styles.viewButton}>View Details</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {!loading && filteredItems.length > 20 && (
-              <div className={styles.pagination}>
-                <button className="btn-pill">Previous</button>
-                <div className={styles.pageNumbers}>
-                  <button className={styles.pageActive}>1</button>
-                  <button className={styles.pageNumber}>2</button>
-                  <button className={styles.pageNumber}>3</button>
-                </div>
-                <button className="btn-pill">Next</button>
-              </div>
-            )}
-          </div>
+          </DataTable>
         </section>
       </div>
     </AppShell>

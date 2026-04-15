@@ -6,6 +6,8 @@ import styles from "./page.module.css";
 import * as Icons from "../../components/Icons";
 import { PatientJourneyItem } from "../../lib/notion/types";
 import { useNotionData } from "../../lib/hooks/useNotionData";
+import SearchBar from "../../components/SearchBar";
+import FilterBar from "../../components/FilterBar";
 
 type FilterView =
   | "All Journeys"
@@ -186,32 +188,8 @@ export default function PatientJourneysPage() {
 
           {/* Filter bar */}
           <div className={styles.toolbar}>
-            <div className={styles.filterRow}>
-              {filters.map((filter) => (
-                <button
-                  key={filter}
-                  className={
-                    activeFilter === filter
-                      ? styles.filterActive
-                      : styles.filterPill
-                  }
-                  onClick={() => setActiveFilter(filter)}
-                >
-                  {filter}
-                </button>
-              ))}
-            </div>
-            <div className={styles.searchBox}>
-              <Icons.IconSearch
-                className={styles.iconSm}
-                style={{ color: "var(--text-muted)" }}
-              />
-              <input
-                placeholder="Search journeys..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
+            <FilterBar filters={filters} active={activeFilter} onChange={setActiveFilter} />
+            <SearchBar placeholder="Search journeys..." value={searchTerm} onChange={setSearchTerm} />
           </div>
 
           {/* Card list */}
