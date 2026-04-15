@@ -1,41 +1,19 @@
 "use client";
 
-import React, { useState, useEffect, Fragment } from "react";
+import React, { useState, Fragment } from "react";
 import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import * as Icons from "../../components/Icons";
 import { SchemaValidationItem } from "../../lib/notion/types";
+import { useNotionData } from "../../lib/hooks/useNotionData";
 
 type FilterView = "All" | "Errors First" | "Warnings" | "Missing FAQ" | "Not Validated" | "Fixes Needed";
 
 export default function SchemaValidationPage() {
-  const [items, setItems] = useState<SchemaValidationItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: items, loading, error } = useNotionData<SchemaValidationItem>("/api/notion/validation");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterView>("All");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const res = await fetch("/api/notion/validation");
-        const data = await res.json();
-
-        if (Array.isArray(data)) {
-          setItems(data);
-        } else {
-          console.error("Notion API returned non-array data:", data);
-          setItems([]);
-        }
-      } catch (error) {
-        console.error("Error fetching schema validation items:", error);
-        setItems([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, []);
 
   // Computed stats
   const totalPages = items.length;

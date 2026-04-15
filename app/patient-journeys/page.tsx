@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import * as Icons from "../../components/Icons";
 import { PatientJourneyItem } from "../../lib/notion/types";
+import { useNotionData } from "../../lib/hooks/useNotionData";
 
 type FilterView =
   | "All Journeys"
@@ -14,32 +15,9 @@ type FilterView =
   | "By Pathway";
 
 export default function PatientJourneysPage() {
-  const [journeys, setJourneys] = useState<PatientJourneyItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: journeys, loading, error } = useNotionData<PatientJourneyItem>("/api/notion/patient-journeys");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterView>("All Journeys");
-
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const res = await fetch("/api/notion/patient-journeys");
-        const data = await res.json();
-
-        if (Array.isArray(data)) {
-          setJourneys(data);
-        } else {
-          console.error("Notion API returned non-array data:", data);
-          setJourneys([]);
-        }
-      } catch (error) {
-        console.error("Error fetching patient journeys:", error);
-        setJourneys([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, []);
 
   const filters: FilterView[] = [
     "All Journeys",

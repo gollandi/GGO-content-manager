@@ -15,6 +15,7 @@ import {
   IconShield as IconShield // Placeholder for missing icons
 } from "../../components/Icons";
 import { EvidenceItem } from "../../lib/notion/types";
+import { useNotionData } from "../../lib/hooks/useNotionData";
 
 // Mocking missing icons for now to fix build
 const CloseIcon = (props: React.SVGProps<SVGSVGElement>) => <span {...props as React.HTMLAttributes<HTMLSpanElement>}>✕</span>;
@@ -22,34 +23,15 @@ const FlagIcon = (props: React.SVGProps<SVGSVGElement>) => <IconShield {...props
 const ArchiveIcon = (props: React.SVGProps<SVGSVGElement>) => <IconFileText {...props} />;
 
 export default function EvidenceRepositoryPage() {
-  const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([]);
+  const { data: evidenceItems, loading, error } = useNotionData<EvidenceItem>("/api/notion/evidence");
   const [selectedItem, setSelectedItem] = useState<EvidenceItem | null>(null);
-  const [loading, setLoading] = useState(true);
 
+  // Select first item once data loads
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const res = await fetch("/api/notion/evidence");
-        const data = await res.json();
-
-        if (Array.isArray(data)) {
-          setEvidenceItems(data);
-          if (data.length > 0) {
-            setSelectedItem(data[0]);
-          }
-        } else {
-          console.error("Notion API returned non-array data:", data);
-          setEvidenceItems([]);
-        }
-      } catch (error) {
-        console.error("Error fetching evidence items:", error);
-        setEvidenceItems([]);
-      } finally {
-        setLoading(false);
-      }
+    if (evidenceItems.length > 0 && !selectedItem) {
+      setSelectedItem(evidenceItems[0]);
     }
-    fetchData();
-  }, []);
+  }, [evidenceItems, selectedItem]);
 
   const filters = [
     { label: "Evidence Type", value: "All Types" },

@@ -6,10 +6,10 @@ import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import * as Icons from "../../components/Icons";
 import { PifValidationItem } from "../../lib/notion/types";
+import { useNotionData } from "../../lib/hooks/useNotionData";
 
 export default function ValidationHubPage() {
-  const [allValidations, setAllValidations] = useState<PifValidationItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: allValidations, loading, error } = useNotionData<PifValidationItem>("/api/notion/compliance");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -23,23 +23,12 @@ export default function ValidationHubPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<string | null>(null);
 
+  // Select first item once data loads
   useEffect(() => {
-    async function fetchValidations() {
-      try {
-        const res = await fetch("/api/notion/compliance");
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setAllValidations(data);
-          if (data.length > 0) setSelectedId(data[0].id);
-        }
-      } catch (error) {
-        console.error("Error fetching PIF validations:", error);
-      } finally {
-        setLoading(false);
-      }
+    if (allValidations.length > 0 && !selectedId) {
+      setSelectedId(allValidations[0].id);
     }
-    fetchValidations();
-  }, []);
+  }, [allValidations, selectedId]);
 
   const toggleExpand = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();

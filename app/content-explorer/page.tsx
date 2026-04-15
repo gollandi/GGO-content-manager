@@ -1,38 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import * as Icons from "../../components/Icons";
 import { ContentItem } from "../../lib/notion/types";
+import { useNotionData } from "../../lib/hooks/useNotionData";
 
 export default function ContentExplorerPage() {
-  const [contentItems, setContentItems] = useState<ContentItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: contentItems, loading, error } = useNotionData<ContentItem>("/api/notion/content");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
-
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const res = await fetch("/api/notion/content");
-        const data = await res.json();
-
-        if (Array.isArray(data)) {
-          setContentItems(data);
-        } else {
-          console.error("Notion API returned non-array data:", data);
-          setContentItems([]); // Fallback to empty array
-        }
-      } catch (error) {
-        console.error("Error fetching content items:", error);
-        setContentItems([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, []);
 
   const filters = ["All", "Draft", "Review", "Live", "Update"];
 

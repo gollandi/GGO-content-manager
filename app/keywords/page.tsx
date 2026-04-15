@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import * as Icons from "../../components/Icons";
 import { KeywordItem } from "../../lib/notion/types";
+import { useNotionData } from "../../lib/hooks/useNotionData";
 
 type FilterView =
   | "All Keywords"
@@ -14,32 +15,9 @@ type FilterView =
   | "By Category";
 
 export default function KeywordsPage() {
-  const [keywords, setKeywords] = useState<KeywordItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: keywords, loading, error } = useNotionData<KeywordItem>("/api/notion/keywords");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterView>("All Keywords");
-
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const res = await fetch("/api/notion/keywords");
-        const data = await res.json();
-
-        if (Array.isArray(data)) {
-          setKeywords(data);
-        } else {
-          console.error("Keywords API returned non-array data:", data);
-          setKeywords([]);
-        }
-      } catch (error) {
-        console.error("Error fetching keywords:", error);
-        setKeywords([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, []);
 
   // ----- computed stats -----
   const totalKeywords = keywords.length;
