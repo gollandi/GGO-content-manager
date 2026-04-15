@@ -18,8 +18,9 @@ export async function POST(request: Request) {
             success: true,
             invalidated: key || "all",
         });
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        console.error("Cache invalidation error:", error instanceof Error ? error.message : error);
+        return NextResponse.json({ error: "Failed to invalidate cache" }, { status: 500 });
     }
 }
 

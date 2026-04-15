@@ -8,8 +8,8 @@ export async function GET() {
         return NextResponse.json(data, {
             headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400" },
         });
-    } catch (error: any) {
-        console.error("Notion API Error (Keywords):", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        console.error("Notion API Error (Keywords):", error instanceof Error ? error.message : error);
+        return NextResponse.json({ error: "Failed to fetch keywords data" }, { status: 500 });
     }
 }

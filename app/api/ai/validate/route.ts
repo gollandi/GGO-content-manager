@@ -6,7 +6,7 @@ const genAI = new GoogleGenerativeAI(apiKey);
 
 export async function POST(req: Request) {
   if (!apiKey) {
-    return NextResponse.json({ error: "Gemini API Key is missing in .env.local" }, { status: 500 });
+    return NextResponse.json({ error: "AI service unavailable" }, { status: 503 });
   }
 
   try {
@@ -83,8 +83,8 @@ export async function POST(req: Request) {
     } else {
       return NextResponse.json({ analysis: responseText.trim() });
     }
-  } catch (error: any) {
-    console.error("AI Validation Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("AI Validation Error:", error instanceof Error ? error.message : error);
+    return NextResponse.json({ error: "AI validation failed" }, { status: 500 });
   }
 }
