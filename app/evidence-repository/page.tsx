@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import {
@@ -24,14 +24,10 @@ const ArchiveIcon = (props: React.SVGProps<SVGSVGElement>) => <IconFileText {...
 
 export default function EvidenceRepositoryPage() {
   const { data: evidenceItems, loading, error } = useNotionData<EvidenceItem>("/api/notion/evidence");
-  const [selectedItem, setSelectedItem] = useState<EvidenceItem | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Select first item once data loads
-  useEffect(() => {
-    if (evidenceItems.length > 0 && !selectedItem) {
-      setSelectedItem(evidenceItems[0]);
-    }
-  }, [evidenceItems, selectedItem]);
+  // Derive selected item — defaults to first item until user clicks another
+  const selectedItem = evidenceItems.find((e) => e.id === selectedId) ?? evidenceItems[0] ?? null;
 
   const filters = [
     { label: "Evidence Type", value: "All Types" },
@@ -87,7 +83,7 @@ export default function EvidenceRepositoryPage() {
                 <div
                   key={item.id}
                   className={`${styles.evidenceCard} ${selectedItem?.id === item.id ? styles.selected : ''}`}
-                  onClick={() => setSelectedItem(item)}
+                  onClick={() => setSelectedId(item.id)}
                 >
                   <div className={styles.evidenceHeader}>
                     <div className={styles.evidenceTitle}>{item.title}</div>
@@ -127,7 +123,7 @@ export default function EvidenceRepositoryPage() {
               <>
                 <div className={styles.panelHeader}>
                   <h3>Evidence Details</h3>
-                  <button className={styles.closeButton} onClick={() => setSelectedItem(null)}>
+                  <button className={styles.closeButton} onClick={() => setSelectedId(null)}>
                     <CloseIcon />
                   </button>
                 </div>
