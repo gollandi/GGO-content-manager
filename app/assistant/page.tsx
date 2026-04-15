@@ -120,7 +120,7 @@ export default function AssistantPage() {
               </div>
 
               <div className={styles.footerActions}>
-                <button className="btn-pill">
+                <button className="btn-pill opacity-50 cursor-not-allowed" disabled title="Coming soon">
                   <Icons.IconSave style={{ width: '14px', marginRight: '6px' }} />
                   Save Draft
                 </button>
@@ -178,7 +178,7 @@ export default function AssistantPage() {
                   <div className={styles.actionCard}>
                     <h4>Action Required</h4>
                     <p>Update the content in Sanity and re-run validation to confirm compliance.</p>
-                    <button className="btn-gradient w-full mt-4">Save to Compliance Log</button>
+                    <button className="btn-gradient w-full mt-4 opacity-50 cursor-not-allowed" disabled title="Coming soon">Save to Compliance Log</button>
                   </div>
                 </div>
               </div>

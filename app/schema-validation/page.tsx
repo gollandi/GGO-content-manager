@@ -113,7 +113,7 @@ export default function SchemaValidationPage() {
                 {totalErrors > 0 && <span className={styles.iconBadge}>{totalErrors > 99 ? "99+" : totalErrors}</span>}
               </button>
             </div>
-            <button className="btn-gradient">
+            <button className="btn-gradient opacity-50 cursor-not-allowed" disabled title="Coming soon">
               <Icons.IconSync className={styles.iconSm} style={{ marginRight: "8px" }} />
               Run Validation
             </button>
@@ -166,7 +166,7 @@ export default function SchemaValidationPage() {
                   {loading ? "Loading..." : `Showing ${filteredItems.length} of ${totalPages} pages`}
                 </p>
               </div>
-              <button className="btn-pill">Export</button>
+              <button className="btn-pill opacity-50 cursor-not-allowed" disabled title="Coming soon">Export</button>
             </div>
 
             <div className={styles.tableWrap}>

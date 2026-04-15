@@ -131,7 +131,7 @@ export default function PatientJourneysPage() {
                 <span className={styles.iconBadge}>{coverageGaps}</span>
               )}
             </button>
-            <button className="btn-gradient">
+            <button className="btn-gradient opacity-50 cursor-not-allowed" disabled title="Coming soon">
               <Icons.IconPlus
                 className={styles.iconSm}
                 style={{ marginRight: "8px" }}

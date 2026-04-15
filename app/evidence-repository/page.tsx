@@ -53,7 +53,7 @@ export default function EvidenceRepositoryPage() {
               <BellIcon />
               <span className={styles.iconBadge}>3</span>
             </button>
-            <button className="btn-gradient">
+            <button className="btn-gradient opacity-50 cursor-not-allowed" disabled title="Coming soon">
               <PlusIcon style={{ marginRight: '8px', width: '20px' }} />
               Add Evidence
             </button>

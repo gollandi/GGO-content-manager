@@ -54,6 +54,9 @@ export default function FeedbackQueuePage() {
   return (
     <AppShell>
       <div className={styles.page}>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 mb-6 text-sm text-amber-800">
+          This page is in development. Data shown is placeholder only.
+        </div>
         <header className="page-header">
           <div>
             <h1 className="page-title">Stakeholder Feedback Queue</h1>
@@ -66,7 +69,7 @@ export default function FeedbackQueuePage() {
               <IconBell />
               <span className={styles.iconBadge}>3</span>
             </button>
-            <button className="btn-gradient">
+            <button className="btn-gradient opacity-50 cursor-not-allowed" disabled title="Coming soon">
               <IconPlus style={{ marginRight: '8px' }} />
               Log Feedback
             </button>

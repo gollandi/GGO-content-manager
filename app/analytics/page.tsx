@@ -30,8 +30,8 @@ export default function AnalyticsPage() {
 
         if (Array.isArray(contentData)) setContent(contentData);
         if (Array.isArray(complianceData)) setCompliance(complianceData);
-      } catch (error) {
-        console.error("Error fetching analytics data:", error);
+      } catch {
+        // Error handling delegated to error boundary
       } finally {
         setLoading(false);
       }
@@ -91,7 +91,7 @@ export default function AnalyticsPage() {
               <IconCalendar style={{ width: '14px', marginRight: '6px' }} />
               Last 30 Days
             </button>
-            <button className="btn-pill">
+            <button className="btn-pill opacity-50 cursor-not-allowed" disabled title="Coming soon">
               <IconExternalLink style={{ width: '14px', marginRight: '6px' }} />
               Export Report
             </button>

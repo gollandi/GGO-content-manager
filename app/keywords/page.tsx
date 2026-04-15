@@ -146,7 +146,7 @@ export default function KeywordsPage() {
                 </span>
               </button>
             </div>
-            <button className="btn-gradient">
+            <button className="btn-gradient opacity-50 cursor-not-allowed" disabled title="Coming soon">
               <Icons.IconPlus
                 className={styles.iconSm}
                 style={{ marginRight: "8px" }}
@@ -214,7 +214,7 @@ export default function KeywordsPage() {
                     : `Showing ${filteredItems.length} of ${totalKeywords} keywords`}
                 </p>
               </div>
-              <button className="btn-pill">Export</button>
+              <button className="btn-pill opacity-50 cursor-not-allowed" disabled title="Coming soon">Export</button>
             </div>
 
             <div className={styles.tableWrap}>

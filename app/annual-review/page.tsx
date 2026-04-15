@@ -59,6 +59,9 @@ export default function AnnualReviewPage() {
   return (
     <AppShell>
       <div className={styles.page}>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 mb-6 text-sm text-amber-800">
+          This page is in development. Data shown is placeholder only.
+        </div>
         <header className="page-header">
           <div>
             <h1 className="page-title">Annual Review Log</h1>
@@ -69,7 +72,7 @@ export default function AnnualReviewPage() {
               <IconBell />
               <span className={styles.iconBadge}>3</span>
             </button>
-            <button className="btn-gradient">
+            <button className="btn-gradient opacity-50 cursor-not-allowed" disabled title="Coming soon">
               <IconPlus style={{ marginRight: '8px' }} />
               Generate Review Pack
             </button>
@@ -115,7 +118,7 @@ export default function AnnualReviewPage() {
                   <IconFilter style={{ width: '14px', marginRight: '6px' }} />
                   Filter
                 </button>
-                <button className="btn-pill">
+                <button className="btn-pill opacity-50 cursor-not-allowed" disabled title="Coming soon">
                   <IconExternalLink style={{ width: '14px', marginRight: '6px' }} />
                   Export
                 </button>

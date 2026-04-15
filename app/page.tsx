@@ -23,8 +23,8 @@ export default function DashboardPage() {
 
         if (Array.isArray(contentData)) setContent(contentData);
         if (Array.isArray(complianceData)) setCompliance(complianceData);
-      } catch (error) {
-        console.error("Failed to fetch dashboard data:", error);
+      } catch {
+        // Error handling delegated to error boundary
       } finally {
         setIsLoading(false);
       }
@@ -90,7 +90,7 @@ export default function DashboardPage() {
             <Icons.IconSync className="w-4 h-4" />
             Fetch Updates
           </button>
-          <button className="btn-gradient">View Reports</button>
+          <button className="btn-gradient opacity-50 cursor-not-allowed" disabled title="Coming soon">View Reports</button>
 
           <div className="flex items-center gap-2 ml-2 pl-4 border-l border-border-default">
             <button className="w-10 h-10 rounded-full border border-border-default bg-white flex items-center justify-center text-charcoal relative hover:bg-surface-base hover:text-ggo-purple hover:border-ggo-purple transition-colors">

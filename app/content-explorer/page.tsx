@@ -43,7 +43,7 @@ export default function ContentExplorerPage() {
                 <span className={styles.iconBadge}>3</span>
               </button>
             </div>
-            <button className="btn-gradient">
+            <button className="btn-gradient opacity-50 cursor-not-allowed" disabled title="Coming soon">
               <Icons.IconPlus className={styles.iconSm} style={{ marginRight: '8px' }} />
               New Content
             </button>
@@ -86,7 +86,7 @@ export default function ContentExplorerPage() {
                   {loading ? 'Loading...' : `Showing ${filteredItems.length} items`}
                 </p>
               </div>
-              <button className="btn-pill">Export</button>
+              <button className="btn-pill opacity-50 cursor-not-allowed" disabled title="Coming soon">Export</button>
             </div>
             <div className={styles.tableWrap}>
               <table className="table">
