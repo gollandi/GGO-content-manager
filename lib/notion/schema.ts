@@ -177,5 +177,20 @@ export const SCHEMA = {
         needsDiscussion: "Needs Discussion",               // Checkbox
         pendingFromPreviousCycle: "Pending from Previous Cycle",  // Text
         structuralChange: "Structural Change This Cycle",  // Text
+    },
+
+    ContentRequests: {
+        databaseId: process.env.NOTION_CONTENT_REQUESTS_DB!,
+        requestTitle: "Request Title",        // Title
+        requestSource: "Request Source",      // Select: Patient/Clinician/Analytics/Team
+        priority: "Priority",                 // Select: High/Medium/Low
+        status: "Status",                     // Status: Not Started/Planning/Creating/Review/Published
+        requestDate: "Request Date",          // Date
+        dueDate: "Due Date",                  // Date
+        assignedTo: "Assigned To",            // Person
+        targetAudience: "Target Audience",    // Multi-select
+        formatRequested: "Format Requested",  // Select: Blog/Video/Guide/Infographic
+        whyNeeded: "Why Needed",              // Text
+        resultingContent: "Resulting Content",// Relation to Content Assets
     }
 } as const;

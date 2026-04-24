@@ -191,6 +191,32 @@ export interface AnnualReviewLogItem {
     createdTime: string;
 }
 
+export type ContentRequestSource = "Patient" | "Clinician" | "Analytics" | "Team";
+export type ContentRequestPriority = "High" | "Medium" | "Low";
+export type ContentRequestStatus = "Not Started" | "Planning" | "Creating" | "Review" | "Published";
+export type ContentRequestFormat = "Blog" | "Video" | "Guide" | "Infographic";
+export type ContentRequestAudience = "Patient" | "Caregiver" | "Healthcare Professional";
+
+export interface ContentRequestItem {
+    id: string;
+    requestTitle: string;
+    requestSource: ContentRequestSource | null;
+    priority: ContentRequestPriority | null;
+    status: ContentRequestStatus | null;
+    requestDate: string | null;
+    dueDate: string | null;
+    assignedTo: string[];
+    targetAudience: ContentRequestAudience[];
+    formatRequested: ContentRequestFormat | null;
+    whyNeeded: string;
+    resultingContentIds: string[];
+
+    // Joined fields
+    resultingContentTitles?: string[];
+
+    createdTime: string;
+}
+
 export interface SchemaValidationItem {
     id: string;
     name: string;

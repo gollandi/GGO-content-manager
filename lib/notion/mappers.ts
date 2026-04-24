@@ -14,7 +14,13 @@ import {
     FeedbackActionStatus,
     AnnualReviewLogItem,
     PifCriterion,
-    PifCycle
+    PifCycle,
+    ContentRequestItem,
+    ContentRequestSource,
+    ContentRequestPriority,
+    ContentRequestStatus,
+    ContentRequestFormat,
+    ContentRequestAudience
 } from "./types";
 
 /** A single Notion property value — the union the SDK uses inside PageObjectResponse */
@@ -307,6 +313,27 @@ export function mapAnnualReviewLogItem(page: PageObjectResponse): AnnualReviewLo
         needsDiscussion: extractCheckbox(getProp(props, S.needsDiscussion)),
         pendingFromPreviousCycle: extractRichText(getProp(props, S.pendingFromPreviousCycle)),
         structuralChange: extractRichText(getProp(props, S.structuralChange)),
+        createdTime: page.created_time,
+    };
+}
+
+export function mapContentRequestItem(page: PageObjectResponse): ContentRequestItem {
+    const props = page.properties;
+    const S = SCHEMA.ContentRequests;
+
+    return {
+        id: page.id,
+        requestTitle: extractTitle(getProp(props, S.requestTitle)),
+        requestSource: extractSelect(getProp(props, S.requestSource)) as ContentRequestSource | null,
+        priority: extractSelect(getProp(props, S.priority)) as ContentRequestPriority | null,
+        status: extractStatus(getProp(props, S.status)) as ContentRequestStatus | null,
+        requestDate: extractDate(getProp(props, S.requestDate)),
+        dueDate: extractDate(getProp(props, S.dueDate)),
+        assignedTo: extractPeople(getProp(props, S.assignedTo)),
+        targetAudience: extractMultiSelect(getProp(props, S.targetAudience)) as ContentRequestAudience[],
+        formatRequested: extractSelect(getProp(props, S.formatRequested)) as ContentRequestFormat | null,
+        whyNeeded: extractRichText(getProp(props, S.whyNeeded)),
+        resultingContentIds: extractRelation(getProp(props, S.resultingContent)),
         createdTime: page.created_time,
     };
 }

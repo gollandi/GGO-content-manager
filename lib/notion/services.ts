@@ -8,7 +8,8 @@ import {
     mapSchemaValidationItem,
     mapPatientJourneyItem,
     mapFeedbackItem,
-    mapAnnualReviewLogItem
+    mapAnnualReviewLogItem,
+    mapContentRequestItem
 } from "./mappers";
 import {
     ContentItem,
@@ -18,7 +19,8 @@ import {
     SchemaValidationItem,
     PatientJourneyItem,
     FeedbackItem,
-    AnnualReviewLogItem
+    AnnualReviewLogItem,
+    ContentRequestItem
 } from "./types";
 import { PageObjectResponse, QueryDatabaseResponse } from "@notionhq/client/build/src/api-endpoints";
 import { cached } from "../cache";
@@ -143,6 +145,32 @@ export async function getFeedback(): Promise<FeedbackItem[]> {
     return feedback.map((f) => ({
         ...f,
         relatedContentTitles: f.relatedContentIds
+            .map((id) => assetMap.get(id)?.title)
+            .filter((t): t is string => !!t),
+    }));
+}
+
+/**
+ * Content Requests Service
+ * Joins requests with Resulting Content titles for display.
+ */
+export async function getContentRequests(): Promise<ContentRequestItem[]> {
+    const requests = await fetchAll(SCHEMA.ContentRequests.databaseId, mapContentRequestItem);
+
+    const allContentIds = Array.from(
+        new Set(requests.flatMap((r) => r.resultingContentIds))
+    );
+
+    if (allContentIds.length === 0) return requests;
+
+    const contentAssets = await cached("content", () =>
+        fetchAll(SCHEMA.ContentMaster.databaseId, mapContentItem)
+    );
+    const assetMap = new Map(contentAssets.map((a) => [a.id, a]));
+
+    return requests.map((r) => ({
+        ...r,
+        resultingContentTitles: r.resultingContentIds
             .map((id) => assetMap.get(id)?.title)
             .filter((t): t is string => !!t),
     }));
