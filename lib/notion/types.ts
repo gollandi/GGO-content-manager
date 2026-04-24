@@ -168,6 +168,29 @@ export interface FeedbackItem {
     createdTime: string;
 }
 
+export type PifCriterion =
+    | "1.1" | "1.2" | "1.3" | "1.4"
+    | "2.1" | "3.1"
+    | "4.1" | "4.2" | "4.3" | "4.4"
+    | "5.1" | "5.2"
+    | "6.1" | "6.2" | "6.3"
+    | "7.1" | "7.2" | "7.3"
+    | "8.1" | "9.1" | "10.1";
+
+export type PifCycle = "FY2026" | "FY2027" | "FY2028" | "FY2029" | "FY2030";
+
+export interface AnnualReviewLogItem {
+    id: string;
+    entry: string;
+    criterion: PifCriterion | null;
+    cycle: PifCycle | null;
+    reviewDate: string | null;
+    needsDiscussion: boolean;
+    pendingFromPreviousCycle: string;
+    structuralChange: string;
+    createdTime: string;
+}
+
 export interface SchemaValidationItem {
     id: string;
     name: string;

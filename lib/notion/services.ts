@@ -7,7 +7,8 @@ import {
     mapKeywordItem,
     mapSchemaValidationItem,
     mapPatientJourneyItem,
-    mapFeedbackItem
+    mapFeedbackItem,
+    mapAnnualReviewLogItem
 } from "./mappers";
 import {
     ContentItem,
@@ -16,7 +17,8 @@ import {
     KeywordItem,
     SchemaValidationItem,
     PatientJourneyItem,
-    FeedbackItem
+    FeedbackItem,
+    AnnualReviewLogItem
 } from "./types";
 import { PageObjectResponse, QueryDatabaseResponse } from "@notionhq/client/build/src/api-endpoints";
 import { cached } from "../cache";
@@ -144,6 +146,14 @@ export async function getFeedback(): Promise<FeedbackItem[]> {
             .map((id) => assetMap.get(id)?.title)
             .filter((t): t is string => !!t),
     }));
+}
+
+/**
+ * Annual Review Log Service
+ * Returns all 21 PIF TICK criterion rows for the requested cycle (defaults to current FY).
+ */
+export async function getAnnualReviewLog(): Promise<AnnualReviewLogItem[]> {
+    return fetchAll(SCHEMA.AnnualReviewLog.databaseId, mapAnnualReviewLogItem);
 }
 
 /**

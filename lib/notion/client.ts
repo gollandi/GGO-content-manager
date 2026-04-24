@@ -9,6 +9,7 @@ const REQUIRED_ENV = [
     "NOTION_PATIENT_JOURNEYS_DB",
     "NOTION_SCHEMA_VALIDATION_DB",
     "NOTION_STAKEHOLDER_FEEDBACK_DB",
+    "NOTION_ANNUAL_REVIEW_LOG_DB",
 ] as const;
 
 // Fail-fast: check all required env vars at module load time (server-side only)

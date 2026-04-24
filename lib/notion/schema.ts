@@ -166,5 +166,16 @@ export const SCHEMA = {
         actionStatus: "Action Status",        // Status: Not Started/In Progress/Completed
         actionOwner: "Action Owner",          // Person
         actionTaken: "Action Taken",          // Text
+    },
+
+    AnnualReviewLog: {
+        databaseId: process.env.NOTION_ANNUAL_REVIEW_LOG_DB!,
+        entry: "Entry",                                    // Title
+        criterion: "Criterion",                            // Select (21 options: 1.1...10.1)
+        cycle: "Cycle",                                    // Select (FY2026...FY2030)
+        reviewDate: "Review Date",                         // Date
+        needsDiscussion: "Needs Discussion",               // Checkbox
+        pendingFromPreviousCycle: "Pending from Previous Cycle",  // Text
+        structuralChange: "Structural Change This Cycle",  // Text
     }
 } as const;

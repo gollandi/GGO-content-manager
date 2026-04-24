@@ -11,7 +11,10 @@ import {
     ContentStatus,
     FeedbackItem,
     FeedbackType,
-    FeedbackActionStatus
+    FeedbackActionStatus,
+    AnnualReviewLogItem,
+    PifCriterion,
+    PifCycle
 } from "./types";
 
 /** A single Notion property value — the union the SDK uses inside PageObjectResponse */
@@ -287,6 +290,23 @@ export function mapFeedbackItem(page: PageObjectResponse): FeedbackItem {
         actionStatus: extractStatus(getProp(props, S.actionStatus)) as FeedbackActionStatus | null,
         actionOwner: extractPeople(getProp(props, S.actionOwner)),
         actionTaken: extractRichText(getProp(props, S.actionTaken)),
+        createdTime: page.created_time,
+    };
+}
+
+export function mapAnnualReviewLogItem(page: PageObjectResponse): AnnualReviewLogItem {
+    const props = page.properties;
+    const S = SCHEMA.AnnualReviewLog;
+
+    return {
+        id: page.id,
+        entry: extractTitle(getProp(props, S.entry)),
+        criterion: extractSelect(getProp(props, S.criterion)) as PifCriterion | null,
+        cycle: extractSelect(getProp(props, S.cycle)) as PifCycle | null,
+        reviewDate: extractDate(getProp(props, S.reviewDate)),
+        needsDiscussion: extractCheckbox(getProp(props, S.needsDiscussion)),
+        pendingFromPreviousCycle: extractRichText(getProp(props, S.pendingFromPreviousCycle)),
+        structuralChange: extractRichText(getProp(props, S.structuralChange)),
         createdTime: page.created_time,
     };
 }
