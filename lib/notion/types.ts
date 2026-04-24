@@ -147,6 +147,27 @@ export interface PatientJourneyItem {
     createdTime: string;
 }
 
+export type FeedbackType = "Patient" | "Expert" | "Clinician" | "Public";
+export type FeedbackActionStatus = "Not Started" | "In Progress" | "Completed";
+
+export interface FeedbackItem {
+    id: string;
+    feedbackId: string;
+    feedbackType: FeedbackType | null;
+    feedbackDate: string | null;
+    feedbackSummary: string;
+    relatedContentIds: string[];
+    actionRequired: boolean;
+    actionStatus: FeedbackActionStatus | null;
+    actionOwner: string[];
+    actionTaken: string;
+
+    // Joined fields (populated by services)
+    relatedContentTitles?: string[];
+
+    createdTime: string;
+}
+
 export interface SchemaValidationItem {
     id: string;
     name: string;

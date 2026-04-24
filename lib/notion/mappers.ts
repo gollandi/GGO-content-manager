@@ -8,7 +8,10 @@ import {
     SchemaValidationItem,
     PatientJourneyItem,
     ContentType,
-    ContentStatus
+    ContentStatus,
+    FeedbackItem,
+    FeedbackType,
+    FeedbackActionStatus
 } from "./types";
 
 /** A single Notion property value — the union the SDK uses inside PageObjectResponse */
@@ -36,6 +39,10 @@ const extractRichText = (prop: Prop): string => {
 const extractSelect = (prop: Prop): string | null => {
     const p = prop as { select?: { name: string } | null } | undefined;
     return p?.select?.name ?? null;
+};
+const extractStatus = (prop: Prop): string | null => {
+    const p = prop as { status?: { name: string } | null } | undefined;
+    return p?.status?.name ?? null;
 };
 const extractMultiSelect = (prop: Prop): string[] => {
     const p = prop as { multi_select?: { name: string }[] } | undefined;
@@ -261,6 +268,25 @@ export function mapSchemaValidationItem(page: PageObjectResponse): SchemaValidat
         faqsSchemaTypes: extractMultiSelect(getProp(props, S.faqsSchemaTypes)),
         notes: extractRichText(getProp(props, S.notes)),
 
+        createdTime: page.created_time,
+    };
+}
+
+export function mapFeedbackItem(page: PageObjectResponse): FeedbackItem {
+    const props = page.properties;
+    const S = SCHEMA.StakeholderFeedback;
+
+    return {
+        id: page.id,
+        feedbackId: extractTitle(getProp(props, S.feedbackId)),
+        feedbackType: extractSelect(getProp(props, S.feedbackType)) as FeedbackType | null,
+        feedbackDate: extractDate(getProp(props, S.feedbackDate)),
+        feedbackSummary: extractRichText(getProp(props, S.feedbackSummary)),
+        relatedContentIds: extractRelation(getProp(props, S.relatedContent)),
+        actionRequired: extractCheckbox(getProp(props, S.actionRequired)),
+        actionStatus: extractStatus(getProp(props, S.actionStatus)) as FeedbackActionStatus | null,
+        actionOwner: extractPeople(getProp(props, S.actionOwner)),
+        actionTaken: extractRichText(getProp(props, S.actionTaken)),
         createdTime: page.created_time,
     };
 }

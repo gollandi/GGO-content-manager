@@ -6,7 +6,8 @@ import {
     mapEvidenceItem,
     mapKeywordItem,
     mapSchemaValidationItem,
-    mapPatientJourneyItem
+    mapPatientJourneyItem,
+    mapFeedbackItem
 } from "./mappers";
 import {
     ContentItem,
@@ -14,7 +15,8 @@ import {
     EvidenceItem,
     KeywordItem,
     SchemaValidationItem,
-    PatientJourneyItem
+    PatientJourneyItem,
+    FeedbackItem
 } from "./types";
 import { PageObjectResponse, QueryDatabaseResponse } from "@notionhq/client/build/src/api-endpoints";
 import { cached } from "../cache";
@@ -114,6 +116,34 @@ export async function getSchemaValidations(): Promise<SchemaValidationItem[]> {
  */
 export async function getPatientJourneys(): Promise<PatientJourneyItem[]> {
     return fetchAll(SCHEMA.PatientJourneys.databaseId, mapPatientJourneyItem);
+}
+
+/**
+ * Stakeholder Feedback Service
+ * Joins feedback with related Content Asset titles for display.
+ */
+export async function getFeedback(): Promise<FeedbackItem[]> {
+    const feedback = await fetchAll(SCHEMA.StakeholderFeedback.databaseId, mapFeedbackItem);
+
+    // Collect related content IDs for joining
+    const allContentIds = Array.from(
+        new Set(feedback.flatMap((f) => f.relatedContentIds))
+    );
+
+    if (allContentIds.length === 0) return feedback;
+
+    // Reuse cached content assets to avoid redundant fetches
+    const contentAssets = await cached("content", () =>
+        fetchAll(SCHEMA.ContentMaster.databaseId, mapContentItem)
+    );
+    const assetMap = new Map(contentAssets.map((a) => [a.id, a]));
+
+    return feedback.map((f) => ({
+        ...f,
+        relatedContentTitles: f.relatedContentIds
+            .map((id) => assetMap.get(id)?.title)
+            .filter((t): t is string => !!t),
+    }));
 }
 
 /**

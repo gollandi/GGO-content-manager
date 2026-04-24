@@ -153,5 +153,18 @@ export const SCHEMA = {
         medicalTerms: "Medical Term(s)",
         contentAssets: "Content Assets",
         notes: "Notes",
+    },
+
+    StakeholderFeedback: {
+        databaseId: process.env.NOTION_STAKEHOLDER_FEEDBACK_DB!,
+        feedbackId: "Feedback ID",           // Title
+        feedbackType: "Feedback Type",        // Select: Patient/Expert/Clinician/Public
+        feedbackDate: "Feedback Date",        // Date
+        feedbackSummary: "Feedback Summary",  // Text
+        relatedContent: "Related Content",    // Relation to Content Assets
+        actionRequired: "Action Required",    // Checkbox
+        actionStatus: "Action Status",        // Status: Not Started/In Progress/Completed
+        actionOwner: "Action Owner",          // Person
+        actionTaken: "Action Taken",          // Text
     }
 } as const;
