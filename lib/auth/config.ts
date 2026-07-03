@@ -21,10 +21,19 @@ const CREDENTIALS_USERS: Record<string, { name: string; hash: string }> = {
  *   COCKPIT_USER_HASH=$2a$10$...   (bcrypt — see hash one-liner above)
  * Merged on top of CREDENTIALS_USERS; hardcoded entries still work.
  */
-if (process.env.COCKPIT_USER_EMAIL && process.env.COCKPIT_USER_HASH) {
+/**
+ * Prefer COCKPIT_USER_HASH_B64 (base64 of the bcrypt hash): Next's env
+ * loader runs dotenv-expand, which eats the `$` sequences in a raw bcrypt
+ * hash ("$2b$10$…" → mangled). Base64 has no `$`, so it survives verbatim.
+ */
+const cockpitHash = process.env.COCKPIT_USER_HASH_B64
+    ? Buffer.from(process.env.COCKPIT_USER_HASH_B64, "base64").toString("utf8")
+    : process.env.COCKPIT_USER_HASH;
+
+if (process.env.COCKPIT_USER_EMAIL && cockpitHash) {
     CREDENTIALS_USERS[process.env.COCKPIT_USER_EMAIL.toLowerCase()] = {
         name: process.env.COCKPIT_USER_NAME || "Operator",
-        hash: process.env.COCKPIT_USER_HASH,
+        hash: cockpitHash,
     };
 }
 
