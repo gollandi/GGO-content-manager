@@ -15,6 +15,19 @@ const CREDENTIALS_USERS: Record<string, { name: string; hash: string }> = {
     // "admin@ggomed.co.uk": { name: "JJ", hash: "$2a$10$..." },
 };
 
+/**
+ * Env-driven single-operator user (12-factor — no code edit per user):
+ *   COCKPIT_USER_EMAIL=you@example.com
+ *   COCKPIT_USER_HASH=$2a$10$...   (bcrypt — see hash one-liner above)
+ * Merged on top of CREDENTIALS_USERS; hardcoded entries still work.
+ */
+if (process.env.COCKPIT_USER_EMAIL && process.env.COCKPIT_USER_HASH) {
+    CREDENTIALS_USERS[process.env.COCKPIT_USER_EMAIL.toLowerCase()] = {
+        name: process.env.COCKPIT_USER_NAME || "Operator",
+        hash: process.env.COCKPIT_USER_HASH,
+    };
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
     providers: [
         Google({
