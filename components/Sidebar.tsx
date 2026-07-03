@@ -10,6 +10,7 @@ const navItems = [
   // ── Cockpit modules (live GROQ + editorial state — spec Sprint 1) ──
   { href: "/editorial", label: "Editorial", Icon: Icons.IconCalendar },
   { href: "/pif-tick", label: "PIF Tick", Icon: Icons.IconShield },
+  { href: "/casa-di-ernesto", label: "La Casa di Ernesto", Icon: Icons.IconEdit },
   { href: "/ambrogio", label: "Lo Studio di Ambrogio", Icon: Icons.IconSparkles },
   // ── Legacy pages (read the doomed mirror DBs — retire in Phase 3) ──
   { href: "/content-explorer", label: "Content Explorer", Icon: Icons.IconExplorer },

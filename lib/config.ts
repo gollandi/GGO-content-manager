@@ -96,3 +96,33 @@ export const sanityCompassConfig = {
 /** Base URL of the view HTTP API — loopback in Phase 1, remote in Phase 2. */
 export const viewApiBaseUrl: string | undefined =
     process.env.VIEW_API_BASE_URL;
+
+/** La Casa di Ernesto — the in-shell generative runner (Anthropic only). */
+export const runnerConfig = {
+    get anthropicApiKey(): string {
+        return required("ANTHROPIC_API_KEY");
+    },
+    isConfigured(): boolean {
+        return !!process.env.ANTHROPIC_API_KEY;
+    },
+    model: process.env.COCKPIT_RUNNER_MODEL || "claude-opus-4-8",
+    /** Editorial skill bundles (SKILL.md) — canonical home is ~/.claude/skills. */
+    skillsDir:
+        process.env.COCKPIT_SKILLS_DIR ||
+        `${process.env.HOME}/.claude/skills`,
+    maxTurns: Number(process.env.COCKPIT_RUNNER_MAX_TURNS || 40),
+} as const;
+
+/**
+ * GGOMed Sanity WRITE access — Family A only (copywriter → drafts).
+ * Held server-side, injected into the runner, never in skill bundles
+ * (spec §0.0 decision 4). The write client refuses non-drafts ids.
+ */
+export const sanityGgomedWriteConfig = {
+    get writeToken(): string {
+        return required("SANITY_GGOMED_WRITE_TOKEN");
+    },
+    isConfigured(): boolean {
+        return !!process.env.SANITY_GGOMED_WRITE_TOKEN;
+    },
+} as const;

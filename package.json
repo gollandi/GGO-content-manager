@@ -10,6 +10,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "@notionhq/client": "^2.2.3",
     "@sanity/client": "^7.23.0",
     "@tailwindcss/cli": "^4.2.1",
