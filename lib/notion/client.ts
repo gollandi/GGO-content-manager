@@ -1,31 +1,15 @@
 import { Client } from "@notionhq/client";
+import { notionConfig } from "../config";
 
-const REQUIRED_ENV = [
-    "NOTION_API_KEY",
-    "NOTION_CONTENT_ASSETS_DB",
-    "NOTION_PIF_TICK_COMPLIANCE_DB",
-    "NOTION_EVIDENCE_SOURCES_DB",
-    "NOTION_KEYWORDS_DB",
-    "NOTION_PATIENT_JOURNEYS_DB",
-    "NOTION_SCHEMA_VALIDATION_DB",
-    "NOTION_STAKEHOLDER_FEEDBACK_DB",
-    "NOTION_ANNUAL_REVIEW_LOG_DB",
-    "NOTION_CONTENT_REQUESTS_DB",
-] as const;
-
-// Fail-fast: check all required env vars at module load time (server-side only)
-if (typeof window === "undefined") {
-    const missing = REQUIRED_ENV.filter((key) => !process.env[key]);
-    if (missing.length > 0) {
-        throw new Error(
-            `Missing required environment variables:\n  ${missing.join("\n  ")}\n` +
-            `Check .env.local against the REQUIRED_ENV list in lib/notion/client.ts`
-        );
-    }
-}
-
+/**
+ * Notion SDK client, configured via the central lib/config.ts (12-factor).
+ *
+ * Database ids are resolved lazily through notionConfig.dbs — the app boots
+ * with only NOTION_API_KEY plus the ids of the DBs a page actually queries.
+ * A missing id fails loudly, by name, at query time.
+ */
 export const notion = new Client({
     auth: process.env.NOTION_API_KEY,
 });
 
-export const isNotionConfigured = () => !!process.env.NOTION_API_KEY;
+export const isNotionConfigured = () => notionConfig.isConfigured();

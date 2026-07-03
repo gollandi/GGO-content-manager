@@ -10,8 +10,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
     "@notionhq/client": "^2.2.3",
+    "@sanity/client": "^7.23.0",
     "@tailwindcss/cli": "^4.2.1",
     "@tailwindcss/postcss": "^4.2.1",
     "bcryptjs": "^3.0.3",

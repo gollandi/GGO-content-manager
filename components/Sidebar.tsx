@@ -7,6 +7,11 @@ import * as Icons from "./Icons";
 
 const navItems = [
   { href: "/", label: "Dashboard", Icon: Icons.IconDashboard },
+  // ── Cockpit modules (live GROQ + editorial state — spec Sprint 1) ──
+  { href: "/editorial", label: "Editorial", Icon: Icons.IconCalendar },
+  { href: "/pif-tick", label: "PIF Tick", Icon: Icons.IconShield },
+  { href: "/ambrogio", label: "Lo Studio di Ambrogio", Icon: Icons.IconSparkles },
+  // ── Legacy pages (read the doomed mirror DBs — retire in Phase 3) ──
   { href: "/content-explorer", label: "Content Explorer", Icon: Icons.IconExplorer },
   { href: "/validation-hub", label: "PIF Tick Validation", Icon: Icons.IconPifTick },
   { href: "/evidence-repository", label: "Evidence Repository", Icon: Icons.IconEvidence },
