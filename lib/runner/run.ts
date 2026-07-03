@@ -177,6 +177,12 @@ export async function runSkill(
         onScience: (s) => emit({ type: "science.recorded", ...s }),
         onVerdict: (critic, verdict) => emit({ type: "critics.verdict", critic, verdict }),
     };
+
+    // web_search_20260209 runs code execution under the hood; once the
+    // conversation carries that state, every following request must echo
+    // the server-side container id or the API 400s ("container_id is
+    // required when there are pending tool uses…").
+    let containerId: string | undefined;
     emit({ type: "run.start", runId, skill: req.skill, model: runnerConfig.model });
 
     try {
@@ -192,6 +198,7 @@ export async function runSkill(
                     model: runnerConfig.model,
                     max_tokens: 64000,
                     thinking: { type: "adaptive" },
+                    container: containerId,
                     system,
                     tools: [
                         // Berenice's research surface — server-side web search
@@ -204,6 +211,7 @@ export async function runSkill(
             );
             stream.on("text", (delta) => emit({ type: "text", text: delta }));
             const message = await stream.finalMessage();
+            containerId = message.container?.id ?? containerId;
 
             messages.push({ role: "assistant", content: message.content });
 
