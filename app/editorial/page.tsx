@@ -10,6 +10,7 @@ import {
 } from "../../lib/notion/editorial";
 import { settle, type Settled } from "../../lib/settle";
 import StatusBadge, { getStatusTone } from "../../components/StatusBadge";
+import AppShell from "../../components/AppShell";
 
 /**
  * Module 1 — Editorial views (spec §3). One surface over the two truths:
@@ -88,6 +89,7 @@ export default async function EditorialPage({
     };
 
     return (
+        <AppShell>
         <div className="p-8 max-lg:p-4">
             <header className="mb-6">
                 <h1 className="text-2xl font-bold tracking-tight">Editorial</h1>
@@ -257,5 +259,6 @@ export default async function EditorialPage({
                 </Section>
             </div>
         </div>
+        </AppShell>
     );
 }

@@ -3,6 +3,7 @@ import { getPifGgomed, getPifCompass } from "../../lib/views";
 import { normaliseGgomed, normaliseCompass, type PifRow } from "../../lib/pif/normalise";
 import { settle } from "../../lib/settle";
 import StatusBadge from "../../components/StatusBadge";
+import AppShell from "../../components/AppShell";
 
 /**
  * Module 2 — PIF Tick (spec §3, §4). Every PIF criterion, per content
@@ -78,6 +79,7 @@ export default async function PifTickPage({
     const filterHref = (s: string, st: string) => `/pif-tick?source=${s}&state=${st}`;
 
     return (
+        <AppShell>
         <div className="p-8 max-lg:p-4">
             <header className="mb-6">
                 <h1 className="text-2xl font-bold tracking-tight">PIF Tick</h1>
@@ -179,5 +181,6 @@ export default async function PifTickPage({
                 (GGOMed, Studio-reconciled) / computed predicate (Compass).
             </p>
         </div>
+        </AppShell>
     );
 }

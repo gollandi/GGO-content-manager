@@ -5,6 +5,7 @@ import {
 } from "../../lib/notion/editorial";
 import { settle } from "../../lib/settle";
 import StatusBadge from "../../components/StatusBadge";
+import AppShell from "../../components/AppShell";
 
 /**
  * Module 4 — Lo Studio di Ambrogio (spec §3). READ-ONLY oversight tower:
@@ -42,6 +43,7 @@ export default async function AmbrogioPage() {
     const pendingProposals = (proposals.data ?? []).filter((p) => p.decision === "Pending").length;
 
     return (
+        <AppShell>
         <div className="p-8 max-lg:p-4">
             <header className="mb-6">
                 <h1 className="text-2xl font-bold tracking-tight">Lo Studio di Ambrogio</h1>
@@ -154,5 +156,6 @@ export default async function AmbrogioPage() {
                 </table>
             </section>
         </div>
+        </AppShell>
     );
 }
