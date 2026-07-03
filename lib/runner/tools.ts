@@ -8,12 +8,40 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { randomUUID } from "node:crypto";
 import { VIEW_REGISTRY, isViewName } from "../views";
-import { ggomedClient } from "../sanity/clients";
+import { ggomedClient, ggomedRawClient } from "../sanity/clients";
 import { createDraft, patchDraft } from "../sanity/write-client";
 import { ALLOWED_DOC_TYPES } from "./shape";
-import type { CreatedDraft } from "./types";
+import type { CreatedDraft, ScienceEntry } from "./types";
 
 export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
+    {
+        name: "record_science",
+        description:
+            "Berenice's source ledger. Record ONE piece of fresh science you just verified via web_search — a clinical claim you intend to use, with its source. Every clinical statement in your drafts must trace back to a ledger entry. Record BEFORE drafting, one call per claim.",
+        input_schema: {
+            type: "object" as const,
+            properties: {
+                claim: { type: "string", description: "The clinical claim, in one sentence" },
+                source: { type: "string", description: "Authority/journal + year (e.g. 'EAU Guidelines 2025', 'BJUI 2024')" },
+                url: { type: "string", description: "URL or DOI of the source" },
+            },
+            required: ["claim", "source", "url"],
+            additionalProperties: false,
+        },
+        strict: true,
+    },
+    {
+        name: "run_critics",
+        description:
+            "MANDATORY quality gate — call after your drafts are complete (and again after any revision). Runs two independent fresh-context critics over your drafts: Tatiana (adversarial: unsourced clinical claims vs the science ledger, structural gaps, GMC-compliance risk) and Aspasia (five patient personas: readability, tone, anxiety-sensitivity). Fix what they raise with update_draft, then call finish. finish REFUSES until critics have reviewed your latest state.",
+        input_schema: {
+            type: "object" as const,
+            properties: {},
+            required: [],
+            additionalProperties: false,
+        },
+        strict: true,
+    },
     {
         name: "read_view",
         description:
@@ -107,6 +135,19 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
 export interface ToolContext {
     drafts: CreatedDraft[];
     finished: { summary: string } | null;
+    /** Berenice's ledger — fresh science behind the prose. */
+    science: ScienceEntry[];
+    /** True once run_critics has reviewed the CURRENT draft state; any
+     *  create/update flips it back to false. finish is hard-gated on it. */
+    criticsCleared: boolean;
+    /** Injected by run.ts: fresh-context Tatiana + Aspasia calls. */
+    runCritics: (
+        drafts: CreatedDraft[],
+        science: ScienceEntry[]
+    ) => Promise<{ tatiana: string; aspasia: string }>;
+    /** Injected by run.ts: emit ledger/critic events to the UI stream. */
+    onScience?: (entry: ScienceEntry) => void;
+    onVerdict?: (critic: "tatiana" | "aspasia", verdict: string) => void;
 }
 
 const clip = (s: string, n = 4000) => (s.length > n ? s.slice(0, n) + `… [clipped ${s.length - n} chars]` : s);
@@ -118,6 +159,30 @@ export async function dispatchTool(
     ctx: ToolContext
 ): Promise<{ ok: boolean; content: string; summary: string }> {
     switch (name) {
+        case "record_science": {
+            const entry = {
+                claim: String(input.claim),
+                source: String(input.source),
+                url: String(input.url),
+            };
+            ctx.science.push(entry);
+            ctx.onScience?.(entry);
+            return { ok: true, content: `Recorded (#${ctx.science.length})`, summary: `${entry.source}: ${entry.claim.slice(0, 60)}` };
+        }
+        case "run_critics": {
+            if (ctx.drafts.length === 0) {
+                return { ok: false, content: "No drafts to review yet — draft first.", summary: "no drafts" };
+            }
+            const { tatiana, aspasia } = await ctx.runCritics(ctx.drafts, ctx.science);
+            ctx.criticsCleared = true;
+            ctx.onVerdict?.("tatiana", tatiana);
+            ctx.onVerdict?.("aspasia", aspasia);
+            return {
+                ok: true,
+                content: `## TATIANA (adversarial review)\n${tatiana}\n\n## ASPASIA (persona read)\n${aspasia}\n\nFix what matters with update_draft (critics will need to re-run), or call finish if nothing blocking was raised.`,
+                summary: "both critics reported",
+            };
+        }
         case "read_view": {
             const view = String(input.view);
             if (!isViewName(view)) return { ok: false, content: `Unknown view ${view}`, summary: view };
@@ -130,7 +195,9 @@ export async function dispatchTool(
         }
         case "get_document": {
             const id = String(input.id);
-            const doc = await ggomedClient.fetch(`*[_id == $id][0]`, { id });
+            // Raw perspective for drafts (published client can't see them)
+            const reader = id.startsWith("drafts.") ? ggomedRawClient : ggomedClient;
+            const doc = await reader.fetch(`*[_id == $id][0]`, { id });
             if (!doc) return { ok: false, content: `No document ${id}`, summary: id };
             return { ok: true, content: clip(JSON.stringify(doc), 12000), summary: id };
         }
@@ -144,7 +211,12 @@ export async function dispatchTool(
             const draftId = `drafts.cockpit-${randomUUID()}`;
             await createDraft({ _id: draftId, _type: docType, ...fields });
             ctx.drafts.push({ draftId, docType, title });
-            return { ok: true, content: `Created ${draftId}`, summary: `${docType} "${title}" → ${draftId}` };
+            ctx.criticsCleared = false; // new content → critics must re-run
+            const ledgerNote =
+                ctx.science.length === 0
+                    ? " NOTE: your science ledger is empty — if this document makes clinical claims, research and record_science FIRST; Tatiana will reject unsourced claims."
+                    : "";
+            return { ok: true, content: `Created ${draftId}.${ledgerNote}`, summary: `${docType} "${title}" → ${draftId}` };
         }
         case "update_draft": {
             const draftId = String(input.draftId);
@@ -152,9 +224,18 @@ export async function dispatchTool(
                 return { ok: false, content: `Refusing: ${draftId} was not created in this run`, summary: draftId };
             }
             await patchDraft(draftId, (input.set ?? {}) as Record<string, unknown>);
+            ctx.criticsCleared = false; // content changed → critics must re-run
             return { ok: true, content: `Patched ${draftId}`, summary: draftId };
         }
         case "finish": {
+            if (ctx.drafts.length > 0 && !ctx.criticsCleared) {
+                return {
+                    ok: false,
+                    content:
+                        "REFUSED: run_critics has not reviewed the current draft state. Call run_critics, address blocking findings, then finish. (This gate is enforced in code.)",
+                    summary: "blocked — critics pending",
+                };
+            }
             ctx.finished = { summary: String(input.summary ?? "") };
             return { ok: true, content: "Run finished.", summary: "finish" };
         }

@@ -29,6 +29,20 @@ export const ggomedClient: SanityClient = createClient({
     perspective: "published",
 });
 
+/**
+ * Raw-perspective GGOMed client — sees drafts too (still read-only).
+ * Used by the runner to re-read its own drafts.* documents; the published
+ * client above stays the default for every cockpit view.
+ */
+export const ggomedRawClient: SanityClient = createClient({
+    projectId: sanityGgomedConfig.projectId,
+    dataset: sanityGgomedConfig.dataset,
+    apiVersion: sanityGgomedConfig.apiVersion,
+    token: sanityGgomedConfig.viewerToken,
+    useCdn: false,
+    perspective: "raw",
+});
+
 export const compassPifClient: SanityClient = createClient({
     projectId: sanityCompassConfig.projectId,
     dataset: sanityCompassConfig.dataset,

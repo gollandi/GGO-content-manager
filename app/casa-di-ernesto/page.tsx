@@ -15,6 +15,8 @@ const STUDIO_BASE = "https://ggomed.co.uk/studio";
 
 interface DraftRow { draftId: string; docType: string; title: string }
 interface LogRow { key: number; kind: "text" | "tool" | "status"; text: string }
+interface ScienceRow { claim: string; source: string; url: string }
+interface VerdictRow { critic: "tatiana" | "aspasia"; verdict: string }
 
 export default function CasaDiErnestoPage() {
     const [brief, setBrief] = useState("");
@@ -23,6 +25,8 @@ export default function CasaDiErnestoPage() {
     const [drafts, setDrafts] = useState<DraftRow[]>([]);
     const [summary, setSummary] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [science, setScience] = useState<ScienceRow[]>([]);
+    const [verdicts, setVerdicts] = useState<VerdictRow[]>([]);
     const abortRef = useRef<AbortController | null>(null);
     const keyRef = useRef(0);
 
@@ -43,6 +47,8 @@ export default function CasaDiErnestoPage() {
         setDrafts([]);
         setSummary(null);
         setError(null);
+        setScience([]);
+        setVerdicts([]);
         const controller = new AbortController();
         abortRef.current = controller;
         try {
@@ -77,6 +83,13 @@ export default function CasaDiErnestoPage() {
                         case "draft.created":
                             setDrafts((d) => [...d, { draftId: event.draftId, docType: event.docType, title: event.title }]);
                             push("status", `Draft created: ${event.title}`);
+                            break;
+                        case "science.recorded":
+                            setScience((s) => [...s, { claim: event.claim, source: event.source, url: event.url }]);
+                            break;
+                        case "critics.verdict":
+                            setVerdicts((v) => [...v, { critic: event.critic, verdict: event.verdict }]);
+                            push("status", `Verdetto di ${event.critic === "tatiana" ? "Tatiana" : "Aspasia"} ricevuto`);
                             break;
                         case "run.done": setSummary(`${event.reason === "finished" ? "" : `[${event.reason}] `}${event.summary}`); break;
                         case "run.error": setError(event.message); break;
@@ -151,6 +164,33 @@ export default function CasaDiErnestoPage() {
                             ))}
                         </ul>
                     </section>
+                )}
+
+                {science.length > 0 && (
+                    <section className="bg-white rounded-2xl border border-border-default p-5 mb-6">
+                        <h2 className="text-base font-bold mb-3">Registro fonti (Berenice) — {science.length}</h2>
+                        <ul className="divide-y divide-border-soft">
+                            {science.map((s, i) => (
+                                <li key={i} className="py-2">
+                                    <div className="text-sm">{s.claim}</div>
+                                    <a href={s.url} target="_blank" rel="noreferrer" className="text-xs text-ggo-teal hover:underline">{s.source} ↗</a>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
+
+                {verdicts.length > 0 && (
+                    <div className="grid grid-cols-2 max-lg:grid-cols-1 gap-4 mb-6">
+                        {verdicts.map((v, i) => (
+                            <section key={i} className="bg-white rounded-2xl border border-border-default p-5">
+                                <h2 className="text-base font-bold mb-2">
+                                    {v.critic === "tatiana" ? "Tatiana — revisione avversariale" : "Aspasia — lettura personas"}
+                                </h2>
+                                <div className="text-xs whitespace-pre-wrap max-h-64 overflow-y-auto text-muted-foreground">{v.verdict}</div>
+                            </section>
+                        ))}
+                    </div>
                 )}
 
                 {summary && (

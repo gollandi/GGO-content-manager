@@ -9,6 +9,8 @@ export type RunEvent =
     | { type: "text"; text: string }
     | { type: "tool.use"; name: string; summary: string }
     | { type: "tool.result"; name: string; ok: boolean; summary: string }
+    | { type: "science.recorded"; claim: string; source: string; url: string }
+    | { type: "critics.verdict"; critic: "tatiana" | "aspasia"; verdict: string }
     | { type: "draft.created"; draftId: string; docType: string; title: string }
     | { type: "run.done"; reason: "finished" | "max-turns" | "aborted" | "error"; summary: string; draftIds: string[] }
     | { type: "run.error"; message: string };
@@ -24,4 +26,11 @@ export interface CreatedDraft {
     draftId: string;
     docType: string;
     title: string;
+}
+
+/** One entry in Berenice's source ledger — fresh science behind the prose. */
+export interface ScienceEntry {
+    claim: string;
+    source: string; // authority/journal + year
+    url: string;
 }
