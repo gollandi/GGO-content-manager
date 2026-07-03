@@ -201,8 +201,12 @@ export async function runSkill(
                     container: containerId,
                     system,
                     tools: [
-                        // Berenice's research surface — server-side web search
-                        { type: "web_search_20260209", name: "web_search", max_uses: 12 },
+                        // Berenice's research surface — server-side web search.
+                        // Deliberately the BASIC variant: the _20260209
+                        // dynamic-filtering one runs code execution under the
+                        // hood and its container state 400s on mixed
+                        // server+client tool turns (seen live, 2026-07-04).
+                        { type: "web_search_20250305", name: "web_search", max_uses: 12 },
                         ...TOOL_DEFINITIONS,
                     ],
                     messages,
