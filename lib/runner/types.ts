@@ -15,6 +15,7 @@ export type RunEvent =
     | { type: "jj.asked"; question: string }
     | { type: "jj.said"; text: string }
     | { type: "run.paused"; reason: "proposal" | "question" }
+    | { type: "usage"; totals: UsageTotals }
     | { type: "draft.created"; draftId: string; docType: string; title: string }
     | { type: "run.done"; reason: "finished" | "max-turns" | "aborted" | "error"; summary: string; draftIds: string[] }
     | { type: "run.error"; message: string };
@@ -56,6 +57,15 @@ export interface InteractiveSection {
     block: string; // e.g. faqInlineBlock, quizBlock, accordionBlock
     title: string;
     note: string;
+}
+
+/** Running token/cost totals for a run (all legs + critics included). */
+export interface UsageTotals {
+    inputTokens: number;      // full-price input
+    outputTokens: number;
+    cacheReadTokens: number;  // ~0.1× input price
+    cacheWriteTokens: number; // 2× input price (1h TTL)
+    estCostUsd: number;
 }
 
 /** The pre-draft proposal JJ reviews and chats over before anything lands in Sanity. */

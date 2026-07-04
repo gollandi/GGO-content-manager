@@ -25,6 +25,7 @@ interface RunMetaLite {
     proposal: Proposal | null;
     proposalApproved: boolean;
     summary: string | null;
+    usage?: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; estCostUsd: number };
 }
 interface LogRow { key: number; kind: "text" | "tool" | "status" | "jj"; text: string }
 interface VerdictRow { critic: string; verdict: string }
@@ -78,6 +79,9 @@ export default function CasaDiErnestoPage() {
             case "jj.asked": pushLog("status", `❓ ${ev.question}`); break;
             case "draft.created": pushLog("status", `Bozza creata: ${ev.title}`); break;
             case "run.paused": break;
+            case "usage":
+                setMeta((m) => (m ? { ...m, usage: ev.totals } : m));
+                break;
             case "run.done": pushLog("status", ev.summary); break;
             case "run.error": setError(ev.message); break;
         }
@@ -246,6 +250,24 @@ export default function CasaDiErnestoPage() {
                     </header>
 
                     {error && <div className="mb-4 p-4 rounded-xl border border-red-300 bg-red-50 text-sm text-red-800">{error}</div>}
+
+                    {/* Usage / cost strip */}
+                    {meta?.usage && (
+                        <div className="mb-4 grid grid-cols-5 max-lg:grid-cols-2 gap-2">
+                            {[
+                                { label: "Da cache (0.1×)", value: meta.usage.cacheReadTokens.toLocaleString() },
+                                { label: "Scritti in cache", value: meta.usage.cacheWriteTokens.toLocaleString() },
+                                { label: "Input pieno", value: meta.usage.inputTokens.toLocaleString() },
+                                { label: "Output", value: meta.usage.outputTokens.toLocaleString() },
+                                { label: "Stima costo", value: `$${meta.usage.estCostUsd.toFixed(2)}` },
+                            ].map((s) => (
+                                <div key={s.label} className="bg-white rounded-xl border border-border-default px-3 py-2">
+                                    <div className="text-sm font-bold">{s.value}</div>
+                                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{s.label}</div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
 
                     {/* Proposal panel */}
                     {meta?.proposal && (

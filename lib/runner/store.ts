@@ -13,7 +13,7 @@
 import { mkdirSync, existsSync, readFileSync, writeFileSync, appendFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { CreatedDraft, Proposal, RunEvent, ScienceEntry } from "./types";
+import type { CreatedDraft, Proposal, RunEvent, ScienceEntry, UsageTotals } from "./types";
 
 const RUNS_DIR = join(process.cwd(), ".runs");
 
@@ -36,6 +36,8 @@ export interface RunMeta {
     proposal: Proposal | null;
     summary: string | null;
     turnsUsed: number;
+    /** Token/cost totals — absent on runs created before the counter. */
+    usage?: UsageTotals;
 }
 
 const dir = (runId: string) => join(RUNS_DIR, runId);

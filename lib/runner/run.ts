@@ -102,6 +102,12 @@ export interface LegInput {
 
 export const ALLOWED_MODELS = ["claude-opus-4-8", "claude-sonnet-5"] as const;
 
+/** USD per million tokens: [input, output]. Cache: read 0.1×in, write(1h) 2×in. */
+const MODEL_RATES: Record<string, [number, number]> = {
+    "claude-opus-4-8": [5, 25],
+    "claude-sonnet-5": [3, 15],
+};
+
 function buildSystem(skill: string): Anthropic.TextBlockParam[] {
     const skillText = loadSkill(skill);
     let infographic = "";
@@ -295,6 +301,31 @@ export async function runLeg(
     const system = buildSystem(meta.skill);
     const runModel = meta.model || runnerConfig.model;
 
+    // ── Live usage/cost counter (all legs + critics) ─────────────────────
+    const usage = meta.usage ?? {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        estCostUsd: 0,
+    };
+    meta.usage = usage;
+    const addUsage = (u: Anthropic.Usage | undefined) => {
+        if (!u) return;
+        usage.inputTokens += u.input_tokens ?? 0;
+        usage.outputTokens += u.output_tokens ?? 0;
+        usage.cacheReadTokens += u.cache_read_input_tokens ?? 0;
+        usage.cacheWriteTokens += u.cache_creation_input_tokens ?? 0;
+        const [inRate, outRate] = MODEL_RATES[runModel] ?? MODEL_RATES["claude-opus-4-8"];
+        usage.estCostUsd =
+            (usage.inputTokens * inRate +
+                usage.outputTokens * outRate +
+                usage.cacheReadTokens * inRate * 0.1 +
+                usage.cacheWriteTokens * inRate * 2) /
+            1_000_000;
+        journal({ type: "usage", totals: { ...usage } });
+    };
+
     async function runCritics(drafts: CreatedDraft[], science: ScienceEntry[]) {
         const ids = drafts.map((d) => d.draftId);
         const docs = (await ggomedRawClient.fetch(`*[_id in $ids]`, { ids })) as Record<string, unknown>[];
@@ -310,6 +341,7 @@ export async function runLeg(
                 { model: runModel, max_tokens: 8000, thinking: { type: "adaptive" }, system: sys, messages: [{ role: "user", content: payload }] },
                 { signal }
             );
+            addUsage(res.usage);
             return res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("\n");
         };
         const [tatiana, aspasia] = await Promise.all([critic(TATIANA_PROMPT), critic(ASPASIA_PROMPT)]);
@@ -374,6 +406,7 @@ export async function runLeg(
             );
             stream.on("text", (delta) => journal({ type: "text", text: delta }));
             const message = await stream.finalMessage();
+            addUsage(message.usage);
             containerId = message.container?.id ?? containerId;
 
             messages.push({ role: "assistant", content: message.content });
