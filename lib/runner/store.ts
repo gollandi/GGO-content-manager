@@ -22,6 +22,8 @@ export type RunStatus = "running" | "awaiting-jj" | "done" | "error" | "archived
 export interface RunMeta {
     runId: string;
     skill: string;
+    /** Model for this run (older runs may lack it — fall back to config). */
+    model?: string;
     brief: string;
     title: string;
     status: RunStatus;

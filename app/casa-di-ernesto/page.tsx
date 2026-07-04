@@ -44,6 +44,7 @@ export default function CasaDiErnestoPage() {
     const [log, setLog] = useState<LogRow[]>([]);
     const [verdicts, setVerdicts] = useState<VerdictRow[]>([]);
     const [input, setInput] = useState("");
+    const [model, setModel] = useState("claude-opus-4-8");
     const [streaming, setStreaming] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const abortRef = useRef<AbortController | null>(null);
@@ -142,7 +143,7 @@ export default function CasaDiErnestoPage() {
             const res = await fetch("/api/ernesto/run", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ skill: SKILL, brief: input }),
+                body: JSON.stringify({ skill: SKILL, brief: input, model }),
                 signal: controller.signal,
             });
             const id = await consumeStream(res);
@@ -377,6 +378,18 @@ export default function CasaDiErnestoPage() {
                                 className="flex-1 px-4 py-3 rounded-xl border border-border-default bg-white text-sm focus:outline-none focus:ring-2 focus:ring-ggo-teal"
                             />
                             <div className="flex flex-col gap-2">
+                                {!activeId && (
+                                    <select
+                                        value={model}
+                                        onChange={(e) => setModel(e.target.value)}
+                                        disabled={streaming}
+                                        className="px-3 py-2 rounded-xl border border-border-default bg-white text-xs"
+                                        title="Modello del run — Sonnet 5 costa ~60% in meno"
+                                    >
+                                        <option value="claude-opus-4-8">Opus 4.8 — qualità max</option>
+                                        <option value="claude-sonnet-5">Sonnet 5 — economico</option>
+                                    </select>
+                                )}
                                 <button
                                     onClick={() => (activeId ? void reply(false) : void startRun())}
                                     disabled={streaming || !input.trim()}

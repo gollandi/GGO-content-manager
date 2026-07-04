@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const auth = await requireWriter();
     if (!auth.authenticated) return auth.response;
 
-    let body: { skill?: string; brief?: string };
+    let body: { skill?: string; brief?: string; model?: string };
     try {
         body = await req.json();
     } catch {
@@ -20,5 +20,5 @@ export async function POST(req: NextRequest) {
     if (!body?.skill || !body?.brief?.trim()) {
         return new Response(JSON.stringify({ error: "skill and brief are required" }), { status: 400 });
     }
-    return streamLeg(req, { skill: body.skill, brief: body.brief });
+    return streamLeg(req, { skill: body.skill, brief: body.brief, model: body.model });
 }

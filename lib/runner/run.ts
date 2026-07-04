@@ -71,6 +71,9 @@ function loadSkill(skill: string): string {
             const refDir = join(root, skill, "references");
             if (existsSync(refDir)) {
                 for (const f of readdirSync(refDir, { recursive: true }) as string[]) {
+                    // parser-patterns.md documents the RETIRED HTML-parser
+                    // pipeline we tell the model to ignore — pure token waste.
+                    if (f.endsWith("parser-patterns.md")) continue;
                     const full = join(refDir, f);
                     if (f.endsWith(".md")) {
                         text += `\n\n---\n# reference: ${f}\n${readFileSync(full, "utf8")}`;
@@ -89,11 +92,15 @@ export interface LegInput {
     /** Start a new run. */
     brief?: string;
     skill?: string;
+    /** Model for the run — cost/quality lever (Sonnet 5 ≈ 60% cheaper). */
+    model?: string;
     /** Continue an existing run. */
     runId?: string;
     userMessage?: string;
     approve?: boolean;
 }
+
+export const ALLOWED_MODELS = ["claude-opus-4-8", "claude-sonnet-5"] as const;
 
 function buildSystem(skill: string): Anthropic.TextBlockParam[] {
     const skillText = loadSkill(skill);
@@ -113,9 +120,93 @@ function buildSystem(skill: string): Anthropic.TextBlockParam[] {
                 (infographic
                     ? `\n\n---\n## Visual-asset guidance (for deliverables and in-page svgBlock infographics)\n\n${infographic}`
                     : ""),
-            cache_control: { type: "ephemeral" },
+            // 1h TTL: survives JJ's review pauses between legs — the 5-min
+            // default expired every time and re-billed the whole ~50k-token
+            // system prefix per leg (the single biggest cost leak).
+            cache_control: { type: "ephemeral", ttl: "1h" },
         },
     ];
+}
+
+/**
+ * Incremental history caching: strip stale markers, then mark the last
+ * content block of the last message — each turn re-reads the cached prefix
+ * (~0.1×) and pays full price only for the delta.
+ */
+function withHistoryCache(messages: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+    const prepared = messages.map((m) => ({
+        ...m,
+        content:
+            typeof m.content === "string"
+                ? m.content
+                : m.content.map((b) => {
+                      if (typeof b === "object" && b !== null && "cache_control" in b) {
+                          const { cache_control: _drop, ...rest } = b as Record<string, unknown>;
+                          return rest as typeof b;
+                      }
+                      return b;
+                  }),
+    }));
+    const last = prepared[prepared.length - 1];
+    if (last && Array.isArray(last.content) && last.content.length > 0) {
+        const blocks = last.content.slice();
+        const tail = blocks[blocks.length - 1] as { type?: string } | null;
+        if (tail && typeof tail === "object" && ["text", "tool_result", "tool_use", "image", "document"].includes(tail.type ?? "")) {
+            blocks[blocks.length - 1] = { ...(tail as object), cache_control: { type: "ephemeral", ttl: "1h" } } as (typeof blocks)[number];
+            prepared[prepared.length - 1] = { ...last, content: blocks };
+        }
+    }
+    return prepared;
+}
+
+/** Slim critic payload: prose + governance only, never the full JSON dump. */
+function extractDraftEssence(doc: Record<string, unknown>): string {
+    const walk = (blocks: unknown): string => {
+        if (!Array.isArray(blocks)) return "";
+        return blocks
+            .map((b) => {
+                const block = b as Record<string, unknown>;
+                switch (block._type) {
+                    case "block": {
+                        const kids = (block.children as { text?: string }[] | undefined) ?? [];
+                        const prefix = block.style && block.style !== "normal" ? `[${block.style}] ` : "";
+                        return prefix + kids.map((k) => k.text ?? "").join("");
+                    }
+                    case "accordionBlock":
+                        return `[accordion: ${block.title}]\n` + ((block.items as Record<string, unknown>[] | undefined) ?? []).map((i) => `  · ${i.title}\n${walk(i.content)}`).join("\n");
+                    case "highlightBlock":
+                    case "infoBoxBlock":
+                        return `[${block._type}: ${block.title ?? ""}]\n${walk(block.content)}`;
+                    case "faqInlineBlock":
+                        return `[faqInlineBlock: ${((block.faqs as unknown[]) ?? []).length} FAQ refs]`;
+                    case "quizBlock":
+                        return `[quiz: ${block.question}]`;
+                    case "svgBlock":
+                        return `[svg infographic: ${block.caption ?? "no caption"}]`;
+                    case "linkCardBlock":
+                        return `[link card: ${block.title} → ${block.href}]`;
+                    case "ctaBannerBlock":
+                        return `[CTA: ${block.title}]`;
+                    default:
+                        return `[${String(block._type)}]`;
+                }
+            })
+            .join("\n");
+    };
+    const gov = doc.pifTickGovernance as Record<string, unknown> | undefined;
+    const refs = ((gov?.references as Record<string, unknown>[] | undefined) ?? [])
+        .map((r) => `- ${r.title} (${r.source ?? ""} ${r.url ?? ""})`)
+        .join("\n");
+    return [
+        `## ${doc._type}: ${doc.title ?? doc.name ?? doc.question ?? "(untitled)"}`,
+        doc.slug ? `slug: ${JSON.stringify(doc.slug)}` : "",
+        doc.description ? `description: ${doc.description}` : "",
+        doc.answer ? `answer: ${doc.answer}` : "",
+        doc.content ? walk(doc.content) : "",
+        refs ? `### references on doc\n${refs}` : "### references on doc\n(none)",
+    ]
+        .filter(Boolean)
+        .join("\n");
 }
 
 /** Run one leg of a session. Streams events via emit; persists everything. */
@@ -165,6 +256,9 @@ export async function runLeg(
         meta = {
             runId,
             skill,
+            model: (ALLOWED_MODELS as readonly string[]).includes(input.model ?? "")
+                ? input.model
+                : runnerConfig.model,
             brief: input.brief,
             title: input.brief.slice(0, 80),
             status: "running",
@@ -199,18 +293,21 @@ export async function runLeg(
 
     const client = new Anthropic({ apiKey: runnerConfig.anthropicApiKey });
     const system = buildSystem(meta.skill);
+    const runModel = meta.model || runnerConfig.model;
 
     async function runCritics(drafts: CreatedDraft[], science: ScienceEntry[]) {
         const ids = drafts.map((d) => d.draftId);
-        const docs = await ggomedRawClient.fetch(`*[_id in $ids]`, { ids });
+        const docs = (await ggomedRawClient.fetch(`*[_id in $ids]`, { ids })) as Record<string, unknown>[];
         const ledger =
             science.length > 0
                 ? science.map((s, i) => `${i + 1}. ${s.claim} — ${s.source} (${s.url})`).join("\n")
                 : "(empty — no clinical claims should appear in the drafts)";
-        const payload = `# SCIENCE LEDGER\n${ledger}\n\n# DRAFT DOCUMENTS (full JSON)\n${JSON.stringify(docs, null, 1).slice(0, 150_000)}`;
+        // Essence, not raw JSON: ~70% smaller critic input, same signal.
+        const essence = docs.map(extractDraftEssence).join("\n\n---\n\n");
+        const payload = `# SCIENCE LEDGER\n${ledger}\n\n# DRAFTS (prose + governance extract)\n${essence.slice(0, 60_000)}`;
         const critic = async (sys: string) => {
             const res = await client.messages.create(
-                { model: runnerConfig.model, max_tokens: 8000, thinking: { type: "adaptive" }, system: sys, messages: [{ role: "user", content: payload }] },
+                { model: runModel, max_tokens: 8000, thinking: { type: "adaptive" }, system: sys, messages: [{ role: "user", content: payload }] },
                 { signal }
             );
             return res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("\n");
@@ -246,7 +343,7 @@ export async function runLeg(
 
     meta.status = "running";
     store.saveMeta(meta);
-    journal({ type: "run.start", runId: meta.runId, skill: meta.skill, model: runnerConfig.model });
+    journal({ type: "run.start", runId: meta.runId, skill: meta.skill, model: runModel });
 
     let containerId: string | undefined;
 
@@ -262,7 +359,7 @@ export async function runLeg(
 
             const stream = client.messages.stream(
                 {
-                    model: runnerConfig.model,
+                    model: runModel,
                     max_tokens: 64000,
                     thinking: { type: "adaptive" },
                     container: containerId,
@@ -271,7 +368,7 @@ export async function runLeg(
                         { type: "web_search_20250305", name: "web_search", max_uses: 12 },
                         ...TOOL_DEFINITIONS,
                     ],
-                    messages,
+                    messages: withHistoryCache(messages),
                 },
                 { signal }
             );
