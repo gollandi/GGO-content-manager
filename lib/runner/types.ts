@@ -16,6 +16,7 @@ export type RunEvent =
     | { type: "jj.said"; text: string }
     | { type: "run.paused"; reason: "proposal" | "question" }
     | { type: "usage"; totals: UsageTotals }
+    | { type: "caption.written"; item: CaptionItem }
     | { type: "draft.created"; draftId: string; docType: string; title: string }
     | { type: "run.done"; reason: "finished" | "max-turns" | "aborted" | "error"; summary: string; draftIds: string[] }
     | { type: "run.error"; message: string };
@@ -57,6 +58,15 @@ export interface InteractiveSection {
     block: string; // e.g. faqInlineBlock, quizBlock, accordionBlock
     title: string;
     note: string;
+}
+
+/** One caption written by Family B (Samantha) on a Calendar row. */
+export interface CaptionItem {
+    rowId: string;
+    rowTitle: string;
+    platform: string | null;
+    caption: string;
+    hashtags: string;
 }
 
 /** Running token/cost totals for a run (all legs + critics included). */

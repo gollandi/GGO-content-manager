@@ -45,9 +45,13 @@ describe("Ambrogio DBs are read-only in the Shell", () => {
         const offenders: string[] = [];
         for (const file of allSources) {
             const text = readFileSync(file, "utf8");
+            // Real DB-access tokens only — a prose mention of "Ambrogio" in a
+            // comment is not a DB touch (the guarantee is about code paths).
             const touchesAmbrogio =
                 AMBROGIO_ENV_IDS.some((id) => text.includes(id)) ||
-                /ambrogio/i.test(text);
+                text.includes("ambrogioAudits") ||
+                text.includes("ambrogioProposals") ||
+                text.includes("getAmbrogio");
             if (!touchesAmbrogio) continue;
             for (const token of WRITE_TOKENS) {
                 if (text.includes(token)) {

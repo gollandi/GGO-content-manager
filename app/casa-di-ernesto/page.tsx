@@ -13,7 +13,10 @@ import type { Proposal, RunEvent } from "../../lib/runner/types";
  */
 
 const STUDIO_BASE = "https://ggomed.co.uk/studio";
-const SKILL = "ggomed-page-writer-v2";
+const SKILLS = [
+    { id: "ggomed-page-writer-v2", label: "Pagine sito (page-writer)" },
+    { id: "samantha-social-groupie", label: "Social captions (Samantha)" },
+] as const;
 
 interface RunMetaLite {
     runId: string;
@@ -26,6 +29,7 @@ interface RunMetaLite {
     proposalApproved: boolean;
     summary: string | null;
     usage?: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; estCostUsd: number };
+    captions?: { rowId: string; rowTitle: string; platform: string | null; caption: string; hashtags: string }[];
 }
 interface LogRow { key: number; kind: "text" | "tool" | "status" | "jj"; text: string }
 interface VerdictRow { critic: string; verdict: string }
@@ -46,6 +50,7 @@ export default function CasaDiErnestoPage() {
     const [verdicts, setVerdicts] = useState<VerdictRow[]>([]);
     const [input, setInput] = useState("");
     const [model, setModel] = useState("claude-opus-4-8");
+    const [skill, setSkill] = useState<string>(SKILLS[0].id);
     const [streaming, setStreaming] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const abortRef = useRef<AbortController | null>(null);
@@ -81,6 +86,10 @@ export default function CasaDiErnestoPage() {
             case "run.paused": break;
             case "usage":
                 setMeta((m) => (m ? { ...m, usage: ev.totals } : m));
+                break;
+            case "caption.written":
+                setMeta((m) => (m ? { ...m, captions: [...(m.captions ?? []), ev.item] } : m));
+                pushLog("status", `Caption scritta: ${ev.item.rowTitle}`);
                 break;
             case "run.done": pushLog("status", ev.summary); break;
             case "run.error": setError(ev.message); break;
@@ -158,7 +167,7 @@ export default function CasaDiErnestoPage() {
             const res = await fetch("/api/ernesto/run", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ skill: SKILL, brief: input, model }),
+                body: JSON.stringify({ skill, brief: input, model }),
                 signal: controller.signal,
             });
             const id = await consumeStream(res);
@@ -353,6 +362,26 @@ export default function CasaDiErnestoPage() {
                         </section>
                     )}
 
+                    {/* Captions (Family B) */}
+                    {meta && (meta.captions?.length ?? 0) > 0 && (
+                        <section className="bg-white rounded-2xl border border-border-default p-5 mb-4">
+                            <h2 className="text-base font-bold mb-3">Caption scritte sul Calendar — da schedulare tu in Notion</h2>
+                            <ul className="divide-y divide-border-soft">
+                                {meta.captions!.map((c) => (
+                                    <li key={c.rowId} className="py-2.5">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="text-sm font-medium">{c.rowTitle}{c.platform ? ` · ${c.platform}` : ""}</div>
+                                            <a href={`https://notion.so/${c.rowId.replace(/-/g, "")}`} target="_blank" rel="noreferrer"
+                                               className="text-xs font-semibold text-ggo-teal hover:underline shrink-0">Apri in Notion ↗</a>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">{c.caption}</p>
+                                        <p className="text-xs text-ggo-teal mt-0.5">{c.hashtags}</p>
+                                    </li>
+                                ))}
+                            </ul>
+                        </section>
+                    )}
+
                     {/* Critics */}
                     {verdicts.length > 0 && (
                         <div className="grid grid-cols-2 max-lg:grid-cols-1 gap-4 mb-4">
@@ -411,6 +440,19 @@ export default function CasaDiErnestoPage() {
                                 className="flex-1 px-4 py-3 rounded-xl border border-border-default bg-white text-sm focus:outline-none focus:ring-2 focus:ring-ggo-teal"
                             />
                             <div className="flex flex-col gap-2">
+                                {!activeId && (
+                                    <select
+                                        value={skill}
+                                        onChange={(e) => setSkill(e.target.value)}
+                                        disabled={streaming}
+                                        className="px-3 py-2 rounded-xl border border-border-default bg-white text-xs"
+                                        title="Cosa produce il run"
+                                    >
+                                        {SKILLS.map((s) => (
+                                            <option key={s.id} value={s.id}>{s.label}</option>
+                                        ))}
+                                    </select>
+                                )}
                                 {!activeId && (
                                     <select
                                         value={model}

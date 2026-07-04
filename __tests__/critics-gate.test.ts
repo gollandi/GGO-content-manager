@@ -9,6 +9,8 @@ import { dispatchTool, type ToolContext } from "../lib/runner/tools";
  */
 
 const makeCtx = (over: Partial<ToolContext> = {}): ToolContext => ({
+    family: "A",
+    captions: [],
     drafts: [{ draftId: "drafts.cockpit-x", docType: "blogPost", title: "T" }],
     finished: null,
     science: [],
@@ -91,6 +93,42 @@ describe("critics gate", () => {
         const tools = readFileSync(join(__dirname, "../lib/runner/tools.ts"), "utf8");
         const rearms = tools.match(/ctx\.criticsCleared = false/g) ?? [];
         expect(rearms.length, "create_draft AND update_draft must re-arm the critics gate").toBeGreaterThanOrEqual(2);
+    });
+
+    it("Family B: write_caption is LOCKED until approval", async () => {
+        const ctx = makeCtx({ family: "B", drafts: [], proposalApproved: false });
+        const res = await dispatchTool(
+            "write_caption",
+            { rowId: "abc", rowTitle: "Post X", caption: "c", hashtags: "#x" },
+            ctx
+        );
+        expect(res.ok).toBe(false);
+        expect(res.content).toContain("LOCKED");
+    });
+
+    it("Family B: captions gate finish exactly like drafts", async () => {
+        const ctx = makeCtx({
+            family: "B",
+            drafts: [],
+            captions: [{ rowId: "r1", rowTitle: "Post", platform: null, caption: "c", hashtags: "#x" }],
+            criticsCleared: false,
+        });
+        const blocked = await dispatchTool("finish", { summary: "done" }, ctx);
+        expect(blocked.ok).toBe(false);
+        await dispatchTool("run_critics", {}, ctx);
+        const ok = await dispatchTool("finish", { summary: "done" }, ctx);
+        expect(ok.ok).toBe(true);
+    });
+
+    it("social writer never touches Status and only Caption/Hashtags (static)", async () => {
+        const { readFileSync } = await import("node:fs");
+        const { join } = await import("node:path");
+        const src = readFileSync(join(__dirname, "../lib/notion/social-write.ts"), "utf8");
+        expect(src).toContain("Caption: {");
+        expect(src).toContain("Hashtags: {");
+        // No Status property write (the word may appear in comments)
+        expect(src.includes("Status: {")).toBe(false);
+        expect(src).toContain("ForbiddenSocialWriteError");
     });
 
     it("record_science feeds the ledger and the event hook", async () => {

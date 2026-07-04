@@ -11,7 +11,39 @@ import { VIEW_REGISTRY, isViewName } from "../views";
 import { ggomedClient, ggomedRawClient } from "../sanity/clients";
 import { createDraft, patchDraft } from "../sanity/write-client";
 import { ALLOWED_DOC_TYPES } from "./shape";
-import type { CreatedDraft, Proposal, ScienceEntry } from "./types";
+import { getContentCalendar } from "../notion/editorial";
+import { writeCalendarCaption } from "../notion/social-write";
+import type { CaptionItem, CreatedDraft, Proposal, ScienceEntry } from "./types";
+
+export type SkillFamily = "A" | "B";
+
+/** Family B tools — Samantha: captions/hashtags on Calendar rows. */
+export const FAMILY_B_TOOLS: Anthropic.Tool[] = [
+    {
+        name: "read_calendar",
+        description:
+            "Read the Notion Content Calendar rows (title, status, date, content type, existing sync state). Use it to find the posts that need captions for this batch. Publication/scheduling stays with JJ in Notion — you only prepare captions.",
+        input_schema: { type: "object" as const, properties: {}, required: [], additionalProperties: false },
+        strict: true,
+    },
+    {
+        name: "write_caption",
+        description:
+            "Write the Caption and Hashtags onto ONE Content Calendar row (LOCKED until JJ approves your proposal). Never touches Status — JJ schedules in Notion. Caption and hashtags must already have appeared in your approved proposal.",
+        input_schema: {
+            type: "object" as const,
+            properties: {
+                rowId: { type: "string", description: "The Notion page id of the Calendar row (from read_calendar)" },
+                rowTitle: { type: "string", description: "The row's title (for the run log)" },
+                platform: { type: "string", description: "Target platform if known (Instagram/Facebook/LinkedIn)" },
+                caption: { type: "string" },
+                hashtags: { type: "string", description: "Space-separated #hashtags" },
+            },
+            required: ["rowId", "rowTitle", "caption", "hashtags"],
+            additionalProperties: false,
+        },
+    },
+];
 
 export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
     {
@@ -198,17 +230,23 @@ export interface ToolContext {
     /** True once run_critics has reviewed the CURRENT draft state; any
      *  create/update flips it back to false. finish is hard-gated on it. */
     criticsCleared: boolean;
-    /** JJ approved the proposal — create_draft is LOCKED until true. */
+    /** Which tool family this run belongs to (A = Sanity pages, B = social). */
+    family: SkillFamily;
+    /** Family B output — captions written on Calendar rows this run. */
+    captions: CaptionItem[];
+    /** JJ approved the proposal — create_draft/write_caption LOCKED until true. */
     proposalApproved: boolean;
     /** The latest presented proposal (persisted for the UI). */
     proposal: Proposal | null;
     /** Set by present_proposal / ask_jj — tells the leg to pause for JJ. */
     pause: "proposal" | "question" | null;
-    /** Injected by run.ts: fresh-context Tatiana + Aspasia calls. */
-    runCritics: (
-        drafts: CreatedDraft[],
-        science: ScienceEntry[]
-    ) => Promise<{ tatiana: string; aspasia: string }>;
+    /** Injected by run.ts: fresh-context Tatiana + Aspasia calls (family-aware). */
+    runCritics: (input: {
+        family: SkillFamily;
+        drafts: CreatedDraft[];
+        science: ScienceEntry[];
+        captions: CaptionItem[];
+    }) => Promise<{ tatiana: string; aspasia: string }>;
     /** Injected by run.ts: emit ledger/critic events to the UI stream. */
     onScience?: (entry: ScienceEntry) => void;
     onVerdict?: (critic: "tatiana" | "aspasia", verdict: string) => void;
@@ -253,10 +291,15 @@ export async function dispatchTool(
             return { ok: true, content: `Recorded (#${ctx.science.length})`, summary: `${entry.source}: ${entry.claim.slice(0, 60)}` };
         }
         case "run_critics": {
-            if (ctx.drafts.length === 0) {
-                return { ok: false, content: "No drafts to review yet — draft first.", summary: "no drafts" };
+            if (ctx.drafts.length === 0 && ctx.captions.length === 0) {
+                return { ok: false, content: "Nothing to review yet — draft (or write captions) first.", summary: "nothing to review" };
             }
-            const { tatiana, aspasia } = await ctx.runCritics(ctx.drafts, ctx.science);
+            const { tatiana, aspasia } = await ctx.runCritics({
+                family: ctx.family,
+                drafts: ctx.drafts,
+                science: ctx.science,
+                captions: ctx.captions,
+            });
             ctx.criticsCleared = true;
             ctx.onVerdict?.("tatiana", tatiana);
             ctx.onVerdict?.("aspasia", aspasia);
@@ -265,6 +308,38 @@ export async function dispatchTool(
                 content: `## TATIANA (adversarial review)\n${tatiana}\n\n## ASPASIA (persona read)\n${aspasia}\n\nFix what matters with update_draft (critics will need to re-run), or call finish if nothing blocking was raised.`,
                 summary: "both critics reported",
             };
+        }
+        case "read_calendar": {
+            const rows = await getContentCalendar();
+            const slim = rows.map((r) => ({
+                rowId: r.id,
+                title: r.topicTitle,
+                status: r.status,
+                date: r.date,
+                contentType: r.contentType,
+                hasSanitySync: !!r.sanitySync,
+            }));
+            return { ok: true, content: clip(JSON.stringify(slim), 20000), summary: `${rows.length} calendar rows` };
+        }
+        case "write_caption": {
+            if (!ctx.proposalApproved) {
+                return {
+                    ok: false,
+                    content: "LOCKED: JJ has not approved the proposal. present_proposal first. (Enforced in code.)",
+                    summary: "blocked — proposal not approved",
+                };
+            }
+            const item: CaptionItem = {
+                rowId: String(input.rowId),
+                rowTitle: String(input.rowTitle),
+                platform: input.platform ? String(input.platform) : null,
+                caption: String(input.caption ?? ""),
+                hashtags: String(input.hashtags ?? ""),
+            };
+            await writeCalendarCaption(item.rowId, item.caption, item.hashtags);
+            ctx.captions.push(item);
+            ctx.criticsCleared = false; // new captions → critics must re-run
+            return { ok: true, content: `Caption scritta su "${item.rowTitle}"`, summary: item.rowTitle };
         }
         case "read_view": {
             const view = String(input.view);
@@ -341,7 +416,7 @@ export async function dispatchTool(
             return { ok: true, content: `Patched ${draftId}`, summary: draftId };
         }
         case "finish": {
-            if (ctx.drafts.length > 0 && !ctx.criticsCleared) {
+            if ((ctx.drafts.length > 0 || ctx.captions.length > 0) && !ctx.criticsCleared) {
                 return {
                     ok: false,
                     content:

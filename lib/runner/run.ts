@@ -17,10 +17,10 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { runnerConfig } from "../config";
 import { ggomedRawClient } from "../sanity/clients";
-import { TOOL_DEFINITIONS, dispatchTool, type ToolContext } from "./tools";
+import { TOOL_DEFINITIONS, FAMILY_B_TOOLS, dispatchTool, type SkillFamily, type ToolContext } from "./tools";
 import { SHAPE_NOTES } from "./shape";
 import * as store from "./store";
-import type { CreatedDraft, RunEvent, ScienceEntry } from "./types";
+import type { CaptionItem, CreatedDraft, RunEvent, ScienceEntry } from "./types";
 
 const RUNNER_RULES = `You are La Casa di Ernesto — the generative module of JJ's GGOMed
 operator cockpit. You write website content for ggomed.co.uk directly into
@@ -86,7 +86,22 @@ function loadSkill(skill: string): string {
     throw new Error(`Skill "${skill}" not found under ./skills or ${runnerConfig.skillsDir}`);
 }
 
-export const ALLOWED_SKILLS = ["ggomed-page-writer-v2"] as const;
+export const SKILL_FAMILY: Record<string, SkillFamily> = {
+    "ggomed-page-writer-v2": "A",
+    "samantha-social-groupie": "B",
+};
+export const ALLOWED_SKILLS = Object.keys(SKILL_FAMILY);
+
+const FAMILY_B_SYSTEM_NOTE = `## Family B scope (Samantha in-shell)
+You prepare CAPTIONS + HASHTAGS for Content Calendar rows. In-shell limits:
+- NO Canva scanning here — asset matching stays outside; when a post needs
+  an asset, list it as a deliverable (kind "canva"/"illustration") with a brief.
+- Your proposal MUST include every caption+hashtag set in full — JJ approves
+  the actual text, not a promise of it.
+- write_caption only after approval, one row at a time; NEVER touch Status —
+  scheduling/publication is JJ's flip in Notion.
+- GMC guardrails (see skill references) apply to every caption; Tatiana will
+  check compliance.`;
 
 export interface LegInput {
     /** Start a new run. */
@@ -108,7 +123,7 @@ const MODEL_RATES: Record<string, [number, number]> = {
     "claude-sonnet-5": [3, 15],
 };
 
-function buildSystem(skill: string): Anthropic.TextBlockParam[] {
+function buildSystem(skill: string, family: SkillFamily): Anthropic.TextBlockParam[] {
     const skillText = loadSkill(skill);
     let infographic = "";
     try {
@@ -118,7 +133,7 @@ function buildSystem(skill: string): Anthropic.TextBlockParam[] {
     }
     return [
         { type: "text", text: RUNNER_RULES },
-        { type: "text", text: SHAPE_NOTES },
+        { type: "text", text: family === "B" ? FAMILY_B_SYSTEM_NOTE : SHAPE_NOTES },
         {
             type: "text",
             text:
@@ -250,7 +265,7 @@ export async function runLeg(
         emit({ type: "jj.said", text });
     } else {
         const skill = input.skill ?? "";
-        if (!(ALLOWED_SKILLS as readonly string[]).includes(skill)) {
+        if (!(skill in SKILL_FAMILY)) {
             emit({ type: "run.error", message: `Skill "${skill}" is not allow-listed` });
             return;
         }
@@ -298,7 +313,8 @@ export async function runLeg(
     };
 
     const client = new Anthropic({ apiKey: runnerConfig.anthropicApiKey });
-    const system = buildSystem(meta.skill);
+    const family: SkillFamily = SKILL_FAMILY[meta.skill] ?? "A";
+    const system = buildSystem(meta.skill, family);
     const runModel = meta.model || runnerConfig.model;
 
     // ── Live usage/cost counter (all legs + critics) ─────────────────────
@@ -326,7 +342,29 @@ export async function runLeg(
         journal({ type: "usage", totals: { ...usage } });
     };
 
-    async function runCritics(drafts: CreatedDraft[], science: ScienceEntry[]) {
+    async function runCritics(input: {
+        family: SkillFamily;
+        drafts: CreatedDraft[];
+        science: ScienceEntry[];
+        captions: CaptionItem[];
+    }) {
+        const { drafts, science, captions } = input;
+        if (input.family === "B") {
+            const capText = captions
+                .map((c, i) => `### ${i + 1}. ${c.rowTitle}${c.platform ? ` (${c.platform})` : ""}\nCAPTION: ${c.caption}\nHASHTAGS: ${c.hashtags}`)
+                .join("\n\n");
+            const payloadB = `# CAPTIONS WRITTEN THIS RUN\n${capText}`;
+            const criticB = async (sys: string) => {
+                const res = await client.messages.create(
+                    { model: runModel, max_tokens: 6000, thinking: { type: "adaptive" }, system: sys, messages: [{ role: "user", content: payloadB }] },
+                    { signal }
+                );
+                addUsage(res.usage);
+                return res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("\n");
+            };
+            const [tatiana, aspasia] = await Promise.all([criticB(TATIANA_B_PROMPT), criticB(ASPASIA_B_PROMPT)]);
+            return { tatiana, aspasia };
+        }
         const ids = drafts.map((d) => d.draftId);
         const docs = (await ggomedRawClient.fetch(`*[_id in $ids]`, { ids })) as Record<string, unknown>[];
         const ledger =
@@ -349,6 +387,8 @@ export async function runLeg(
     }
 
     const ctx: ToolContext = {
+        family,
+        captions: meta.captions ?? [],
         drafts: meta.drafts,
         finished: null,
         science: meta.science,
@@ -366,6 +406,7 @@ export async function runLeg(
         meta.drafts = ctx.drafts;
         meta.science = ctx.science;
         meta.criticsCleared = ctx.criticsCleared;
+        meta.captions = ctx.captions;
         meta.proposalApproved = ctx.proposalApproved;
         meta.proposal = ctx.proposal;
         if (ctx.finished) meta.summary = ctx.finished.summary;
@@ -398,7 +439,9 @@ export async function runLeg(
                     system,
                     tools: [
                         { type: "web_search_20250305", name: "web_search", max_uses: 12 },
-                        ...TOOL_DEFINITIONS,
+                        ...(family === "B"
+                            ? [...TOOL_DEFINITIONS.filter((t) => !["create_draft", "update_draft", "get_document"].includes(t.name)), ...FAMILY_B_TOOLS]
+                            : TOOL_DEFINITIONS),
                     ],
                     messages: withHistoryCache(messages),
                 },
@@ -432,6 +475,9 @@ export async function runLeg(
                     result = { ok: false, content: `Tool failed: ${err instanceof Error ? err.message : String(err)}`, summary: "error" };
                 }
                 journal({ type: "tool.result", name: tool.name, ok: result.ok, summary: result.summary });
+                if (tool.name === "write_caption" && result.ok) {
+                    journal({ type: "caption.written", item: ctx.captions[ctx.captions.length - 1] });
+                }
                 if (tool.name === "create_draft" && result.ok) {
                     journal({ type: "draft.created", ...ctx.drafts[ctx.drafts.length - 1] });
                 }
@@ -496,3 +542,22 @@ For each persona: one line on what works, one line on what fails. Then a
 short list of concrete fixes ranked by impact. Judge tone against JJ's
 voice: warm + blunt + precise, never corporate, never saccharine. Mark
 each fix BLOCKING or MINOR. Do not rewrite the content.`;
+
+
+const TATIANA_B_PROMPT = `You are Tatiana-la-Criticona — adversarial reviewer of GGOMed SOCIAL
+captions. You get the captions+hashtags written on Calendar rows. Attack:
+1. GMC/ASA COMPLIANCE — no guarantees, no superlatives, no before/after
+   implications, no trivialising surgery, no soliciting via fear; patient
+   confidentiality; "results vary / discuss with your surgeon" framing where
+   needed.
+2. CLINICAL SAFETY — anything misleading or risk-understating in 200 chars.
+3. PLATFORM FIT — length, hashtag count/quality, call-to-action sanity.
+Mark each finding BLOCKING or MINOR per caption. If clean, say APPROVED in
+two lines. Do not rewrite.`;
+
+const ASPASIA_B_PROMPT = `You are Aspasia-multi-personalities — stress-test GGOMed social captions
+as five followers: anxious patient, low health literacy, time-poor scroller,
+non-native English speaker, sceptical researcher. Judge tone against JJ's
+voice (warm + blunt + precise; never corporate, never clickbait). One line
+per persona per caption where something fails; then fixes ranked by impact,
+marked BLOCKING or MINOR. Do not rewrite.`;
