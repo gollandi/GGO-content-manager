@@ -65,6 +65,12 @@ Same PIF prohibition as dedicatedPage.
 Required: question (string), answer (PLAIN TEXT string — not portable text).
 
 ### medicalConditionEntity / medicalInterventionEntity (schema.org wiring)
+CANONICAL types: medicalConditionEntity (conditions) and
+medicalInterventionEntity (procedures/interventions).
+medicalProcedureEntity is LEGACY — never create one and never wire a
+reference to an existing one (not in schemaEntities, not anywhere); if a
+sibling page you study references one, use or create the
+medicalInterventionEntity equivalent instead.
 STRUCTURED metadata, plain text only — no portable text, no prose padding.
 medicalConditionEntity: name, slug, description (2-3 plain sentences),
 symptoms (string array), typicalTest (string array).
