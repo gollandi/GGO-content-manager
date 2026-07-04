@@ -11,6 +11,10 @@ export type RunEvent =
     | { type: "tool.result"; name: string; ok: boolean; summary: string }
     | { type: "science.recorded"; claim: string; source: string; url: string }
     | { type: "critics.verdict"; critic: "tatiana" | "aspasia"; verdict: string }
+    | { type: "proposal.presented"; proposal: Proposal }
+    | { type: "jj.asked"; question: string }
+    | { type: "jj.said"; text: string }
+    | { type: "run.paused"; reason: "proposal" | "question" }
     | { type: "draft.created"; draftId: string; docType: string; title: string }
     | { type: "run.done"; reason: "finished" | "max-turns" | "aborted" | "error"; summary: string; draftIds: string[] }
     | { type: "run.error"; message: string };
@@ -33,4 +37,30 @@ export interface ScienceEntry {
     claim: string;
     source: string; // authority/journal + year
     url: string;
+}
+
+/** A planned visual/asset deliverable, listed in the proposal. */
+export interface Deliverable {
+    kind: "svg-infographic" | "illustration" | "photo" | "canva" | "video" | "other";
+    title: string;
+    description: string;
+    /** Ready-to-paste generation prompt (Higgsfield/Canva) for assets the
+     *  runner cannot produce in-page. */
+    generationPrompt?: string;
+    /** True when the runner will build it in-page (svgBlock) after approval. */
+    inPage: boolean;
+}
+
+/** A planned interactive section, highlighted for JJ's review. */
+export interface InteractiveSection {
+    block: string; // e.g. faqInlineBlock, quizBlock, accordionBlock
+    title: string;
+    note: string;
+}
+
+/** The pre-draft proposal JJ reviews and chats over before anything lands in Sanity. */
+export interface Proposal {
+    proposalMarkdown: string;
+    deliverables: Deliverable[];
+    interactiveSections: InteractiveSection[];
 }

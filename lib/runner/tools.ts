@@ -11,7 +11,7 @@ import { VIEW_REGISTRY, isViewName } from "../views";
 import { ggomedClient, ggomedRawClient } from "../sanity/clients";
 import { createDraft, patchDraft } from "../sanity/write-client";
 import { ALLOWED_DOC_TYPES } from "./shape";
-import type { CreatedDraft, ScienceEntry } from "./types";
+import type { CreatedDraft, Proposal, ScienceEntry } from "./types";
 
 export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
     {
@@ -38,6 +38,64 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
             type: "object" as const,
             properties: {},
             required: [],
+            additionalProperties: false,
+        },
+        strict: true,
+    },
+    {
+        name: "present_proposal",
+        description:
+            "THE REVIEW GATE — present your plan to JJ BEFORE any draft touches Sanity. Include: the full prose proposal in markdown (structure, key messages, the actual draft text or detailed section-by-section content), the deliverables list (every visual asset: svg-infographic = you will build it in-page after approval; illustration/photo = provide a ready generation prompt; canva = layout brief), and the interactive sections you plan (block type + what goes in it). The run PAUSES for JJ's feedback — he may chat, request changes (re-present after changes), or approve. create_draft is LOCKED until he approves.",
+        input_schema: {
+            type: "object" as const,
+            properties: {
+                proposalMarkdown: {
+                    type: "string",
+                    description: "The full proposal: page structure, key messages, draft prose (markdown). This is what JJ reads and edits by chat.",
+                },
+                deliverables: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            kind: { type: "string", enum: ["svg-infographic", "illustration", "photo", "canva", "video", "other"] },
+                            title: { type: "string" },
+                            description: { type: "string" },
+                            generationPrompt: { type: "string", description: "Ready-to-paste Higgsfield/Canva prompt (required for illustration/photo/canva/video)" },
+                            inPage: { type: "boolean", description: "true only for svg-infographic you will build inline" },
+                        },
+                        required: ["kind", "title", "description", "inPage"],
+                        additionalProperties: false,
+                    },
+                },
+                interactiveSections: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            block: { type: "string", description: "e.g. faqInlineBlock, quizBlock, accordionBlock, highlightBlock" },
+                            title: { type: "string" },
+                            note: { type: "string", description: "What goes in it and why" },
+                        },
+                        required: ["block", "title", "note"],
+                        additionalProperties: false,
+                    },
+                },
+            },
+            required: ["proposalMarkdown", "deliverables", "interactiveSections"],
+            additionalProperties: false,
+        },
+    },
+    {
+        name: "ask_jj",
+        description:
+            "Pause the run and ask JJ one focused question when his input genuinely changes what you build (clinical judgement call, positioning choice, missing brief detail). Do not use it for things you can decide editorially.",
+        input_schema: {
+            type: "object" as const,
+            properties: {
+                question: { type: "string" },
+            },
+            required: ["question"],
             additionalProperties: false,
         },
         strict: true,
@@ -140,6 +198,12 @@ export interface ToolContext {
     /** True once run_critics has reviewed the CURRENT draft state; any
      *  create/update flips it back to false. finish is hard-gated on it. */
     criticsCleared: boolean;
+    /** JJ approved the proposal — create_draft is LOCKED until true. */
+    proposalApproved: boolean;
+    /** The latest presented proposal (persisted for the UI). */
+    proposal: Proposal | null;
+    /** Set by present_proposal / ask_jj — tells the leg to pause for JJ. */
+    pause: "proposal" | "question" | null;
     /** Injected by run.ts: fresh-context Tatiana + Aspasia calls. */
     runCritics: (
         drafts: CreatedDraft[],
@@ -159,6 +223,25 @@ export async function dispatchTool(
     ctx: ToolContext
 ): Promise<{ ok: boolean; content: string; summary: string }> {
     switch (name) {
+        case "present_proposal": {
+            ctx.proposal = {
+                proposalMarkdown: String(input.proposalMarkdown ?? ""),
+                deliverables: (input.deliverables ?? []) as Proposal["deliverables"],
+                interactiveSections: (input.interactiveSections ?? []) as Proposal["interactiveSections"],
+            };
+            ctx.proposalApproved = false; // a (re)presented proposal awaits approval
+            ctx.pause = "proposal";
+            return {
+                ok: true,
+                content:
+                    "Proposal delivered to JJ. The run is paused: his next message is feedback (revise and re-present) or approval (you will be told explicitly — only then draft).",
+                summary: `${ctx.proposal.deliverables.length} deliverables, ${ctx.proposal.interactiveSections.length} interactive sections`,
+            };
+        }
+        case "ask_jj": {
+            ctx.pause = "question";
+            return { ok: true, content: "Question delivered — the run pauses for JJ's answer.", summary: String(input.question ?? "").slice(0, 80) };
+        }
         case "record_science": {
             const entry = {
                 claim: String(input.claim),
@@ -202,6 +285,14 @@ export async function dispatchTool(
             return { ok: true, content: clip(JSON.stringify(doc), 12000), summary: id };
         }
         case "create_draft": {
+            if (!ctx.proposalApproved) {
+                return {
+                    ok: false,
+                    content:
+                        "LOCKED: JJ has not approved a proposal for the current plan. present_proposal first and wait for his approval. (Enforced in code.)",
+                    summary: "blocked — proposal not approved",
+                };
+            }
             const docType = String(input.docType);
             const title = String(input.title);
             const fields = (input.fields ?? {}) as Record<string, unknown>;

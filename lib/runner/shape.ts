@@ -108,6 +108,11 @@ shapes (every block/item needs a _key):
 - ctaBannerBlock — the "book a consultation" close:
   { "_type": "ctaBannerBlock", "_key": "…", "title": "…", "description": "…", "actionLabel": "…" }
 - dividerBlock — section separation: { "_type": "dividerBlock", "_key": "…" }
+- svgBlock — IN-PAGE INFOGRAPHICS you build yourself (approved deliverables
+  of kind svg-infographic). Follow the visual-asset guidance (brand palette,
+  Plus Jakarta Sans) and keep the SVG self-contained (inline styles, viewBox,
+  no external refs):
+  { "_type": "svgBlock", "_key": "…", "rawSvg": "<svg viewBox=…>…</svg>", "caption": "…" }
 
 Structural minimum for a dedicatedPage: TL;DR as highlightBlock; red flags
 as infoBoxBlock; at least one accordionBlock for deep detail; FAQs as

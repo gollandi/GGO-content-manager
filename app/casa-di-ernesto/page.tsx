@@ -1,38 +1,57 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AppShell from "../../components/AppShell";
 import StatusBadge from "../../components/StatusBadge";
-import type { RunEvent } from "../../lib/runner/types";
+import type { Proposal, RunEvent } from "../../lib/runner/types";
 
 /**
- * Module 3 — La Casa di Ernesto (generative). Brief in → streamed run →
- * drafts out. Everything lands as drafts.* in the GGOMed Sanity Studio;
- * JJ reviews and publishes there. The cockpit never publishes.
+ * Module 3 — La Casa di Ernesto (conversational).
+ * Brief → ricerca → PROPOSTA (testo + deliverables + sezioni interattive)
+ * → chat con JJ → approvazione → bozze → critici → Studio.
+ * I run restano in lista finché JJ non li archivia (post-publish).
  */
 
 const STUDIO_BASE = "https://ggomed.co.uk/studio";
+const SKILL = "ggomed-page-writer-v2";
 
-interface DraftRow { draftId: string; docType: string; title: string }
-interface LogRow { key: number; kind: "text" | "tool" | "status"; text: string }
-interface ScienceRow { claim: string; source: string; url: string }
-interface VerdictRow { critic: "tatiana" | "aspasia"; verdict: string }
+interface RunMetaLite {
+    runId: string;
+    title: string;
+    status: string;
+    updatedAt: string;
+    drafts: { draftId: string; docType: string; title: string }[];
+    science: { claim: string; source: string; url: string }[];
+    proposal: Proposal | null;
+    proposalApproved: boolean;
+    summary: string | null;
+}
+interface LogRow { key: number; kind: "text" | "tool" | "status" | "jj"; text: string }
+interface VerdictRow { critic: string; verdict: string }
+
+const STATUS_LABEL: Record<string, { label: string; tone: "success" | "info" | "warning" | "danger" | "secondary" }> = {
+    "running": { label: "In corso", tone: "info" },
+    "awaiting-jj": { label: "Aspetta te", tone: "warning" },
+    "done": { label: "Completo", tone: "success" },
+    "error": { label: "Errore", tone: "danger" },
+    "archived": { label: "Archiviato", tone: "secondary" },
+};
 
 export default function CasaDiErnestoPage() {
-    const [brief, setBrief] = useState("");
-    const [running, setRunning] = useState(false);
+    const [runs, setRuns] = useState<RunMetaLite[]>([]);
+    const [activeId, setActiveId] = useState<string | null>(null);
+    const [meta, setMeta] = useState<RunMetaLite | null>(null);
     const [log, setLog] = useState<LogRow[]>([]);
-    const [drafts, setDrafts] = useState<DraftRow[]>([]);
-    const [summary, setSummary] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [science, setScience] = useState<ScienceRow[]>([]);
     const [verdicts, setVerdicts] = useState<VerdictRow[]>([]);
+    const [input, setInput] = useState("");
+    const [streaming, setStreaming] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const abortRef = useRef<AbortController | null>(null);
     const keyRef = useRef(0);
+    const logEndRef = useRef<HTMLDivElement>(null);
 
-    const push = (kind: LogRow["kind"], text: string) =>
+    const pushLog = useCallback((kind: LogRow["kind"], text: string) => {
         setLog((l) => {
-            // Coalesce streamed text into the last row for readability
             if (kind === "text" && l.length > 0 && l[l.length - 1].kind === "text") {
                 const copy = l.slice();
                 copy[copy.length - 1] = { ...copy[copy.length - 1], text: copy[copy.length - 1].text + text };
@@ -40,181 +59,346 @@ export default function CasaDiErnestoPage() {
             }
             return [...l, { key: keyRef.current++, kind, text }];
         });
+    }, []);
 
-    async function run() {
-        setRunning(true);
+    const processEvent = useCallback((ev: RunEvent) => {
+        switch (ev.type) {
+            case "run.start": pushLog("status", "— nuovo giro —"); break;
+            case "text": pushLog("text", ev.text); break;
+            case "jj.said": pushLog("jj", ev.text); break;
+            case "tool.use": pushLog("tool", `→ ${ev.name} ${ev.summary}`); break;
+            case "tool.result": if (!ev.ok) pushLog("tool", `✗ ${ev.name}: ${ev.summary}`); break;
+            case "science.recorded": pushLog("status", `Fonte registrata: ${ev.source}`); break;
+            case "critics.verdict":
+                setVerdicts((v) => [...v.filter((x) => x.critic !== ev.critic), { critic: ev.critic, verdict: ev.verdict }]);
+                pushLog("status", `Verdetto di ${ev.critic === "tatiana" ? "Tatiana" : "Aspasia"} ricevuto`);
+                break;
+            case "proposal.presented": pushLog("status", "📋 Proposta presentata — leggi il pannello e rispondi"); break;
+            case "jj.asked": pushLog("status", `❓ ${ev.question}`); break;
+            case "draft.created": pushLog("status", `Bozza creata: ${ev.title}`); break;
+            case "run.paused": break;
+            case "run.done": pushLog("status", ev.summary); break;
+            case "run.error": setError(ev.message); break;
+        }
+    }, [pushLog]);
+
+    const loadRuns = useCallback(async () => {
+        try {
+            const res = await fetch("/api/ernesto/runs");
+            if (res.ok) setRuns((await res.json()).runs);
+        } catch { /* offline — la lista resta */ }
+    }, []);
+
+    const openRun = useCallback(async (id: string) => {
+        setActiveId(id);
         setLog([]);
-        setDrafts([]);
-        setSummary(null);
-        setError(null);
-        setScience([]);
         setVerdicts([]);
+        setError(null);
+        const res = await fetch(`/api/ernesto/runs/${id}`);
+        if (!res.ok) { setError("Run non trovato"); return; }
+        const { meta: m, events } = await res.json();
+        setMeta(m);
+        for (const ev of events as RunEvent[]) processEvent(ev);
+    }, [processEvent]);
+
+    useEffect(() => { void loadRuns(); }, [loadRuns]);
+    useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [log]);
+
+    async function consumeStream(res: Response) {
+        if (!res.ok || !res.body) {
+            const detail = await res.text().catch(() => "");
+            throw new Error(`(${res.status}) ${detail.slice(0, 200)}`);
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let newRunId: string | null = null;
+        for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                const ev = JSON.parse(line) as RunEvent;
+                if (ev.type === "run.start") newRunId = ev.runId;
+                processEvent(ev);
+            }
+        }
+        return newRunId;
+    }
+
+    async function startRun() {
+        setStreaming(true);
+        setError(null);
+        setLog([]);
+        setVerdicts([]);
+        setMeta(null);
+        setActiveId(null);
         const controller = new AbortController();
         abortRef.current = controller;
         try {
             const res = await fetch("/api/ernesto/run", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ skill: "ggomed-page-writer-v2", brief }),
+                body: JSON.stringify({ skill: SKILL, brief: input }),
                 signal: controller.signal,
             });
-            if (!res.ok || !res.body) {
-                const detail = await res.text().catch(() => "");
-                throw new Error(`Run failed to start (${res.status}) ${detail.slice(0, 200)}`);
-            }
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = "";
-            for (;;) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split("\n");
-                buffer = lines.pop() ?? "";
-                for (const line of lines) {
-                    if (!line.trim()) continue;
-                    const event = JSON.parse(line) as RunEvent;
-                    switch (event.type) {
-                        case "run.start": push("status", `Run started — ${event.model}`); break;
-                        case "turn.start": break;
-                        case "text": push("text", event.text); break;
-                        case "tool.use": push("tool", `→ ${event.name} ${event.summary}`); break;
-                        case "tool.result": if (!event.ok) push("tool", `✗ ${event.name}: ${event.summary}`); break;
-                        case "draft.created":
-                            setDrafts((d) => [...d, { draftId: event.draftId, docType: event.docType, title: event.title }]);
-                            push("status", `Draft created: ${event.title}`);
-                            break;
-                        case "science.recorded":
-                            setScience((s) => [...s, { claim: event.claim, source: event.source, url: event.url }]);
-                            break;
-                        case "critics.verdict":
-                            setVerdicts((v) => [...v, { critic: event.critic, verdict: event.verdict }]);
-                            push("status", `Verdetto di ${event.critic === "tatiana" ? "Tatiana" : "Aspasia"} ricevuto`);
-                            break;
-                        case "run.done": setSummary(`${event.reason === "finished" ? "" : `[${event.reason}] `}${event.summary}`); break;
-                        case "run.error": setError(event.message); break;
-                    }
-                }
-            }
+            const id = await consumeStream(res);
+            setInput("");
+            if (id) { await openRun(id); }
         } catch (err) {
             if (!(err instanceof DOMException && err.name === "AbortError")) {
                 setError(err instanceof Error ? err.message : String(err));
             }
         } finally {
-            setRunning(false);
+            setStreaming(false);
             abortRef.current = null;
+            void loadRuns();
         }
     }
 
-    const studioLink = (d: DraftRow) =>
+    async function reply(approve = false) {
+        if (!activeId) return;
+        setStreaming(true);
+        setError(null);
+        const controller = new AbortController();
+        abortRef.current = controller;
+        const message = input;
+        try {
+            const res = await fetch(`/api/ernesto/runs/${activeId}/reply`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message: message || undefined, approve }),
+                signal: controller.signal,
+            });
+            setInput("");
+            await consumeStream(res);
+            const mres = await fetch(`/api/ernesto/runs/${activeId}`);
+            if (mres.ok) setMeta((await mres.json()).meta);
+        } catch (err) {
+            if (!(err instanceof DOMException && err.name === "AbortError")) {
+                setError(err instanceof Error ? err.message : String(err));
+            }
+        } finally {
+            setStreaming(false);
+            abortRef.current = null;
+            void loadRuns();
+        }
+    }
+
+    async function archive(id: string) {
+        await fetch(`/api/ernesto/runs/${id}/archive`, { method: "POST" });
+        if (activeId === id) { setActiveId(null); setMeta(null); setLog([]); setVerdicts([]); }
+        void loadRuns();
+    }
+
+    const studioLink = (d: { draftId: string; docType: string }) =>
         `${STUDIO_BASE}/intent/edit/id=${encodeURIComponent(d.draftId.replace(/^drafts\./, ""))};type=${d.docType}`;
+
+    const canChat = !!activeId && !streaming && meta?.status !== "archived";
+    const showApprove = !!meta?.proposal && !meta?.proposalApproved && meta?.status === "awaiting-jj" && !streaming;
 
     return (
         <AppShell>
-            <div className="p-8 max-lg:p-4 max-w-4xl">
-                <header className="mb-6">
-                    <h1 className="text-2xl font-bold tracking-tight">La Casa di Ernesto</h1>
-                    <p className="text-sm text-muted-foreground mt-1">
-                        Brief in → drafts in Sanity. Nothing publishes itself — you review
-                        every draft in the Studio. Skill: ggomed-page-writer-v2.
-                    </p>
-                </header>
-
-                <textarea
-                    value={brief}
-                    onChange={(e) => setBrief(e.target.value)}
-                    disabled={running}
-                    rows={6}
-                    placeholder={"Brief — e.g. \"Scrivi la dedicated page per la circoncisione parziale: pubblico UK, tono JJ, collega la category hub urology-conditions, includi 4 FAQ.\""}
-                    className="w-full px-4 py-3 rounded-xl border border-border-default bg-white text-sm focus:outline-none focus:ring-2 focus:ring-ggo-teal"
-                />
-                <div className="flex items-center gap-3 mt-3 mb-6">
+            <div className="p-6 max-lg:p-3 grid grid-cols-[280px_1fr] max-lg:grid-cols-1 gap-6">
+                {/* ── Run history (persistent until archived) ── */}
+                <aside>
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-3">Run</h2>
                     <button
-                        onClick={run}
-                        disabled={running || !brief.trim()}
-                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-ggo-purple to-ggo-teal text-white text-sm font-semibold disabled:opacity-50"
+                        onClick={() => { setActiveId(null); setMeta(null); setLog([]); setVerdicts([]); setError(null); }}
+                        className="w-full mb-3 px-4 py-2.5 rounded-xl bg-gradient-to-r from-ggo-purple to-ggo-teal text-white text-sm font-semibold"
                     >
-                        {running ? "Scrivendo…" : "Scrivi le bozze"}
+                        + Nuovo run
                     </button>
-                    {running && (
-                        <button
-                            onClick={() => abortRef.current?.abort()}
-                            className="px-4 py-2.5 rounded-xl border border-border-default text-sm font-medium hover:text-red-500"
-                        >
-                            Ferma
-                        </button>
-                    )}
-                </div>
-
-                {drafts.length > 0 && (
-                    <section className="bg-white rounded-2xl border border-border-default p-5 mb-6">
-                        <h2 className="text-base font-bold mb-3">Bozze create — da rivedere nello Studio</h2>
-                        <ul className="divide-y divide-border-soft">
-                            {drafts.map((d) => (
-                                <li key={d.draftId} className="py-2.5 flex items-center justify-between gap-3">
-                                    <div>
-                                        <div className="text-sm font-medium">{d.title}</div>
-                                        <div className="text-xs text-subtle">{d.docType} · {d.draftId}</div>
+                    <ul className="space-y-2">
+                        {runs.map((r) => {
+                            const s = STATUS_LABEL[r.status] ?? STATUS_LABEL["running"];
+                            return (
+                                <li key={r.runId}
+                                    className={`p-3 rounded-xl border cursor-pointer ${activeId === r.runId ? "border-ggo-teal bg-mint/30" : "border-border-default bg-white hover:border-ggo-teal/50"}`}
+                                    onClick={() => void openRun(r.runId)}>
+                                    <div className="text-xs font-medium line-clamp-2">{r.title}</div>
+                                    <div className="flex items-center justify-between mt-1.5">
+                                        <StatusBadge tone={s.tone} label={s.label} />
+                                        {r.status !== "archived" && (
+                                            <button onClick={(e) => { e.stopPropagation(); void archive(r.runId); }}
+                                                className="text-[10px] text-subtle hover:text-red-500">archivia</button>
+                                        )}
                                     </div>
-                                    <a href={studioLink(d)} target="_blank" rel="noreferrer"
-                                       className="text-xs font-semibold text-ggo-teal hover:underline shrink-0">
-                                        Apri nello Studio ↗
-                                    </a>
                                 </li>
-                            ))}
-                        </ul>
-                    </section>
-                )}
+                            );
+                        })}
+                        {runs.length === 0 && <li className="text-xs text-subtle">Nessun run ancora.</li>}
+                    </ul>
+                </aside>
 
-                {science.length > 0 && (
-                    <section className="bg-white rounded-2xl border border-border-default p-5 mb-6">
-                        <h2 className="text-base font-bold mb-3">Registro fonti (Berenice) — {science.length}</h2>
-                        <ul className="divide-y divide-border-soft">
-                            {science.map((s, i) => (
-                                <li key={i} className="py-2">
-                                    <div className="text-sm">{s.claim}</div>
-                                    <a href={s.url} target="_blank" rel="noreferrer" className="text-xs text-ggo-teal hover:underline">{s.source} ↗</a>
-                                </li>
-                            ))}
-                        </ul>
-                    </section>
-                )}
+                {/* ── Active run ── */}
+                <main className="min-w-0">
+                    <header className="mb-4">
+                        <h1 className="text-2xl font-bold tracking-tight">La Casa di Ernesto</h1>
+                        <p className="text-sm text-muted-foreground mt-1">
+                            Brief → ricerca → <strong>proposta</strong> → tua approvazione → bozze → critici → Studio.
+                            Il log resta qui finché non archivi il run.
+                        </p>
+                    </header>
 
-                {verdicts.length > 0 && (
-                    <div className="grid grid-cols-2 max-lg:grid-cols-1 gap-4 mb-6">
-                        {verdicts.map((v, i) => (
-                            <section key={i} className="bg-white rounded-2xl border border-border-default p-5">
-                                <h2 className="text-base font-bold mb-2">
-                                    {v.critic === "tatiana" ? "Tatiana — revisione avversariale" : "Aspasia — lettura personas"}
-                                </h2>
-                                <div className="text-xs whitespace-pre-wrap max-h-64 overflow-y-auto text-muted-foreground">{v.verdict}</div>
-                            </section>
-                        ))}
-                    </div>
-                )}
+                    {error && <div className="mb-4 p-4 rounded-xl border border-red-300 bg-red-50 text-sm text-red-800">{error}</div>}
 
-                {summary && (
-                    <div className="mb-6 p-4 rounded-xl border border-emerald-300 bg-emerald-50 text-sm whitespace-pre-wrap">
-                        <StatusBadge tone="success" label="Run completo" className="mb-2" /> {summary}
-                    </div>
-                )}
-                {error && (
-                    <div className="mb-6 p-4 rounded-xl border border-red-300 bg-red-50 text-sm text-red-800">{error}</div>
-                )}
+                    {/* Proposal panel */}
+                    {meta?.proposal && (
+                        <section className="bg-white rounded-2xl border-2 border-ggo-teal/40 p-5 mb-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <h2 className="text-base font-bold">📋 Proposta{meta.proposalApproved ? " (approvata)" : " — in attesa del tuo verdetto"}</h2>
+                                {showApprove && (
+                                    <button onClick={() => void reply(true)}
+                                        className="px-5 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700">
+                                        ✓ Approva → scrivi le bozze
+                                    </button>
+                                )}
+                            </div>
+                            <div className="text-sm whitespace-pre-wrap max-h-96 overflow-y-auto border border-border-soft rounded-xl p-4 mb-4">
+                                {meta.proposal.proposalMarkdown}
+                            </div>
+                            {meta.proposal.deliverables.length > 0 && (
+                                <div className="mb-4">
+                                    <h3 className="text-sm font-bold mb-2">Deliverables visivi</h3>
+                                    <ul className="space-y-2">
+                                        {meta.proposal.deliverables.map((d, i) => (
+                                            <li key={i} className="p-3 rounded-xl bg-surface-muted/60 border border-border-soft">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <StatusBadge tone={d.inPage ? "success" : "info"} label={d.inPage ? "la faccio io (svg in-page)" : d.kind} />
+                                                    <span className="text-sm font-medium">{d.title}</span>
+                                                </div>
+                                                <p className="text-xs text-muted-foreground mt-1">{d.description}</p>
+                                                {d.generationPrompt && (
+                                                    <button
+                                                        onClick={() => void navigator.clipboard.writeText(d.generationPrompt!)}
+                                                        className="mt-2 text-xs font-semibold text-ggo-teal hover:underline">
+                                                        Copia prompt per Higgsfield/Canva ⧉
+                                                    </button>
+                                                )}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                            {meta.proposal.interactiveSections.length > 0 && (
+                                <div>
+                                    <h3 className="text-sm font-bold mb-2">Sezioni interattive</h3>
+                                    <ul className="flex flex-wrap gap-2">
+                                        {meta.proposal.interactiveSections.map((s, i) => (
+                                            <li key={i} className="px-3 py-2 rounded-xl bg-ggo-teal/10 border border-ggo-teal/30 text-xs">
+                                                <span className="font-bold">{s.block}</span> · {s.title}
+                                                <span className="text-muted-foreground"> — {s.note}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </section>
+                    )}
 
-                {log.length > 0 && (
-                    <section className="bg-white rounded-2xl border border-border-default p-5">
-                        <h2 className="text-base font-bold mb-3">Log del run</h2>
-                        <div className="text-sm space-y-2 max-h-[420px] overflow-y-auto font-mono text-[12.5px]">
-                            {log.map((row) => (
-                                <p key={row.key}
-                                   className={row.kind === "tool" ? "text-ggo-teal" : row.kind === "status" ? "font-semibold" : "text-charcoal whitespace-pre-wrap"}>
-                                    {row.text}
-                                </p>
+                    {/* Drafts */}
+                    {meta && meta.drafts.length > 0 && (
+                        <section className="bg-white rounded-2xl border border-border-default p-5 mb-4">
+                            <h2 className="text-base font-bold mb-3">Bozze in Sanity — da rivedere nello Studio</h2>
+                            <ul className="divide-y divide-border-soft">
+                                {meta.drafts.map((d) => (
+                                    <li key={d.draftId} className="py-2.5 flex items-center justify-between gap-3">
+                                        <div>
+                                            <div className="text-sm font-medium">{d.title}</div>
+                                            <div className="text-xs text-subtle">{d.docType}</div>
+                                        </div>
+                                        <a href={studioLink(d)} target="_blank" rel="noreferrer"
+                                           className="text-xs font-semibold text-ggo-teal hover:underline shrink-0">Apri nello Studio ↗</a>
+                                    </li>
+                                ))}
+                            </ul>
+                        </section>
+                    )}
+
+                    {/* Critics */}
+                    {verdicts.length > 0 && (
+                        <div className="grid grid-cols-2 max-lg:grid-cols-1 gap-4 mb-4">
+                            {verdicts.map((v, i) => (
+                                <section key={i} className="bg-white rounded-2xl border border-border-default p-5">
+                                    <h2 className="text-base font-bold mb-2">{v.critic === "tatiana" ? "Tatiana — avversariale" : "Aspasia — personas"}</h2>
+                                    <div className="text-xs whitespace-pre-wrap max-h-56 overflow-y-auto text-muted-foreground">{v.verdict}</div>
+                                </section>
                             ))}
                         </div>
+                    )}
+
+                    {/* Science ledger */}
+                    {meta && meta.science.length > 0 && (
+                        <details className="bg-white rounded-2xl border border-border-default p-5 mb-4">
+                            <summary className="text-base font-bold cursor-pointer">Registro fonti (Berenice) — {meta.science.length}</summary>
+                            <ul className="divide-y divide-border-soft mt-2">
+                                {meta.science.map((s, i) => (
+                                    <li key={i} className="py-2">
+                                        <div className="text-sm">{s.claim}</div>
+                                        <a href={s.url} target="_blank" rel="noreferrer" className="text-xs text-ggo-teal hover:underline">{s.source} ↗</a>
+                                    </li>
+                                ))}
+                            </ul>
+                        </details>
+                    )}
+
+                    {/* Log / chat transcript */}
+                    <section className="bg-white rounded-2xl border border-border-default p-5 mb-4">
+                        <h2 className="text-base font-bold mb-3">{activeId ? "Conversazione" : "Nuovo run"}</h2>
+                        {log.length > 0 && (
+                            <div className="text-sm space-y-2 max-h-[380px] overflow-y-auto mb-4">
+                                {log.map((row) => (
+                                    <p key={row.key}
+                                       className={
+                                           row.kind === "jj" ? "ml-12 p-2.5 rounded-xl bg-ggo-teal/10 border border-ggo-teal/30 whitespace-pre-wrap"
+                                           : row.kind === "tool" ? "font-mono text-[12px] text-ggo-teal"
+                                           : row.kind === "status" ? "font-semibold text-[13px]"
+                                           : "whitespace-pre-wrap text-charcoal"
+                                       }>
+                                        {row.text}
+                                    </p>
+                                ))}
+                                <div ref={logEndRef} />
+                            </div>
+                        )}
+                        <div className="flex gap-3 items-end">
+                            <textarea
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                disabled={streaming}
+                                rows={3}
+                                placeholder={activeId
+                                    ? "Rispondi, chiedi modifiche, dai indicazioni…"
+                                    : "Brief — es. \"Dedicated page su LUTS da collo vescicale + BNI, pubblico UK, con self-check quiz e diagramma anatomico.\""}
+                                className="flex-1 px-4 py-3 rounded-xl border border-border-default bg-white text-sm focus:outline-none focus:ring-2 focus:ring-ggo-teal"
+                            />
+                            <div className="flex flex-col gap-2">
+                                <button
+                                    onClick={() => (activeId ? void reply(false) : void startRun())}
+                                    disabled={streaming || !input.trim()}
+                                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-ggo-purple to-ggo-teal text-white text-sm font-semibold disabled:opacity-50 whitespace-nowrap">
+                                    {streaming ? "…" : activeId ? "Invia" : "Avvia"}
+                                </button>
+                                {streaming && (
+                                    <button onClick={() => abortRef.current?.abort()}
+                                        className="px-4 py-2 rounded-xl border border-border-default text-xs font-medium hover:text-red-500">
+                                        Ferma
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     </section>
-                )}
+
+                    {meta?.summary && (
+                        <div className="p-4 rounded-xl border border-emerald-300 bg-emerald-50 text-sm whitespace-pre-wrap">
+                            <StatusBadge tone="success" label="Nota di riconsegna" className="mb-2" /> {meta.summary}
+                        </div>
+                    )}
+                </main>
             </div>
         </AppShell>
     );

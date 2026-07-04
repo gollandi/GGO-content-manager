@@ -1,12 +1,15 @@
 /**
- * La Casa di Ernesto — the in-shell generative runner (Family A).
+ * La Casa di Ernesto — conversational generative runner (Family A).
  *
- * A manual Anthropic Messages tool-use loop (the Helm runner PATTERN,
- * reimplemented lean — not a port): streaming, adaptive thinking, prompt
- * caching on the stable system prefix, bounded turns, abortable.
+ * A run is a persistent SESSION of legs:
+ *   leg 1: brief → Berenice research → grounding → present_proposal → PAUSE
+ *   leg N: JJ chats (feedback/answers) → revise → re-present / draft
+ *   after approval: stesura → critici → finish
+ * Every leg streams NDJSON events AND journals them to .runs/<id>/ so the
+ * log survives reloads and restarts until JJ archives the run.
  *
- * Writes drafts.* only (enforced in lib/sanity/write-client.ts).
- * Publishing is JJ's click in the ggomed Studio — there is no publish tool.
+ * Hard gates in code: create_draft locked until JJ approves a proposal;
+ * finish locked until critics reviewed the latest state; drafts.* only.
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -16,7 +19,327 @@ import { runnerConfig } from "../config";
 import { ggomedRawClient } from "../sanity/clients";
 import { TOOL_DEFINITIONS, dispatchTool, type ToolContext } from "./tools";
 import { SHAPE_NOTES } from "./shape";
-import type { CreatedDraft, RunEvent, RunRequest, ScienceEntry } from "./types";
+import * as store from "./store";
+import type { CreatedDraft, RunEvent, ScienceEntry } from "./types";
+
+const RUNNER_RULES = `You are La Casa di Ernesto — the generative module of JJ's GGOMed
+operator cockpit. You write website content for ggomed.co.uk directly into
+Sanity as DRAFTS, replacing the old copy-paste pipeline. You work in a
+CONVERSATION with JJ — he reviews, chats, and approves before anything
+lands in Sanity.
+
+## Pipeline — work through these phases IN ORDER
+Phase 0 — BERENICE (fresh science). For any clinical topic, use web_search
+  to gather CURRENT guidance (prefer UK/European: NICE, EAU, BAUS) and
+  record each claim you will rely on with record_science.
+Phase 1 — GROUNDING. read_view("editorial-content") for the existing site
+  and slug collisions; get_document on a good sibling page.
+Phase 2 — PROPOSTA (the review gate). present_proposal with:
+  (a) the full prose plan/draft in markdown, (b) EVERY visual deliverable
+  (svg-infographic = you build it in-page later; illustration/photo/canva/
+  video = write a ready-to-paste generation prompt), (c) the interactive
+  sections you plan. The run pauses. JJ replies with feedback (revise and
+  re-present) or approval. create_draft is LOCKED until he approves.
+  Use ask_jj at any point for a focused question.
+Phase 3 — STESURA (after approval only). One create_draft per document;
+  build the approved svg-infographics inline as svgBlock; wire references
+  between drafts with update_draft.
+Phase 4 — CRITICI. run_critics (Tatiana + Aspasia) — mandatory; finish
+  refuses until they reviewed your latest state.
+Phase 5 — REVISIONE. Fix blocking findings, re-run critics, then finish
+  with a review note for JJ (ledger, deliverables still to generate
+  externally, what to check before publishing).
+
+## Operating rules
+1. Everything you create is a draft. JJ reviews and publishes in the Studio —
+   never claim something is "live" or "published".
+2. Clinical accuracy is non-negotiable: never invent facts, figures,
+   statistics or guideline citations. Every specific figure must exist in
+   your ledger. If a needed fact cannot be verified, write around it and
+   flag "TODO: Clinical review required — <what is missing>".
+3. When JJ gives feedback mid-conversation, treat it as authoritative —
+   revise and re-present rather than defending the old plan.
+4. British English throughout.`;
+
+/** Vendored skill bundles live in-repo; COCKPIT_SKILLS_DIR can override. */
+function loadSkill(skill: string): string {
+    const roots = [join(process.cwd(), "skills"), runnerConfig.skillsDir];
+    for (const root of roots) {
+        const path = join(root, skill, "SKILL.md");
+        if (existsSync(path)) {
+            let text = readFileSync(path, "utf8");
+            const refDir = join(root, skill, "references");
+            if (existsSync(refDir)) {
+                for (const f of readdirSync(refDir, { recursive: true }) as string[]) {
+                    const full = join(refDir, f);
+                    if (f.endsWith(".md")) {
+                        text += `\n\n---\n# reference: ${f}\n${readFileSync(full, "utf8")}`;
+                    }
+                }
+            }
+            return text;
+        }
+    }
+    throw new Error(`Skill "${skill}" not found under ./skills or ${runnerConfig.skillsDir}`);
+}
+
+export const ALLOWED_SKILLS = ["ggomed-page-writer-v2"] as const;
+
+export interface LegInput {
+    /** Start a new run. */
+    brief?: string;
+    skill?: string;
+    /** Continue an existing run. */
+    runId?: string;
+    userMessage?: string;
+    approve?: boolean;
+}
+
+function buildSystem(skill: string): Anthropic.TextBlockParam[] {
+    const skillText = loadSkill(skill);
+    let infographic = "";
+    try {
+        infographic = loadSkill("ggomed-infographic");
+    } catch {
+        /* optional */
+    }
+    return [
+        { type: "text", text: RUNNER_RULES },
+        { type: "text", text: SHAPE_NOTES },
+        {
+            type: "text",
+            text:
+                `## Skill instructions (editorial guidance — output contract is create_draft, NOT parser HTML)\n\n${skillText}` +
+                (infographic
+                    ? `\n\n---\n## Visual-asset guidance (for deliverables and in-page svgBlock infographics)\n\n${infographic}`
+                    : ""),
+            cache_control: { type: "ephemeral" },
+        },
+    ];
+}
+
+/** Run one leg of a session. Streams events via emit; persists everything. */
+export async function runLeg(
+    input: LegInput,
+    emit: (event: RunEvent) => void,
+    signal: AbortSignal
+): Promise<void> {
+    // ── Resolve or create the run ────────────────────────────────────────
+    let meta: store.RunMeta;
+    let messages: Anthropic.MessageParam[];
+
+    if (input.runId) {
+        if (!store.runExists(input.runId)) {
+            emit({ type: "run.error", message: `Run ${input.runId} not found` });
+            return;
+        }
+        meta = store.loadMeta(input.runId);
+        if (meta.status === "archived") {
+            emit({ type: "run.error", message: "Run archiviato — aprine uno nuovo" });
+            return;
+        }
+        messages = store.loadMessages(input.runId);
+        if (input.approve) {
+            meta.proposalApproved = true;
+        }
+        const text = input.approve
+            ? `APPROVAZIONE: JJ approva la proposta${input.userMessage ? ` con questa nota: ${input.userMessage}` : ""}. Procedi con la stesura (Phase 3).`
+            : input.userMessage ?? "";
+        if (!text.trim()) {
+            emit({ type: "run.error", message: "Messaggio vuoto" });
+            return;
+        }
+        messages.push({ role: "user", content: text });
+        emit({ type: "jj.said", text });
+    } else {
+        const skill = input.skill ?? "";
+        if (!(ALLOWED_SKILLS as readonly string[]).includes(skill)) {
+            emit({ type: "run.error", message: `Skill "${skill}" is not allow-listed` });
+            return;
+        }
+        if (!input.brief?.trim()) {
+            emit({ type: "run.error", message: "Brief mancante" });
+            return;
+        }
+        const runId = randomUUID();
+        meta = {
+            runId,
+            skill,
+            brief: input.brief,
+            title: input.brief.slice(0, 80),
+            status: "running",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            drafts: [],
+            science: [],
+            criticsCleared: false,
+            proposalApproved: false,
+            proposal: null,
+            summary: null,
+            turnsUsed: 0,
+        };
+        messages = [
+            {
+                role: "user",
+                content: `BRIEF FROM JJ:\n\n${input.brief}\n\nStart the pipeline: research (Phase 0), ground yourself (Phase 1), then present_proposal (Phase 2) and wait for my input. Do not draft anything before my approval.`,
+            },
+        ];
+        store.initRun(meta, messages);
+    }
+
+    if (!store.acquireLeg(meta.runId)) {
+        emit({ type: "run.error", message: "Run già in esecuzione — aspetta che finisca il giro" });
+        return;
+    }
+
+    const journal = (event: RunEvent) => {
+        store.appendEvent(meta.runId, event);
+        emit(event);
+    };
+
+    const client = new Anthropic({ apiKey: runnerConfig.anthropicApiKey });
+    const system = buildSystem(meta.skill);
+
+    async function runCritics(drafts: CreatedDraft[], science: ScienceEntry[]) {
+        const ids = drafts.map((d) => d.draftId);
+        const docs = await ggomedRawClient.fetch(`*[_id in $ids]`, { ids });
+        const ledger =
+            science.length > 0
+                ? science.map((s, i) => `${i + 1}. ${s.claim} — ${s.source} (${s.url})`).join("\n")
+                : "(empty — no clinical claims should appear in the drafts)";
+        const payload = `# SCIENCE LEDGER\n${ledger}\n\n# DRAFT DOCUMENTS (full JSON)\n${JSON.stringify(docs, null, 1).slice(0, 150_000)}`;
+        const critic = async (sys: string) => {
+            const res = await client.messages.create(
+                { model: runnerConfig.model, max_tokens: 8000, thinking: { type: "adaptive" }, system: sys, messages: [{ role: "user", content: payload }] },
+                { signal }
+            );
+            return res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("\n");
+        };
+        const [tatiana, aspasia] = await Promise.all([critic(TATIANA_PROMPT), critic(ASPASIA_PROMPT)]);
+        return { tatiana, aspasia };
+    }
+
+    const ctx: ToolContext = {
+        drafts: meta.drafts,
+        finished: null,
+        science: meta.science,
+        criticsCleared: meta.criticsCleared,
+        proposalApproved: meta.proposalApproved,
+        proposal: meta.proposal,
+        pause: null,
+        runCritics,
+        onScience: (s) => journal({ type: "science.recorded", ...s }),
+        onVerdict: (critic, verdict) => journal({ type: "critics.verdict", critic, verdict }),
+    };
+
+    const persist = (status: store.RunMeta["status"]) => {
+        meta.status = status;
+        meta.drafts = ctx.drafts;
+        meta.science = ctx.science;
+        meta.criticsCleared = ctx.criticsCleared;
+        meta.proposalApproved = ctx.proposalApproved;
+        meta.proposal = ctx.proposal;
+        if (ctx.finished) meta.summary = ctx.finished.summary;
+        store.saveMeta(meta);
+        store.saveMessages(meta.runId, messages);
+    };
+
+    meta.status = "running";
+    store.saveMeta(meta);
+    journal({ type: "run.start", runId: meta.runId, skill: meta.skill, model: runnerConfig.model });
+
+    let containerId: string | undefined;
+
+    try {
+        while (meta.turnsUsed < runnerConfig.maxTurns) {
+            if (signal.aborted) {
+                journal({ type: "run.done", reason: "aborted", summary: "Interrotto da JJ — riprendi scrivendo in chat", draftIds: ctx.drafts.map((d) => d.draftId) });
+                persist("awaiting-jj");
+                return;
+            }
+            meta.turnsUsed += 1;
+            journal({ type: "turn.start", turn: meta.turnsUsed });
+
+            const stream = client.messages.stream(
+                {
+                    model: runnerConfig.model,
+                    max_tokens: 64000,
+                    thinking: { type: "adaptive" },
+                    container: containerId,
+                    system,
+                    tools: [
+                        { type: "web_search_20250305", name: "web_search", max_uses: 12 },
+                        ...TOOL_DEFINITIONS,
+                    ],
+                    messages,
+                },
+                { signal }
+            );
+            stream.on("text", (delta) => journal({ type: "text", text: delta }));
+            const message = await stream.finalMessage();
+            containerId = message.container?.id ?? containerId;
+
+            messages.push({ role: "assistant", content: message.content });
+
+            const toolUses = message.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+
+            if (toolUses.length === 0) {
+                if (message.stop_reason === "pause_turn") continue;
+                // Plain text end — treat as a message to JJ awaiting reply.
+                journal({ type: "run.paused", reason: "question" });
+                persist("awaiting-jj");
+                return;
+            }
+
+            const results: Anthropic.ToolResultBlockParam[] = [];
+            for (const tool of toolUses) {
+                const inputArgs = (tool.input ?? {}) as Record<string, unknown>;
+                journal({ type: "tool.use", name: tool.name, summary: String(inputArgs.title ?? inputArgs.view ?? inputArgs.id ?? inputArgs.draftId ?? inputArgs.question ?? "") });
+                let result;
+                try {
+                    result = await dispatchTool(tool.name, inputArgs, ctx);
+                } catch (err) {
+                    result = { ok: false, content: `Tool failed: ${err instanceof Error ? err.message : String(err)}`, summary: "error" };
+                }
+                journal({ type: "tool.result", name: tool.name, ok: result.ok, summary: result.summary });
+                if (tool.name === "create_draft" && result.ok) {
+                    journal({ type: "draft.created", ...ctx.drafts[ctx.drafts.length - 1] });
+                }
+                if (tool.name === "present_proposal" && result.ok && ctx.proposal) {
+                    journal({ type: "proposal.presented", proposal: ctx.proposal });
+                }
+                if (tool.name === "ask_jj" && result.ok) {
+                    journal({ type: "jj.asked", question: String(inputArgs.question ?? "") });
+                }
+                results.push({ type: "tool_result", tool_use_id: tool.id, content: result.content, is_error: !result.ok });
+            }
+            messages.push({ role: "user", content: results });
+
+            if (ctx.pause) {
+                journal({ type: "run.paused", reason: ctx.pause });
+                persist("awaiting-jj");
+                return;
+            }
+            if (ctx.finished) {
+                journal({ type: "run.done", reason: "finished", summary: ctx.finished.summary, draftIds: ctx.drafts.map((d) => d.draftId) });
+                persist("done");
+                return;
+            }
+        }
+        journal({ type: "run.done", reason: "max-turns", summary: `Cap di ${runnerConfig.maxTurns} turni raggiunto — scrivi in chat per continuare.`, draftIds: ctx.drafts.map((d) => d.draftId) });
+        persist("awaiting-jj");
+    } catch (err) {
+        if (signal.aborted) {
+            journal({ type: "run.done", reason: "aborted", summary: "Interrotto da JJ — riprendi scrivendo in chat", draftIds: ctx.drafts.map((d) => d.draftId) });
+            persist("awaiting-jj");
+            return;
+        }
+        journal({ type: "run.error", message: err instanceof Error ? err.message : String(err) });
+        persist("error");
+    } finally {
+        store.releaseLeg(meta.runId);
+    }
+}
 
 const TATIANA_PROMPT = `You are Tatiana-la-Criticona — the adversarial reviewer of JJ's GGOMed
 editorial pipeline. You are given draft documents (full JSON) and the
@@ -43,242 +366,3 @@ For each persona: one line on what works, one line on what fails. Then a
 short list of concrete fixes ranked by impact. Judge tone against JJ's
 voice: warm + blunt + precise, never corporate, never saccharine. Mark
 each fix BLOCKING or MINOR. Do not rewrite the content.`;
-
-const RUNNER_RULES = `You are La Casa di Ernesto — the generative module of JJ's GGOMed
-operator cockpit. You write website content for ggomed.co.uk directly into
-Sanity as DRAFTS, replacing the old copy-paste pipeline.
-
-## Pipeline — work through these phases IN ORDER
-Phase 0 — BERENICE (fresh science). For any clinical topic, use web_search
-  to gather CURRENT guidance (guidelines, society statements, recent
-  reviews — prefer UK/European: NICE, EAU, BAUS). Record each claim you
-  will rely on with record_science (claim + source + URL). Drafts may make
-  clinical statements ONLY from this ledger. Non-clinical briefs may skip
-  this phase.
-Phase 1 — GROUNDING. read_view("editorial-content") for the existing site
-  and slug collisions; get_document on a good sibling page to copy real
-  field usage.
-Phase 2 — STESURA. One create_draft per document; JJ's voice per the skill.
-Phase 3 — CRITICI. Call run_critics (Tatiana attacks accuracy/compliance
-  against your ledger; Aspasia reads as five patient personas). This gate
-  is MANDATORY — finish refuses until critics reviewed your latest state.
-Phase 4 — REVISIONE. Fix blocking findings with update_draft, re-run
-  critics, then finish with a review note for JJ (include the ledger).
-
-## Operating rules
-1. Everything you create is a draft. JJ reviews and publishes in the Studio —
-   never claim something is "live" or "published".
-2. One create_draft call per document. Wire references between your own
-   drafts with update_draft.
-3. Clinical accuracy is non-negotiable: never invent facts, figures,
-   statistics or guideline citations. A claim without a ledger entry does
-   not go in a draft. If a needed fact cannot be verified, write around it
-   and flag "TODO: Clinical review required — <what is missing>" in your
-   finish note.
-4. British English throughout.`;
-
-/** Vendored skill bundles live in-repo; COCKPIT_SKILLS_DIR can override. */
-function loadSkill(skill: string): string {
-    const roots = [join(process.cwd(), "skills"), runnerConfig.skillsDir];
-    for (const root of roots) {
-        const path = join(root, skill, "SKILL.md");
-        if (existsSync(path)) {
-            let text = readFileSync(path, "utf8");
-            // Inline the reference files the skill leans on — including the
-            // per-page-type style guides (that's where JJ's voice details live).
-            const refDir = join(root, skill, "references");
-            if (existsSync(refDir)) {
-                for (const f of readdirSync(refDir, { recursive: true }) as string[]) {
-                    const full = join(refDir, f);
-                    if (f.endsWith(".md")) {
-                        text += `\n\n---\n# reference: ${f}\n${readFileSync(full, "utf8")}`;
-                    }
-                }
-            }
-            return text;
-        }
-    }
-    throw new Error(`Skill "${skill}" not found under ./skills or ${runnerConfig.skillsDir}`);
-}
-
-export const ALLOWED_SKILLS = ["ggomed-page-writer-v2"] as const;
-
-export async function runSkill(
-    req: RunRequest,
-    emit: (event: RunEvent) => void,
-    signal: AbortSignal
-): Promise<void> {
-    const runId = randomUUID();
-    if (!(ALLOWED_SKILLS as readonly string[]).includes(req.skill)) {
-        emit({ type: "run.error", message: `Skill "${req.skill}" is not allow-listed` });
-        return;
-    }
-
-    const client = new Anthropic({ apiKey: runnerConfig.anthropicApiKey });
-    const skillText = loadSkill(req.skill);
-
-    // Stable prefix first (rules + shapes + skill), cache breakpoint on the
-    // last stable block; the per-run brief goes in messages, after it.
-    const system: Anthropic.TextBlockParam[] = [
-        { type: "text", text: RUNNER_RULES },
-        { type: "text", text: SHAPE_NOTES },
-        {
-            type: "text",
-            text: `## Skill instructions (editorial guidance — output contract is create_draft, NOT parser HTML)\n\n${skillText}`,
-            cache_control: { type: "ephemeral" },
-        },
-    ];
-
-    const messages: Anthropic.MessageParam[] = [
-        {
-            role: "user",
-            content: `BRIEF FROM JJ:\n\n${req.brief}\n\nWork autonomously: research the existing site with your tools, draft every needed document, wire references, then call finish. Do not ask questions — JJ reviews the drafts afterwards; flag uncertainties in the finish note.`,
-        },
-    ];
-
-    /** Fresh-context critics: fetch the real draft docs, run both in parallel. */
-    async function runCritics(drafts: CreatedDraft[], science: ScienceEntry[]) {
-        const ids = drafts.map((d) => d.draftId);
-        const docs = await ggomedRawClient.fetch(`*[_id in $ids]`, { ids });
-        const ledger =
-            science.length > 0
-                ? science.map((s, i) => `${i + 1}. ${s.claim} — ${s.source} (${s.url})`).join("\n")
-                : "(empty — no clinical claims should appear in the drafts)";
-        const payload = `# SCIENCE LEDGER\n${ledger}\n\n# DRAFT DOCUMENTS (full JSON)\n${JSON.stringify(docs, null, 1).slice(0, 150_000)}`;
-        const critic = async (system: string) => {
-            const res = await client.messages.create(
-                {
-                    model: runnerConfig.model,
-                    max_tokens: 8000,
-                    thinking: { type: "adaptive" },
-                    system,
-                    messages: [{ role: "user", content: payload }],
-                },
-                { signal }
-            );
-            return res.content
-                .filter((b): b is Anthropic.TextBlock => b.type === "text")
-                .map((b) => b.text)
-                .join("\n");
-        };
-        const [tatiana, aspasia] = await Promise.all([
-            critic(TATIANA_PROMPT),
-            critic(ASPASIA_PROMPT),
-        ]);
-        return { tatiana, aspasia };
-    }
-
-    const ctx: ToolContext = {
-        drafts: [],
-        finished: null,
-        science: [],
-        criticsCleared: false,
-        runCritics,
-        onScience: (s) => emit({ type: "science.recorded", ...s }),
-        onVerdict: (critic, verdict) => emit({ type: "critics.verdict", critic, verdict }),
-    };
-
-    // web_search_20260209 runs code execution under the hood; once the
-    // conversation carries that state, every following request must echo
-    // the server-side container id or the API 400s ("container_id is
-    // required when there are pending tool uses…").
-    let containerId: string | undefined;
-    emit({ type: "run.start", runId, skill: req.skill, model: runnerConfig.model });
-
-    try {
-        for (let turn = 1; turn <= runnerConfig.maxTurns; turn++) {
-            if (signal.aborted) {
-                emit({ type: "run.done", reason: "aborted", summary: "Aborted by JJ", draftIds: ctx.drafts.map((d) => d.draftId) });
-                return;
-            }
-            emit({ type: "turn.start", turn });
-
-            const stream = client.messages.stream(
-                {
-                    model: runnerConfig.model,
-                    max_tokens: 64000,
-                    thinking: { type: "adaptive" },
-                    container: containerId,
-                    system,
-                    tools: [
-                        // Berenice's research surface — server-side web search.
-                        // Deliberately the BASIC variant: the _20260209
-                        // dynamic-filtering one runs code execution under the
-                        // hood and its container state 400s on mixed
-                        // server+client tool turns (seen live, 2026-07-04).
-                        { type: "web_search_20250305", name: "web_search", max_uses: 12 },
-                        ...TOOL_DEFINITIONS,
-                    ],
-                    messages,
-                },
-                { signal }
-            );
-            stream.on("text", (delta) => emit({ type: "text", text: delta }));
-            const message = await stream.finalMessage();
-            containerId = message.container?.id ?? containerId;
-
-            messages.push({ role: "assistant", content: message.content });
-
-            const toolUses = message.content.filter(
-                (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
-            );
-
-            if (toolUses.length === 0) {
-                if (message.stop_reason === "pause_turn") continue;
-                emit({
-                    type: "run.done",
-                    reason: ctx.finished ? "finished" : "finished",
-                    summary: ctx.finished?.summary ?? "Model ended the run without calling finish.",
-                    draftIds: ctx.drafts.map((d) => d.draftId),
-                });
-                return;
-            }
-
-            const results: Anthropic.ToolResultBlockParam[] = [];
-            for (const tool of toolUses) {
-                const input = (tool.input ?? {}) as Record<string, unknown>;
-                emit({ type: "tool.use", name: tool.name, summary: String(input.title ?? input.view ?? input.id ?? input.draftId ?? "") });
-                let result;
-                try {
-                    result = await dispatchTool(tool.name, input, ctx);
-                } catch (err) {
-                    result = { ok: false, content: `Tool failed: ${err instanceof Error ? err.message : String(err)}`, summary: "error" };
-                }
-                emit({ type: "tool.result", name: tool.name, ok: result.ok, summary: result.summary });
-                if (tool.name === "create_draft" && result.ok) {
-                    const draft = ctx.drafts[ctx.drafts.length - 1];
-                    emit({ type: "draft.created", ...draft });
-                }
-                results.push({
-                    type: "tool_result",
-                    tool_use_id: tool.id,
-                    content: result.content,
-                    is_error: !result.ok,
-                });
-            }
-            messages.push({ role: "user", content: results });
-
-            if (ctx.finished) {
-                emit({
-                    type: "run.done",
-                    reason: "finished",
-                    summary: ctx.finished.summary,
-                    draftIds: ctx.drafts.map((d) => d.draftId),
-                });
-                return;
-            }
-        }
-        emit({
-            type: "run.done",
-            reason: "max-turns",
-            summary: `Stopped at the ${runnerConfig.maxTurns}-turn cap.`,
-            draftIds: ctx.drafts.map((d) => d.draftId),
-        });
-    } catch (err) {
-        if (signal.aborted) {
-            emit({ type: "run.done", reason: "aborted", summary: "Aborted by JJ", draftIds: ctx.drafts.map((d) => d.draftId) });
-            return;
-        }
-        emit({ type: "run.error", message: err instanceof Error ? err.message : String(err) });
-    }
-}
