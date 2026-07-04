@@ -209,6 +209,27 @@ export async function dispatchTool(
                 return { ok: false, content: `docType ${docType} not allowed`, summary: docType };
             }
             const draftId = `drafts.cockpit-${randomUUID()}`;
+            // Provenance lands ON the document: Berenice's ledger becomes
+            // pifTickGovernance.references automatically (code-side, so it
+            // cannot be forgotten). All other PIF fields stay untouched —
+            // they belong to JJ's assessment engine.
+            if (
+                (docType === "dedicatedPage" || docType === "blogPost") &&
+                ctx.science.length > 0 &&
+                !("pifTickGovernance" in fields)
+            ) {
+                fields.pifTickGovernance = {
+                    _type: "pifTickGovernance",
+                    references: ctx.science.map((s) => ({
+                        _type: "pifReference",
+                        _key: randomUUID().slice(0, 8),
+                        title: s.claim,
+                        url: s.url,
+                        source: s.source,
+                        verified: false, // JJ verifies at review
+                    })),
+                };
+            }
             await createDraft({ _id: draftId, _type: docType, ...fields });
             ctx.drafts.push({ draftId, docType, title });
             ctx.criticsCleared = false; // new content → critics must re-run
