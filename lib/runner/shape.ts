@@ -73,10 +73,13 @@ medicalInterventionEntity equivalent instead.
 STRUCTURED metadata, plain text only — no portable text, no prose padding:
 name, slug, description (2-3 plain sentences), howPerformed, preparation,
 followup (all plain text — fill what applies to the concept).
-Create one when the page's entity does not exist yet (check
-read_view/get_document first), then wire the page's primaryProcedure /
-schemaEntities references to it. Leave primaryCondition EMPTY — its target
-type is legacy.
+medicalInterventionEntity covers BOTH concepts: conditions (e.g. "Bladder
+Neck Obstruction") and procedures/interventions (e.g. "Bladder Neck
+Incision") — create one entity per concept. Create it when the page's
+entity does not exist yet (check read_view/get_document first), then wire
+the page's references to it: primaryCondition → the condition-flavoured
+medicalInterventionEntity, primaryProcedure → the procedure-flavoured one,
+schemaEntities → all of them.
 
 ## INTERACTIVE BLOCKS — use them; walls of prose are a defect
 GGOMed readers demonstrably use accordions, quizzes and inline FAQs.
