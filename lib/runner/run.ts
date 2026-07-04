@@ -141,8 +141,8 @@ function withHistoryCache(messages: Anthropic.MessageParam[]): Anthropic.Message
                 ? m.content
                 : m.content.map((b) => {
                       if (typeof b === "object" && b !== null && "cache_control" in b) {
-                          const { cache_control: _drop, ...rest } = b as Record<string, unknown>;
-                          return rest as typeof b;
+                          const { cache_control: _drop, ...rest } = b as unknown as Record<string, unknown>;
+                          return rest as unknown as typeof b;
                       }
                       return b;
                   }),
