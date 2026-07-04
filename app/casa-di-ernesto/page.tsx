@@ -107,6 +107,17 @@ export default function CasaDiErnestoPage() {
     }, [processEvent]);
 
     useEffect(() => { void loadRuns(); }, [loadRuns]);
+
+    // Prefill dal Topic Pool (?brief=…) — window.location per evitare la
+    // trappola Suspense di useSearchParams in prerender.
+    useEffect(() => {
+        const briefParam = new URLSearchParams(window.location.search).get("brief");
+        if (briefParam) {
+            setInput(briefParam);
+            window.history.replaceState({}, "", "/casa-di-ernesto");
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [log]);
 
     async function consumeStream(res: Response) {

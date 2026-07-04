@@ -183,15 +183,33 @@ export default async function EditorialPage({
 
                 <Section title="Topic Pool" note={`${topicRows.length} rows`} error={topics.error}>
                     <ul className="divide-y divide-border-soft">
-                        {topicRows.slice(0, 25).map((r) => (
-                            <li key={r.id} className="py-2 flex items-center justify-between gap-3">
-                                <div>
-                                    <div className="text-sm font-medium">{r.title || "(untitled)"}</div>
-                                    <div className="text-xs text-subtle">{[r.cluster, r.urgency, r.seoPriority].filter(Boolean).join(" · ") || "—"}</div>
-                                </div>
-                                {r.status && <StatusBadge tone={r.status === "New" ? "info" : "secondary"} label={r.status} />}
-                            </li>
-                        ))}
+                        {topicRows.slice(0, 25).map((r) => {
+                            const brief = [
+                                `Scrivi la pagina GGOMed per il topic: "${r.title}".`,
+                                r.cluster ? `Cluster: ${r.cluster}.` : "",
+                                r.angle ? `Angolo editoriale: ${r.angle}` : "",
+                                r.sourceUrl ? `Fonte di partenza: ${r.sourceUrl}` : "",
+                                r.seoPriority ? `Priorità SEO: ${r.seoPriority}.` : "",
+                                "Pubblico UK, voce JJ.",
+                            ].filter(Boolean).join("\n");
+                            return (
+                                <li key={r.id} className="py-2 flex items-center justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="text-sm font-medium">{r.title || "(untitled)"}</div>
+                                        <div className="text-xs text-subtle">{[r.cluster, r.urgency, r.seoPriority].filter(Boolean).join(" · ") || "—"}</div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        {r.status && <StatusBadge tone={r.status === "New" ? "info" : "secondary"} label={r.status} />}
+                                        <a
+                                            href={`/casa-di-ernesto?brief=${encodeURIComponent(brief)}`}
+                                            className="text-xs font-semibold text-ggo-teal hover:underline whitespace-nowrap"
+                                        >
+                                            ✍︎ Scrivi con Ernesto
+                                        </a>
+                                    </div>
+                                </li>
+                            );
+                        })}
                     </ul>
                 </Section>
 
