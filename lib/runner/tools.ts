@@ -209,26 +209,27 @@ export async function dispatchTool(
                 return { ok: false, content: `docType ${docType} not allowed`, summary: docType };
             }
             const draftId = `drafts.cockpit-${randomUUID()}`;
-            // Provenance lands ON the document: Berenice's ledger becomes
-            // pifTickGovernance.references automatically (code-side, so it
-            // cannot be forgotten). All other PIF fields stay untouched —
-            // they belong to JJ's assessment engine.
-            if (
-                (docType === "dedicatedPage" || docType === "blogPost") &&
-                ctx.science.length > 0 &&
-                !("pifTickGovernance" in fields)
-            ) {
-                fields.pifTickGovernance = {
-                    _type: "pifTickGovernance",
-                    references: ctx.science.map((s) => ({
+            // Certification stays with JJ's engine — strip it if the model
+            // ever tries (defence-in-depth on top of the prompt rule).
+            delete fields.showPifTick;
+            delete fields.pifTickAssessment;
+            // Governance METADATA is the model's to write (JJ's rule:
+            // the prohibition covers the tick-boxes, not the metadata).
+            // Backstop: merge Berenice's ledger into references if omitted.
+            if ((docType === "dedicatedPage" || docType === "blogPost") && ctx.science.length > 0) {
+                const gov = (fields.pifTickGovernance ?? { _type: "pifTickGovernance" }) as Record<string, unknown>;
+                delete gov.reviewer; // a review attestation is a human act
+                if (!Array.isArray(gov.references) || gov.references.length === 0) {
+                    gov.references = ctx.science.map((s) => ({
                         _type: "pifReference",
                         _key: randomUUID().slice(0, 8),
                         title: s.claim,
                         url: s.url,
                         source: s.source,
                         verified: false, // JJ verifies at review
-                    })),
-                };
+                    }));
+                }
+                fields.pifTickGovernance = gov;
             }
             await createDraft({ _id: draftId, _type: docType, ...fields });
             ctx.drafts.push({ draftId, docType, title });

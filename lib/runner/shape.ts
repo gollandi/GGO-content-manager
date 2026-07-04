@@ -43,8 +43,16 @@ Recommended: lastReviewed (YYYY-MM-DD, today), seo ({metaTitle, metaDescription}
 Optional refs (only if you verified the target _id with get_document/read_view):
 parentCategory ({_type:"reference", _ref:"<categoryHubPage id>"}),
 primaryCondition / primaryProcedure ({_type:"reference", _ref:"<entity id>"}).
-Do NOT set: showPifTick, pifTickAssessment, pifTickGovernance — PIF fields
-are set by JJ's assessment engine, never by you.
+
+PIF fields — the rule is about CERTIFICATION, not metadata:
+- FORBIDDEN (certification — JJ's engine and JJ only): showPifTick, and
+  everything inside pifTickAssessment (the four tick-boxes AND the scores).
+  Also do not set pifTickGovernance.reviewer — a review attestation is a
+  human act.
+- ALLOWED (governance metadata — fill it properly): pifTickGovernance with
+  publicationDate, lastUpdated, references, guidelines, furtherReadings,
+  reviewCycleYears, version. Your ledger references are also auto-attached
+  by the system if you omit them.
 
 ### blogPost (editorial articles, pathname /blog/{slug})
 Required: title (max 100 chars), slug, publishDate (ISO datetime, now),
@@ -100,12 +108,12 @@ as infoBoxBlock; at least one accordionBlock for deep detail; FAQs as
 faqInlineBlock (4+ entries); related guides as linkCardBlock; closing
 ctaBannerBlock. A quizBlock where a self-check genuinely helps.
 
-## PIF references — done FOR you
-When your science ledger is non-empty, the system automatically writes
-pifTickGovernance.references from it on every dedicatedPage/blogPost you
-create — your cited sources land on the document. You still must NOT write
-any other PIF field (showPifTick, pifTickAssessment, reviewer, dates):
-those belong to JJ's assessment engine.
+## PIF references — backstop
+If you create a dedicatedPage/blogPost without references while your
+science ledger is non-empty, the system merges the ledger into
+pifTickGovernance.references automatically. Prefer writing governance
+metadata yourself (dates, references, guidelines) — the backstop only
+covers omissions. Tick-boxes, scores, badge, reviewer: never yours.
 
 ### General rules
 - British English. JJ's voice per the skill instructions.
