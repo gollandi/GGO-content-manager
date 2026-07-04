@@ -13,9 +13,8 @@ export const ALLOWED_DOC_TYPES = [
     "dedicatedPage",
     "blogPost",
     "faqEntry",
-    // Structured clinical metadata — needed for schema.org wiring. Drafts +
-    // critics gate + JJ's Studio review apply as everywhere else.
-    "medicalConditionEntity",
+    // The ONLY canonical clinical entity type (JJ hard rule, 2026-07-04):
+    // medicalConditionEntity and medicalProcedureEntity are LEGACY.
     "medicalInterventionEntity",
 ] as const;
 
@@ -64,21 +63,20 @@ Same PIF prohibition as dedicatedPage.
 ### faqEntry (standalone FAQ items, referenced by pages)
 Required: question (string), answer (PLAIN TEXT string — not portable text).
 
-### medicalConditionEntity / medicalInterventionEntity (schema.org wiring)
-CANONICAL types: medicalConditionEntity (conditions) and
-medicalInterventionEntity (procedures/interventions).
-medicalProcedureEntity is LEGACY — never create one and never wire a
-reference to an existing one (not in schemaEntities, not anywhere); if a
-sibling page you study references one, use or create the
+### medicalInterventionEntity (schema.org wiring) — THE ONLY ENTITY TYPE
+HARD RULE (JJ): medicalInterventionEntity is the ONLY canonical clinical
+entity. medicalConditionEntity and medicalProcedureEntity are BOTH LEGACY —
+never create one, never wire a reference to an existing one (not in
+schemaEntities, not in primaryCondition, not anywhere). If a sibling page
+you study references a legacy entity, use or create the
 medicalInterventionEntity equivalent instead.
-STRUCTURED metadata, plain text only — no portable text, no prose padding.
-medicalConditionEntity: name, slug, description (2-3 plain sentences),
-symptoms (string array), typicalTest (string array).
-medicalInterventionEntity: name, slug, description, howPerformed,
-preparation, followup (all plain text).
-Create these when the page's condition/procedure entity does not exist yet
-(check read_view/get_document first), then wire the page's
-primaryCondition / primaryProcedure / schemaEntities references to them.
+STRUCTURED metadata, plain text only — no portable text, no prose padding:
+name, slug, description (2-3 plain sentences), howPerformed, preparation,
+followup (all plain text — fill what applies to the concept).
+Create one when the page's entity does not exist yet (check
+read_view/get_document first), then wire the page's primaryProcedure /
+schemaEntities references to it. Leave primaryCondition EMPTY — its target
+type is legacy.
 
 ## INTERACTIVE BLOCKS — use them; walls of prose are a defect
 GGOMed readers demonstrably use accordions, quizzes and inline FAQs.
