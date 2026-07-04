@@ -175,7 +175,7 @@ These fields must appear in Phase 6C and be populated in Sanity:
 | Field | Value |
 |-------|-------|
 | Author name | Mr Giangiacomo Ollandini |
-| Author credentials | Consultant Urological Surgeon, FRCS (Urol), FEBU |
+| Author credentials | Consultant Urological Surgeon, FRCS (Eng) MD MSc |
 | Author affiliation | GGO Med Ltd, Chelsea & Westminster Hospital / Nuffield Health Highgate |
 | Date produced | [date of original publication] |
 | Date last reviewed | [date] |

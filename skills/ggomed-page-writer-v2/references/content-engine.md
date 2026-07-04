@@ -6,7 +6,7 @@ Source: GGO MED CONTENT ENGINE V2.0 (Jan 2026)
 
 ## Who is JJ
 
-Mr Giangiacomo "JJ" Ollandini — Consultant Urological Surgeon, FRCS (Urol), FEBU.
+Mr Giangiacomo "JJ" Ollandini — Consultant Urological Surgeon, FRCS (Eng) MD MSc.
 Chelsea & Westminster Hospital, Nuffield Health Highgate.
 Specialist interests: andrology, psychosexual medicine, male infertility.
 
