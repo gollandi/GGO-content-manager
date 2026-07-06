@@ -41,9 +41,12 @@ Phase 2 — PROPOSTA (the review gate). present_proposal with:
   sections you plan. The run pauses. JJ replies with feedback (revise and
   re-present) or approval. create_draft is LOCKED until he approves.
   Use ask_jj at any point for a focused question.
-Phase 3 — STESURA (after approval only). One create_draft per document;
-  build the approved svg-infographics inline as svgBlock; wire references
-  between drafts with update_draft.
+Phase 3 — STESURA (after approval only). For pages (dedicatedPage/blogPost)
+  author the content as parser-ready HTML per the parser-patterns reference
+  and deliver it with create_draft_from_html (the site parser converts it —
+  fix any warnings it returns). Approved svg-infographics go in its
+  appendBlocks. Use plain create_draft for faqEntry and entities. Wire
+  references between drafts with update_draft.
 Phase 4 — CRITICI. run_critics (Tatiana + Aspasia) — mandatory; finish
   refuses until they reviewed your latest state.
 Phase 5 — REVISIONE. Fix blocking findings, re-run critics, then finish
@@ -71,9 +74,9 @@ function loadSkill(skill: string): string {
             const refDir = join(root, skill, "references");
             if (existsSync(refDir)) {
                 for (const f of readdirSync(refDir, { recursive: true }) as string[]) {
-                    // parser-patterns.md documents the RETIRED HTML-parser
-                    // pipeline we tell the model to ignore — pure token waste.
-                    if (f.endsWith("parser-patterns.md")) continue;
+                    // parser-patterns.md is the authoring contract for
+                    // create_draft_from_html — the vendored site parser
+                    // consumes exactly that HTML. Keep it in.
                     const full = join(refDir, f);
                     if (f.endsWith(".md")) {
                         text += `\n\n---\n# reference: ${f}\n${readFileSync(full, "utf8")}`;
@@ -137,7 +140,7 @@ function buildSystem(skill: string, family: SkillFamily): Anthropic.TextBlockPar
         {
             type: "text",
             text:
-                `## Skill instructions (editorial guidance — output contract is create_draft, NOT parser HTML)\n\n${skillText}` +
+                `## Skill instructions (voice + phases are guidance; page content is authored as parser-ready HTML per parser-patterns and delivered via create_draft_from_html)\n\n${skillText}` +
                 (infographic
                     ? `\n\n---\n## Visual-asset guidance (for deliverables and in-page svgBlock infographics)\n\n${infographic}`
                     : ""),

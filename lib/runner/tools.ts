@@ -12,6 +12,7 @@ import { ggomedClient, ggomedRawClient } from "../sanity/clients";
 import { createDraft, patchDraft } from "../sanity/write-client";
 import { ALLOWED_DOC_TYPES } from "./shape";
 import { getContentCalendar } from "../notion/editorial";
+import { htmlToPortableTextWithWarnings } from "../parser/html-to-portable-text";
 import { writeCalendarCaption } from "../notion/social-write";
 import type { CaptionItem, CreatedDraft, Proposal, ScienceEntry } from "./types";
 
@@ -165,6 +166,31 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
         strict: true,
     },
     {
+        name: "create_draft_from_html",
+        description:
+            "THE PREFERRED WAY to create page drafts (dedicatedPage/blogPost). Author the page content as parser-ready HTML per the parser-patterns reference (headings, details/summary accordions, data-block sections for quiz/faqInline/highlight/infoBox/ctaBanner/linkCard etc.) — the battle-tested site parser converts it to portable text and reports warnings for anything it had to drop. LOCKED until JJ approves the proposal. Use appendBlocks for raw blocks the parser cannot emit (svgBlock infographics).",
+        input_schema: {
+            type: "object" as const,
+            properties: {
+                docType: { type: "string", enum: ["dedicatedPage", "blogPost"] },
+                title: { type: "string" },
+                contentHtml: { type: "string", description: "Parser-ready HTML for the content field" },
+                appendBlocks: {
+                    type: "array",
+                    description: "Raw portable-text blocks appended AFTER the parsed content (e.g. svgBlock) — each needs _type and _key",
+                    items: { type: "object", additionalProperties: true },
+                },
+                fields: {
+                    type: "object",
+                    description: "All OTHER document fields (slug, description, seo, refs, governance) — same shapes as create_draft.fields; do NOT put content here.",
+                    additionalProperties: true,
+                },
+            },
+            required: ["docType", "title", "contentHtml", "fields"],
+            additionalProperties: false,
+        },
+    },
+    {
         name: "create_draft",
         description:
             "Create ONE new draft document in the GGOMed site project. The id is generated server-side under drafts.* — nothing you create is published; JJ reviews and publishes in the Studio. Call once per document. The fields object must follow the schema shapes given in your instructions — study a real sibling document first with get_document.",
@@ -255,6 +281,50 @@ export interface ToolContext {
 const clip = (s: string, n = 4000) => (s.length > n ? s.slice(0, n) + `… [clipped ${s.length - n} chars]` : s);
 
 /** Execute one tool call. Returns the tool_result content string. */
+
+/** Shared draft persistence — the create_draft guards live here (both tools). */
+async function persistDraft(
+    docType: string,
+    title: string,
+    fields: Record<string, unknown>,
+    ctx: ToolContext
+): Promise<{ ok: boolean; content: string; summary: string }> {
+    if (!(ALLOWED_DOC_TYPES as readonly string[]).includes(docType)) {
+        return { ok: false, content: `docType ${docType} not allowed`, summary: docType };
+    }
+    const draftId = `drafts.cockpit-${randomUUID()}`;
+    // Certification stays with JJ's engine — strip it if the model ever
+    // tries (defence-in-depth on top of the prompt rule).
+    delete fields.showPifTick;
+    delete fields.pifTickAssessment;
+    // Governance METADATA is the model's to write (JJ's rule: the
+    // prohibition covers the tick-boxes, not the metadata).
+    // Backstop: merge Berenice's ledger into references if omitted.
+    if ((docType === "dedicatedPage" || docType === "blogPost") && ctx.science.length > 0) {
+        const gov = (fields.pifTickGovernance ?? { _type: "pifTickGovernance" }) as Record<string, unknown>;
+        delete gov.reviewer; // a review attestation is a human act
+        if (!Array.isArray(gov.references) || gov.references.length === 0) {
+            gov.references = ctx.science.map((s) => ({
+                _type: "pifReference",
+                _key: randomUUID().slice(0, 8),
+                title: s.claim,
+                url: s.url,
+                source: s.source,
+                verified: false, // JJ verifies at review
+            }));
+        }
+        fields.pifTickGovernance = gov;
+    }
+    await createDraft({ _id: draftId, _type: docType, ...fields });
+    ctx.drafts.push({ draftId, docType, title });
+    ctx.criticsCleared = false; // new content → critics must re-run
+    const ledgerNote =
+        ctx.science.length === 0
+            ? " NOTE: your science ledger is empty — if this document makes clinical claims, research and record_science FIRST; Tatiana will reject unsourced claims."
+            : "";
+    return { ok: true, content: `Created ${draftId}.${ledgerNote}`, summary: `${docType} "${title}" → ${draftId}` };
+}
+
 export async function dispatchTool(
     name: string,
     input: Record<string, unknown>,
@@ -359,6 +429,33 @@ export async function dispatchTool(
             if (!doc) return { ok: false, content: `No document ${id}`, summary: id };
             return { ok: true, content: clip(JSON.stringify(doc), 12000), summary: id };
         }
+        case "create_draft_from_html": {
+            if (!ctx.proposalApproved) {
+                return {
+                    ok: false,
+                    content: "LOCKED: JJ has not approved a proposal for the current plan. present_proposal first. (Enforced in code.)",
+                    summary: "blocked — proposal not approved",
+                };
+            }
+            const docType = String(input.docType);
+            const title = String(input.title);
+            const fields = (input.fields ?? {}) as Record<string, unknown>;
+            const html = String(input.contentHtml ?? "");
+            if (!html.trim()) {
+                return { ok: false, content: "contentHtml is empty", summary: "no html" };
+            }
+            const { blocks, warnings } = htmlToPortableTextWithWarnings(html);
+            if (!blocks.length) {
+                return { ok: false, content: `Parser produced zero blocks. Warnings: ${JSON.stringify(warnings)}`, summary: "parser: empty" };
+            }
+            const appendBlocks = Array.isArray(input.appendBlocks) ? (input.appendBlocks as Record<string, unknown>[]) : [];
+            fields.content = [...blocks, ...appendBlocks];
+            const res = await persistDraft(docType, title, fields, ctx);
+            if (res.ok && warnings.length > 0) {
+                res.content += `\nPARSER WARNINGS (structure dropped/adjusted — review or fix the HTML and update_draft):\n${warnings.map((w) => `- ${w}`).join("\n")}`;
+            }
+            return res;
+        }
         case "create_draft": {
             if (!ctx.proposalApproved) {
                 return {
@@ -371,40 +468,7 @@ export async function dispatchTool(
             const docType = String(input.docType);
             const title = String(input.title);
             const fields = (input.fields ?? {}) as Record<string, unknown>;
-            if (!(ALLOWED_DOC_TYPES as readonly string[]).includes(docType)) {
-                return { ok: false, content: `docType ${docType} not allowed`, summary: docType };
-            }
-            const draftId = `drafts.cockpit-${randomUUID()}`;
-            // Certification stays with JJ's engine — strip it if the model
-            // ever tries (defence-in-depth on top of the prompt rule).
-            delete fields.showPifTick;
-            delete fields.pifTickAssessment;
-            // Governance METADATA is the model's to write (JJ's rule:
-            // the prohibition covers the tick-boxes, not the metadata).
-            // Backstop: merge Berenice's ledger into references if omitted.
-            if ((docType === "dedicatedPage" || docType === "blogPost") && ctx.science.length > 0) {
-                const gov = (fields.pifTickGovernance ?? { _type: "pifTickGovernance" }) as Record<string, unknown>;
-                delete gov.reviewer; // a review attestation is a human act
-                if (!Array.isArray(gov.references) || gov.references.length === 0) {
-                    gov.references = ctx.science.map((s) => ({
-                        _type: "pifReference",
-                        _key: randomUUID().slice(0, 8),
-                        title: s.claim,
-                        url: s.url,
-                        source: s.source,
-                        verified: false, // JJ verifies at review
-                    }));
-                }
-                fields.pifTickGovernance = gov;
-            }
-            await createDraft({ _id: draftId, _type: docType, ...fields });
-            ctx.drafts.push({ draftId, docType, title });
-            ctx.criticsCleared = false; // new content → critics must re-run
-            const ledgerNote =
-                ctx.science.length === 0
-                    ? " NOTE: your science ledger is empty — if this document makes clinical claims, research and record_science FIRST; Tatiana will reject unsourced claims."
-                    : "";
-            return { ok: true, content: `Created ${draftId}.${ledgerNote}`, summary: `${docType} "${title}" → ${draftId}` };
+            return persistDraft(docType, title, fields, ctx);
         }
         case "update_draft": {
             const draftId = String(input.draftId);

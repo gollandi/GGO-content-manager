@@ -21,8 +21,19 @@ export const ALLOWED_DOC_TYPES = [
 export const SHAPE_NOTES = `
 ## Sanity document shapes (gxyjgvr0 — follow EXACTLY)
 
+## HOW TO AUTHOR PAGE CONTENT — parser HTML first
+For dedicatedPage/blogPost, DO NOT hand-build the content array: author the
+content as parser-ready HTML (the parser-patterns reference in your skill is
+the contract — headings, details/summary, data-block sections for every
+interactive block) and deliver it via create_draft_from_html. The site's
+battle-tested parser converts it, generates the _keys, and returns warnings
+for anything it dropped — fix warnings and re-deliver. svg-infographics go
+in appendBlocks as raw svgBlock objects.
+The raw portable-text shapes below remain for: faqEntry/entity fields,
+appendBlocks, and update_draft patches.
+
 Prose lives in the \`content\` field as PORTABLE TEXT — an array of block
-objects. NOT HTML, NOT markdown. Every block and child needs a unique _key
+objects. Every block and child needs a unique _key
 (short random string). Example block:
 
 {
