@@ -135,6 +135,19 @@ describe("critics gate", () => {
         expect(src).toContain("ForbiddenSocialWriteError");
     });
 
+    it("desk writer creates only Pending plan-proposals, never flips (static)", async () => {
+        const { readFileSync } = await import("node:fs");
+        const { join } = await import("node:path");
+        const src = readFileSync(join(__dirname, "../lib/notion/desk-write.ts"), "utf8");
+        expect(src).toContain('Status: { select: { name: "Pending" } }');
+        expect(src).toContain('Type: { select: { name: "plan-proposal" } }');
+        // create-only: no update path, no other statuses
+        expect(src.includes(".pages.update(")).toBe(false);
+        for (const forbidden of ['"Approved"', '"Rejected"', '"In production"', '"Done"']) {
+            expect(src.includes(forbidden), `desk-write must not contain ${forbidden}`).toBe(false);
+        }
+    });
+
     it("impact writer touches only the three Impact properties (static)", async () => {
         const { readFileSync } = await import("node:fs");
         const { join } = await import("node:path");
