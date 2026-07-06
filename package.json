@@ -9,7 +9,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "parity": "tsx tools/parity/run.ts",
-    "migrate:stale": "tsx tools/migration/fix-stale-mirrors.ts"
+    "migrate:stale": "tsx tools/migration/fix-stale-mirrors.ts",
+    "retire:mirrors": "tsx tools/migration/retire-mirrors.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
