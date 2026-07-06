@@ -29,6 +29,7 @@ type Cause =
     | "accounted:stale-mirror-id"      // live doc found by pathname; stored Sanity ID is stale
     | "accounted:stale-mirror-deleted" // doc no longer exists in Sanity (verified raw) → archive row
     | "accounted:type-not-mirrored"    // legalPage — the old ETL never synced this type
+    | "accounted:mirror-behind-live"   // live tick true, mirror false — the doomed ETL's known failure to update
     | "UNEXPLAINED";
 
 interface Finding {
@@ -189,11 +190,13 @@ async function main() {
                 // applyFallbackTicks() corroboration — the known cause.
                 cause: mirrorTick && !liveTick
                     ? "accounted:fallback-ticks"
-                    : asset && staleRows.has(asset.id)
-                      ? "accounted:stale-mirror-id"
-                      : skewed(sanityId!)
-                        ? "accounted:temporal-skew"
-                        : "UNEXPLAINED",
+                    : !mirrorTick && liveTick
+                      ? "accounted:mirror-behind-live"
+                      : asset && staleRows.has(asset.id)
+                        ? "accounted:stale-mirror-id"
+                        : skewed(sanityId!)
+                          ? "accounted:temporal-skew"
+                          : "UNEXPLAINED",
             });
         }
     }
