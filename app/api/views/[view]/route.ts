@@ -9,12 +9,25 @@ import { requireAuth } from "../../../../lib/auth/api-guard";
  * The view name is the public contract; out-of-process consumers (the
  * editorial skills, Phase 3) call this instead of holding Sanity tokens.
  */
+/**
+ * Machine-to-machine access for headless consumers (ernesto's cron/skills):
+ * `Authorization: Bearer $COCKPIT_SERVICE_TOKEN`. Env-gated — when the env
+ * var is unset there is NO bypass and only the NextAuth session works.
+ */
+function serviceTokenOk(req: NextRequest): boolean {
+    const expected = process.env.COCKPIT_SERVICE_TOKEN;
+    if (!expected) return false;
+    return req.headers.get("authorization") === `Bearer ${expected}`;
+}
+
 export async function GET(
-    _req: NextRequest,
+    req: NextRequest,
     { params }: { params: Promise<{ view: string }> }
 ) {
-    const authResult = await requireAuth();
-    if (!authResult.authenticated) return authResult.response;
+    if (!serviceTokenOk(req)) {
+        const authResult = await requireAuth();
+        if (!authResult.authenticated) return authResult.response;
+    }
 
     const { view } = await params;
 

@@ -13,7 +13,10 @@ export default auth((req) => {
         pathname.startsWith("/api/auth") ||
         pathname === "/login" ||
         pathname.startsWith("/_next") ||
-        pathname.startsWith("/favicon")
+        pathname.startsWith("/favicon") ||
+        // View API does its own auth (NextAuth session OR service token for
+        // headless consumers) — a login redirect would break machine calls.
+        pathname.startsWith("/api/views")
     ) {
         return NextResponse.next();
     }
