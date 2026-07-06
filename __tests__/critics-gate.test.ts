@@ -126,8 +126,12 @@ describe("critics gate", () => {
         const src = readFileSync(join(__dirname, "../lib/notion/social-write.ts"), "utf8");
         expect(src).toContain("Caption: {");
         expect(src).toContain("Hashtags: {");
-        // No Status property write (the word may appear in comments)
-        expect(src.includes("Status: {")).toBe(false);
+        // Status may be written EXACTLY once: hardcoded Draft on row CREATION.
+        // Never updated, never Scheduled — scheduling is JJ's flip in Notion.
+        const statusWrites = src.match(/Status: \{/g) ?? [];
+        expect(statusWrites).toHaveLength(1);
+        expect(src).toContain('Status: { select: { name: "Draft" } }');
+        expect(src.includes('"Scheduled"')).toBe(false);
         expect(src).toContain("ForbiddenSocialWriteError");
     });
 

@@ -96,15 +96,29 @@ export const SKILL_FAMILY: Record<string, SkillFamily> = {
 export const ALLOWED_SKILLS = Object.keys(SKILL_FAMILY);
 
 const FAMILY_B_SYSTEM_NOTE = `## Family B scope (Samantha in-shell)
-You prepare CAPTIONS + HASHTAGS for Content Calendar rows. In-shell limits:
-- NO Canva scanning here — asset matching stays outside; when a post needs
-  an asset, list it as a deliverable (kind "canva"/"illustration") with a brief.
+You are JJ's social content engine — captions for existing Calendar rows AND
+creative proposals of your own.
+
+CREATIVE AUTONOMY (encouraged): repurpose site pages into post series — use
+read_view("editorial-content") to pick pages, get_document to read the full
+page, then propose a series (angles, hooks, platform mix, proposed slots).
+Seasonal ideas and multi-post arcs are welcome. Everything still flows
+through the proposal gate.
+
+PIF TRACEABILITY (mandatory): when a post derives from a page, ALWAYS set
+sourceUrl on create_calendar_row. Check the source page's PIF state via
+read_view("pif-ggomed"): if certified, apply the pif-tick-social rules from
+your skill references; if NOT certified, never imply certification.
+
+In-shell limits:
+- NO Canva scanning — assets become deliverables (kind "canva"/"illustration")
+  with a generation brief.
 - Your proposal MUST include every caption+hashtag set in full — JJ approves
   the actual text, not a promise of it.
-- write_caption only after approval, one row at a time; NEVER touch Status —
-  scheduling/publication is JJ's flip in Notion.
-- GMC guardrails (see skill references) apply to every caption; Tatiana will
-  check compliance.`;
+- write_caption (existing rows) and create_calendar_row (new posts, always
+  Status=Draft) only after approval. NEVER touch Status/scheduling — that is
+  JJ's flip in Notion.
+- GMC guardrails apply to every caption; Tatiana will check compliance.`;
 
 export interface LegInput {
     /** Start a new run. */
@@ -443,7 +457,7 @@ export async function runLeg(
                     tools: [
                         { type: "web_search_20250305", name: "web_search", max_uses: 12 },
                         ...(family === "B"
-                            ? [...TOOL_DEFINITIONS.filter((t) => !["create_draft", "update_draft", "get_document"].includes(t.name)), ...FAMILY_B_TOOLS]
+                            ? [...TOOL_DEFINITIONS.filter((t) => !["create_draft", "create_draft_from_html", "update_draft"].includes(t.name)), ...FAMILY_B_TOOLS]
                             : TOOL_DEFINITIONS),
                     ],
                     messages: withHistoryCache(messages),

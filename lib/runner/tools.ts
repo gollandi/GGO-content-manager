@@ -13,7 +13,7 @@ import { createDraft, patchDraft } from "../sanity/write-client";
 import { ALLOWED_DOC_TYPES } from "./shape";
 import { getContentCalendar } from "../notion/editorial";
 import { htmlToPortableTextWithWarnings } from "../parser/html-to-portable-text";
-import { writeCalendarCaption } from "../notion/social-write";
+import { writeCalendarCaption, createCalendarRow } from "../notion/social-write";
 import type { CaptionItem, CreatedDraft, Proposal, ScienceEntry } from "./types";
 
 export type SkillFamily = "A" | "B";
@@ -41,6 +41,24 @@ export const FAMILY_B_TOOLS: Anthropic.Tool[] = [
                 hashtags: { type: "string", description: "Space-separated #hashtags" },
             },
             required: ["rowId", "rowTitle", "caption", "hashtags"],
+            additionalProperties: false,
+        },
+    },
+    {
+        name: "create_calendar_row",
+        description:
+            "Create a NEW Content Calendar row for a post YOU are proposing (repurposing a page, a series, a seasonal idea). LOCKED until JJ approves the proposal — and the full caption+hashtags must have appeared in it. The row is created with Status=Draft ALWAYS (JJ schedules in Notion). Set sourceUrl to the ggomed.co.uk page the post is derived from — that is the PIF traceability link; check the source page's PIF state via read_view(\"pif-ggomed\") and apply the pif-tick-social rules from your skill when it is certified.",
+        input_schema: {
+            type: "object" as const,
+            properties: {
+                topicTitle: { type: "string", description: "Row title (post working title)" },
+                caption: { type: "string" },
+                hashtags: { type: "string" },
+                contentType: { type: "string", description: "e.g. Static, Reel, Carousel, LinkedIn Post (only if certain)" },
+                date: { type: "string", description: "Proposed slot YYYY-MM-DD (optional)" },
+                sourceUrl: { type: "string", description: "Full URL of the source page on ggomed.co.uk (PIF traceability)" },
+            },
+            required: ["topicTitle", "caption", "hashtags"],
             additionalProperties: false,
         },
     },
@@ -410,6 +428,29 @@ export async function dispatchTool(
             ctx.captions.push(item);
             ctx.criticsCleared = false; // new captions → critics must re-run
             return { ok: true, content: `Caption scritta su "${item.rowTitle}"`, summary: item.rowTitle };
+        }
+        case "create_calendar_row": {
+            if (!ctx.proposalApproved) {
+                return { ok: false, content: "LOCKED: JJ has not approved the proposal. present_proposal first. (Enforced in code.)", summary: "blocked — proposal not approved" };
+            }
+            const rowId = await createCalendarRow({
+                topicTitle: String(input.topicTitle),
+                caption: String(input.caption ?? ""),
+                hashtags: String(input.hashtags ?? ""),
+                contentType: input.contentType ? String(input.contentType) : undefined,
+                date: input.date ? String(input.date) : undefined,
+                sourceUrl: input.sourceUrl ? String(input.sourceUrl) : undefined,
+            });
+            const item: CaptionItem = {
+                rowId,
+                rowTitle: String(input.topicTitle),
+                platform: input.contentType ? String(input.contentType) : null,
+                caption: String(input.caption ?? ""),
+                hashtags: String(input.hashtags ?? ""),
+            };
+            ctx.captions.push(item);
+            ctx.criticsCleared = false; // new content → critics must re-run
+            return { ok: true, content: `Riga Calendar creata (Status=Draft): ${item.rowTitle} → ${rowId}`, summary: item.rowTitle };
         }
         case "read_view": {
             const view = String(input.view);

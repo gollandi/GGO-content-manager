@@ -11,6 +11,7 @@ import {
 import { settle, type Settled } from "../../lib/settle";
 import StatusBadge, { getStatusTone } from "../../components/StatusBadge";
 import AppShell from "../../components/AppShell";
+import NeedIntakeForm from "../../components/NeedIntakeForm";
 
 /**
  * Module 1 — Editorial views (spec §3). One surface over the two truths:
@@ -258,6 +259,7 @@ export default async function EditorialPage({
                 </Section>
 
                 <Section title="Content Needs" note={`${needRows.length} rows`} error={needs.error}>
+                    <NeedIntakeForm />
                     <ul className="divide-y divide-border-soft">
                         {needRows.slice(0, 25).map((r) => (
                             <li key={r.id} className="py-2 flex items-center justify-between gap-3">

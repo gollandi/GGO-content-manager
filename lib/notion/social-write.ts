@@ -19,6 +19,35 @@ export class ForbiddenSocialWriteError extends Error {
 
 const norm = (id: string) => id.replace(/-/g, "");
 
+/**
+ * Create a NEW Calendar row for a Samantha-proposed post.
+ * Status is HARDCODED to "Draft" — scheduling/publication is JJ's flip.
+ * sourceUrl carries the source page (PIF traceability via the views).
+ */
+export async function createCalendarRow(input: {
+    topicTitle: string;
+    caption: string;
+    hashtags: string;
+    contentType?: string;
+    date?: string; // YYYY-MM-DD proposed slot
+    sourceUrl?: string;
+}): Promise<string> {
+    const properties: Parameters<typeof notion.pages.create>[0]["properties"] = {
+        "Topic Title": { title: [{ type: "text", text: { content: input.topicTitle.slice(0, 190) } }] },
+        Status: { select: { name: "Draft" } }, // never Scheduled from code
+        Caption: { rich_text: [{ type: "text", text: { content: input.caption.slice(0, 1990) } }] },
+        Hashtags: { rich_text: [{ type: "text", text: { content: input.hashtags.slice(0, 1990) } }] },
+    };
+    if (input.contentType) properties["Content Type"] = { select: { name: input.contentType } };
+    if (input.date) properties["Date"] = { date: { start: input.date } };
+    if (input.sourceUrl) properties["Source URL"] = { url: input.sourceUrl };
+    const page = await notion.pages.create({
+        parent: { database_id: notionConfig.dbs.contentCalendar() },
+        properties,
+    });
+    return page.id;
+}
+
 /** Write caption+hashtags on ONE Calendar row. Fails loudly on anything else. */
 export async function writeCalendarCaption(
     pageId: string,
