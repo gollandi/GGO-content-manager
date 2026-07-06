@@ -14,7 +14,13 @@ export async function POST(req: Request) {
     const auth = await requireWriter();
     if (!auth.authenticated) return auth.response;
 
-    let body: { need?: string; source?: string; details?: string };
+    let body: {
+        need?: string;
+        source?: string;
+        details?: string;
+        successDefinition?: string;
+        impactReviewDate?: string;
+    };
     try {
         body = await req.json();
     } catch {
@@ -34,6 +40,18 @@ export async function POST(req: Request) {
                 "Action Status": { status: { name: "To do" } },
                 ...(body.details?.trim()
                     ? { Details: { rich_text: [{ type: "text", text: { content: body.details.slice(0, 1990) } }] } }
+                    : {}),
+                // Impact loop: success defined at intake, verified at review
+                ...(body.successDefinition?.trim()
+                    ? {
+                          "Success Definition": {
+                              rich_text: [{ type: "text", text: { content: body.successDefinition.slice(0, 1990) } }],
+                          },
+                          "Impact Outcome": { select: { name: "Pending" } },
+                      }
+                    : {}),
+                ...(body.impactReviewDate
+                    ? { "Impact Review Date": { date: { start: body.impactReviewDate } } }
                     : {}),
             },
         });

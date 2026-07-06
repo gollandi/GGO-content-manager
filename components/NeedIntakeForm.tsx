@@ -11,19 +11,30 @@ export default function NeedIntakeForm() {
     const [need, setNeed] = useState("");
     const [source, setSource] = useState("Patient");
     const [details, setDetails] = useState("");
+    const [successDefinition, setSuccessDefinition] = useState("");
     const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
     async function submit() {
         setState("saving");
         try {
+            // Review suggerita a +3 mesi — si verifica quando il contenuto ha vissuto
+            const review = new Date();
+            review.setMonth(review.getMonth() + 3);
             const res = await fetch("/api/notion/content-needs", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ need, source, details }),
+                body: JSON.stringify({
+                    need,
+                    source,
+                    details,
+                    successDefinition,
+                    impactReviewDate: successDefinition.trim() ? review.toISOString().slice(0, 10) : undefined,
+                }),
             });
             if (!res.ok) throw new Error(await res.text());
             setNeed("");
             setDetails("");
+            setSuccessDefinition("");
             setState("saved");
             setTimeout(() => setState("idle"), 2500);
         } catch {
@@ -65,6 +76,12 @@ export default function NeedIntakeForm() {
                 onChange={(e) => setDetails(e.target.value)}
                 placeholder="Dettagli/contesto (opzionale)"
                 className="w-full mt-2 px-3 py-2 rounded-lg border border-border-default bg-white text-xs"
+            />
+            <input
+                value={successDefinition}
+                onChange={(e) => setSuccessDefinition(e.target.value)}
+                placeholder='Definizione di successo — es. "i pazienti smettono di chiederlo in clinica" (imposta la review a +3 mesi)'
+                className="w-full mt-2 px-3 py-2 rounded-lg border border-ggo-teal/40 bg-white text-xs"
             />
             {state === "saved" && <div className="text-xs text-emerald-600 mt-1.5">✓ Registrato — entra nel ciclo</div>}
             {state === "error" && <div className="text-xs text-red-600 mt-1.5">Errore — riprova (o controlla i log)</div>}

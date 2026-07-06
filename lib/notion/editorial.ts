@@ -112,6 +112,12 @@ export interface ContentNeedRow {
     actionStatus: string | null; // status-type: To do/In progress/Done/Blocked
     details: string;
     contentAssetIds: string[];
+    /** Impact loop (PIF "measuring impact"): success defined at intake,
+     *  outcome verified at review — JJ's verdict, evidence from Feedback. */
+    successDefinition: string;
+    impactReviewDate: string | null;
+    impactOutcome: string | null; // Pending/Achieved/Partially achieved/Not achieved
+    impactEvidence: string;
 }
 
 export interface ActivityLogRow {
@@ -253,6 +259,10 @@ const mapContentNeed = (p: PageObjectResponse): ContentNeedRow => ({
     actionStatus: x.status(x.prop(p.properties, "Action Status")), // status-type, verified
     details: x.richText(x.prop(p.properties, "Details")),
     contentAssetIds: x.relationIds(x.prop(p.properties, "Content Assets")),
+    successDefinition: x.richText(x.prop(p.properties, "Success Definition")),
+    impactReviewDate: x.date(x.prop(p.properties, "Impact Review Date")),
+    impactOutcome: x.select(x.prop(p.properties, "Impact Outcome")),
+    impactEvidence: x.richText(x.prop(p.properties, "Impact Evidence")),
 });
 
 const mapPerformanceSnapshot = (p: PageObjectResponse): PerformanceSnapshotRow => ({

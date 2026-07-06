@@ -12,6 +12,7 @@ import { settle, type Settled } from "../../lib/settle";
 import StatusBadge, { getStatusTone } from "../../components/StatusBadge";
 import AppShell from "../../components/AppShell";
 import NeedIntakeForm from "../../components/NeedIntakeForm";
+import ImpactReviewCard from "../../components/ImpactReviewCard";
 
 /**
  * Module 1 — Editorial views (spec §3). One surface over the two truths:
@@ -79,6 +80,14 @@ export default async function EditorialPage({
     const queueRows = (queue.data ?? []).filter((r) => matches(q, r.title, r.platform ?? undefined, r.format ?? undefined));
     const newsRows = (newsletter.data ?? []).filter((r) => matches(q, r.title, r.status));
     const needRows = (needs.data ?? []).filter((r) => matches(q, r.need, r.source, r.actionStatus));
+    // Impact loop: verdicts due = success defined, review date reached, no verdict yet
+    const impactDue = (needs.data ?? []).filter(
+        (r) =>
+            r.successDefinition &&
+            r.impactReviewDate &&
+            r.impactReviewDate <= today &&
+            (!r.impactOutcome || r.impactOutcome === "Pending")
+    );
 
     const counts = {
         site: site.data?.length ?? 0,
@@ -256,6 +265,28 @@ export default async function EditorialPage({
                             </li>
                         ))}
                     </ul>
+                </Section>
+
+                <Section
+                    title="Impact review dovute"
+                    note={`${impactDue.length} verdetti da dare — PIF measuring impact`}
+                    error={needs.error}
+                >
+                    {impactDue.length === 0 ? (
+                        <p className="text-xs text-subtle">Nessuna review dovuta. I need con definizione di successo compaiono qui alla data di verifica.</p>
+                    ) : (
+                        <ul className="divide-y divide-border-soft">
+                            {impactDue.slice(0, 15).map((r) => (
+                                <ImpactReviewCard
+                                    key={r.id}
+                                    id={r.id}
+                                    need={r.need}
+                                    successDefinition={r.successDefinition}
+                                    reviewDate={r.impactReviewDate}
+                                />
+                            ))}
+                        </ul>
+                    )}
                 </Section>
 
                 <Section title="Content Needs" note={`${needRows.length} rows`} error={needs.error}>

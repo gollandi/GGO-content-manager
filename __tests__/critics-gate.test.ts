@@ -135,6 +135,19 @@ describe("critics gate", () => {
         expect(src).toContain("ForbiddenSocialWriteError");
     });
 
+    it("impact writer touches only the three Impact properties (static)", async () => {
+        const { readFileSync } = await import("node:fs");
+        const { join } = await import("node:path");
+        const src = readFileSync(join(__dirname, "../lib/notion/impact-write.ts"), "utf8");
+        expect(src).toContain('"Impact Outcome"');
+        expect(src).toContain('"Impact Evidence"');
+        expect(src).toContain('"Impact Review Date"');
+        expect(src).toContain("ForbiddenImpactWriteError");
+        // Never the workflow status, never the need itself
+        expect(src.includes('"Action Status"')).toBe(false);
+        expect(src.includes("Need:")).toBe(false);
+    });
+
     it("record_science feeds the ledger and the event hook", async () => {
         const seen: string[] = [];
         const ctx = makeCtx({ onScience: (s) => seen.push(s.source) });
