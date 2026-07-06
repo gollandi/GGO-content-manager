@@ -19,6 +19,7 @@ export default function SoffittaPage() {
     const [running, setRunning] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
+    const [workLog, setWorkLog] = useState<string[]>([]);
 
     async function load() {
         const res = await fetch("/api/retro");
@@ -34,8 +35,13 @@ export default function SoffittaPage() {
         setRunning(true);
         setError(null);
         setNotice(null);
+        setWorkLog([]);
         try {
-            const res = await fetch("/api/retro", { method: "POST" });
+            const res = await fetch("/api/retro", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mode: "retro" }),
+            });
             if (!res.ok) throw new Error(await res.text());
             const result = await res.json();
             setNotice(
@@ -45,6 +51,49 @@ export default function SoffittaPage() {
             );
             await load();
             setOpen(null);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+        } finally {
+            setRunning(false);
+        }
+    }
+
+    async function runOfficina() {
+        setRunning(true);
+        setError(null);
+        setNotice(null);
+        setWorkLog([]);
+        try {
+            const res = await fetch("/api/retro", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mode: "officina" }),
+            });
+            if (!res.ok || !res.body) throw new Error(await res.text());
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() ?? "";
+                for (const raw of lines) {
+                    if (!raw.trim()) continue;
+                    const ev = JSON.parse(raw) as { line?: string; done?: { prUrl: string | null; branch: string | null; applied: number; testsPassed: boolean }; error?: string };
+                    if (ev.line) setWorkLog((l) => [...l, ev.line!]);
+                    if (ev.error) setError(ev.error);
+                    if (ev.done) {
+                        setNotice(
+                            ev.done.testsPassed
+                                ? `Officina completa: ${ev.done.applied} edit in ${ev.done.branch} — ${ev.done.prUrl ? `PR pronta: ${ev.done.prUrl}` : "apri la PR dal branch"}. Il merge è tuo.`
+                                : "Officina: test falliti nel branch — niente pushato, dettagli nel report."
+                        );
+                    }
+                }
+            }
+            await load();
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
         } finally {
@@ -64,16 +113,30 @@ export default function SoffittaPage() {
                     </p>
                 </header>
 
-                <div className="flex items-center gap-3 mb-6">
+                <div className="flex items-center gap-3 mb-3 flex-wrap">
+                    <button
+                        onClick={() => void runOfficina()}
+                        disabled={running}
+                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-ggo-purple to-ggo-teal text-white text-sm font-semibold disabled:opacity-50"
+                        title="Analizza → propone → discute → applica in branch → testa → PR. Tu approvi solo il merge."
+                    >
+                        {running ? "Lavoro…" : "⚙︎ Officina (fino alla PR)"}
+                    </button>
                     <button
                         onClick={() => void run()}
                         disabled={running}
-                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-ggo-purple to-ggo-teal text-white text-sm font-semibold disabled:opacity-50"
+                        className="px-5 py-2.5 rounded-xl border border-border-default text-sm font-medium disabled:opacity-50"
+                        title="Solo analisi e proposte, nessun branch"
                     >
-                        {running ? "Rifletto sui journal…" : "Esegui retrospettiva"}
+                        Solo retrospettiva
                     </button>
-                    {notice && <span className="text-xs text-emerald-600">{notice}</span>}
                 </div>
+                {notice && <div className="mb-3 text-xs text-emerald-600 whitespace-pre-wrap">{notice}</div>}
+                {workLog.length > 0 && (
+                    <div className="mb-6 p-4 rounded-xl bg-surface-muted/60 border border-border-soft font-mono text-[12px] space-y-1">
+                        {workLog.map((l, i) => <p key={i}>{l}</p>)}
+                    </div>
+                )}
                 {error && <div className="mb-4 p-4 rounded-xl border border-red-300 bg-red-50 text-sm text-red-800">{error}</div>}
 
                 {retros.length === 0 ? (

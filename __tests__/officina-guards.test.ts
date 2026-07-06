@@ -1,0 +1,59 @@
+// @vitest-environment node
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+/**
+ * L'Officina è autonoma fino alla PR — ma i suoi rail sono costituzionali:
+ * allowlist della conoscenza editoriale, worktree isolato, MAI merge.
+ * Se questo test fallisce, rimuovi la capacità, non il test.
+ */
+
+const SRC = readFileSync(join(__dirname, "../lib/retro/officina.ts"), "utf8");
+
+describe("Officina constitutional rails", () => {
+    it("edits are allowlisted to editorial knowledge only", () => {
+        expect(SRC).toContain("EDIT_ALLOWLIST");
+        expect(SRC).toContain("skills\\/");
+        expect(SRC).toContain("lib\\/runner\\/shape\\.ts");
+        // The apply path must consult the allowlist
+        expect(SRC).toContain("pathAllowed(");
+    });
+
+    it("never merges and never pushes to main", () => {
+        for (const forbidden of ['"merge"', '"push", "-u", "origin", "main"', "pr merge", "--admin"]) {
+            expect(SRC.includes(forbidden), `officina must not contain ${forbidden}`).toBe(false);
+        }
+        // push only of the soffitta branch, from the worktree
+        expect(SRC).toContain('["push", "-u", "origin", branch]');
+    });
+
+    it("works only in an isolated worktree, never the live tree", () => {
+        expect(SRC).toContain('"worktree", "add"');
+        // every file write goes through the worktree path
+        const writes = SRC.match(/writeFileSync\(([^,]+),/g) ?? [];
+        const badWrites = writes.filter((w) => !w.includes("full") && !w.includes("reportPath"));
+        expect(badWrites, `unexpected write targets: ${badWrites.join(", ")}`).toEqual([]);
+        expect(SRC).toContain("join(wt, e.file)");
+    });
+
+    it("constitutional files are NOT in the allowlist", () => {
+        const allow = [/^skills\/[^/]+\/(SKILL\.md|references\/.+\.md)$/, /^lib\/runner\/shape\.ts$/];
+        const forbidden = [
+            "lib/sanity/write-client.ts",
+            "lib/notion/social-write.ts",
+            "lib/notion/desk-write.ts",
+            "lib/notion/impact-write.ts",
+            "lib/runner/tools.ts",
+            "lib/runner/run.ts",
+            "lib/auth/config.ts",
+            "middleware.ts",
+            "lib/config.ts",
+        ];
+        for (const f of forbidden) {
+            expect(allow.some((rx) => rx.test(f)), `${f} must NOT be editable`).toBe(false);
+        }
+        expect(allow.some((rx) => rx.test("skills/ggomed-page-writer-v2/SKILL.md"))).toBe(true);
+        expect(allow.some((rx) => rx.test("lib/runner/shape.ts"))).toBe(true);
+    });
+});
