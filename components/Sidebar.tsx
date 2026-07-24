@@ -57,6 +57,21 @@ export default function Sidebar() {
           </button>
         </div>
 
+        {/* Il Cancello — the one human gate: the local review dashboard where
+            JJ approves, modifies or rejects everything awaiting his decision.
+            Prominent by design (JJ, 2026-07-24). */}
+        <div className="px-4 pb-3">
+          <a
+            href="http://127.0.0.1:4317"
+            target="_blank"
+            rel="noopener"
+            className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-white bg-gradient-to-r from-ggo-purple to-ggo-teal font-bold text-sm shadow-glow-purple hover:scale-[1.02] transition-transform"
+          >
+            <Icons.IconShield className="w-[18px] h-[18px]" />
+            <span>🚪 Il Cancello — Review &amp; Publish</span>
+          </a>
+        </div>
+
         {/* Navigation */}
         <nav className="flex flex-col gap-1 px-4 max-lg:flex-row max-lg:overflow-x-auto max-lg:pb-3">
           {navItems.map((item) => {
