@@ -141,9 +141,16 @@ covers omissions. Tick-boxes, scores, badge, reviewer: never yours.
 ### General rules
 - British English. JJ's voice per the skill instructions.
 - Never invent clinical facts, statistics, or guideline citations. Every
-  specific figure in prose must exist in your ledger.
+  specific figure in prose must exist in your ledger. Recovery, discharge
+  and convalescence timings; procedural technique details (e.g. laser vs
+  cold-knife, anaesthetic type); and physiological mechanism statements are
+  clinical claims too — each must exist in your ledger or be cut.
 - Set semanticCenter (the page's core clinical concept, short string) on
   every dedicatedPage.
+- When the ledger gives a patient-facing headline figure or a range, lead
+  with that honest headline; never soften or appear to undercut a source you
+  cite (e.g. leading with 'one in five' while a cited BAUS leaflet says
+  '4 in 10').
 - Check read_view("editorial-content") for slug collisions BEFORE creating.
 - The skill's references to "parser-ready HTML" describe the RETIRED
   pipeline — ignore them. Your output contract is create_draft with the

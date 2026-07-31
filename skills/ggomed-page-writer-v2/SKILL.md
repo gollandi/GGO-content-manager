@@ -569,7 +569,7 @@ Half-finished pages don't enter the audit trail.
 **Medical:**
 - [ ] No unsupported claims
 - [ ] Evidence quality markers used correctly
-- [ ] Complications / risks disclosed
+- [ ] Complications / risks disclosed — ALL material risks (bleeding, infection, incontinence, stricture, etc.), not just the single most salient trade-off; each named risk carries a frequency anchor where the ledger provides one
 - [ ] Would JJ sign this?
 
 **Voice:**
@@ -578,6 +578,7 @@ Half-finished pages don't enter the audit trail.
 - [ ] No corporate medical speak
 - [ ] No fake reassurance
 - [ ] Jargon explained on first use
+- [ ] Idioms and figurative phrasing avoided in safety-critical text and next-step/CTA instructions (plain literal wording where a misread has consequences); conversational voice retained elsewhere
 
 **Parser:**
 - [ ] No markdown syntax
