@@ -360,6 +360,7 @@ export type RoomId =
   | "editorial"
   | "youtube"
   | "pif"
+  | "portineria"
   | "helm"
   | "ernesto"
   | "soffitta"
@@ -374,6 +375,7 @@ export const ROOM_INK: Record<RoomId, { accent: string; bright: string }> = {
   editorial: { accent: "var(--engraving)", bright: "var(--engraving-bright)" },
   youtube: { accent: "var(--plate-fg-soft)", bright: "var(--plate-fg)" },
   pif: { accent: "var(--engraving-ink)", bright: "var(--engraving-bright)" },
+  portineria: { accent: "var(--stamp)", bright: "var(--stamp-bright)" },
   helm: { accent: "var(--plate-fg-soft)", bright: "var(--plate-fg)" },
   ernesto: { accent: "var(--sepia)", bright: "var(--sepia-bright)" },
   soffitta: { accent: "var(--stamp)", bright: "var(--stamp-bright)" },
@@ -416,6 +418,15 @@ const CREST_PATHS: Record<RoomId, ReactNode> = {
       <rect x="4" y="4" width="16" height="16" />
       <path d="M7 7h6M7 10h4" />
       <path d="M9 15.5l2.2 2.2 4.3-4.6" />
+    </>
+  ),
+  /* The front desk ledger and its service bell. */
+  portineria: (
+    <>
+      <rect x="4" y="7" width="16" height="12" />
+      <path d="M7 10h6M7 13h4M15.5 15.5h2" />
+      <path d="M11 7V5h2v2" />
+      <path d="M15 5.5a3 3 0 0 1 3 3" />
     </>
   ),
   /* The compass rose. */
