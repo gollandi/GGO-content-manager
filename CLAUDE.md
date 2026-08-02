@@ -1,102 +1,75 @@
-# CLAUDE.md — GGO Med Content Manager
+# CLAUDE.md — GGO Med Operator Cockpit
 
 ## Project Summary
 
-Medical content management and compliance tracking platform for GGOmed. Built with Next.js (App Router), TypeScript, Tailwind CSS, and Notion as the backend database. Tracks PIF Tick compliance, evidence sources, patient journeys, SEO keywords, and schema.org validation across healthcare content.
+The GGOMed Operator Cockpit ("the Shell"): one Next.js application from which JJ — the sole operator — observes and dispatches the entire GGOMed content ecosystem. Four cockpit modules (Editorial, PIF Tick, La Casa di Ernesto, Lo Studio di Ambrogio) plus Il Cancello, the single human review gate. Authoritative spec: `docs/GGOMED-COCKPIT-SPEC.md`; current state: `docs/STATE.md`; product truth: `PRODUCT.md`; visual system: `DESIGN.md`.
 
 ## Tech Stack
 
-- **Framework:** Next.js 16.x (App Router, `"use client"` pages)
-- **Language:** TypeScript 5.4 (strict mode)
-- **Styling:** Tailwind CSS 4.2 + CSS Modules (hybrid)
-- **Backend:** Notion API via `@notionhq/client` — no traditional database
-- **Font:** Plus Jakarta Sans (Google Fonts)
+- **Framework:** Next.js 16.x (App Router; mix of server components and `"use client"` pages)
+- **Language:** TypeScript 5.4 (strict)
+- **Styling:** Tailwind CSS 4.x + a small set of CSS Modules
+- **Auth:** next-auth v5 (Google + credentials; middleware-gated, `trustHost` enabled for the resident localhost service)
+- **Data:** Sanity (two projects, live GROQ) + Notion (editorial workflow state) — see Data Ownership
+- **Tests:** Vitest (`npm run test`)
+- **Fonts:** Bodoni Moda, Archivo Narrow, Archivo (see DESIGN.md — Il Registro world)
 
-## Architecture
+## Data Ownership (truth-per-data-class)
 
-```
-Pages (app/*/page.tsx) → fetch("/api/notion/*")
-  → API Routes (app/api/notion/*/route.ts)
-    → Services (lib/notion/services.ts)
-      → Mappers (lib/notion/mappers.ts)
-        → Notion SDK (lib/notion/client.ts)
-```
+| Data class | Truth lives in | Read via |
+|---|---|---|
+| Content / PIF assessment | Sanity `gxyjgvr0` (site) + `m05ykm6e` (Compass PIF slice, READ-ONLY) | live GROQ, named views in `lib/views` |
+| Editorial workflow state | Notion (Calendar, Topic Pool, Desk, Needs, Ambrogio DBs…) | `lib/notion/*` |
+| External metrics | neither | cache tier (Phase 2, not built) |
 
-- All data comes from 6 Notion databases (Content, PIF Compliance, Evidence, Keywords, Patient Journeys, Schema Validation)
-- API routes are server-side only; pages use `"use client"` with `useEffect` + `fetch`
-- Types defined in `lib/notion/types.ts`, property mappings in `lib/notion/schema.ts`
+Named GROQ views are exposed twice: as a library (`lib/views`) and over HTTP (`/api/views/[view]`, session or `COCKPIT_SERVICE_TOKEN` bearer).
+
+## Hard Gates (enforced in code, never weaken)
+
+- Views are read-only; the cockpit observes and dispatches.
+- Generative skills write **drafts only** to `gxyjgvr0`; `m05ykm6e` is never written.
+- The three publish gates (site publish, social approval, newsletter send) are JJ-only.
+- Ambrogio's Notion DBs have **no write path** in this app (asserted by `__tests__/ambrogio-no-write`).
+- Oxblood (`--seal`) in the UI is reserved for the act of sealing and for what awaits JJ.
 
 ## Key Directories
 
 | Path | Purpose |
 |------|---------|
-| `app/` | Next.js App Router pages and API routes |
-| `app/api/notion/` | 6 REST endpoints (content, compliance, evidence, keywords, patient-journeys, validation) |
-| `lib/notion/` | Notion integration: client, services, mappers, schema, types |
-| `components/` | Shared components: AppShell, Sidebar, Icons |
-| `public/` | Static assets |
+| `app/` | Pages: 8 cockpit rooms + 11 legacy mirror pages (retiring) + `review` (Il Cancello) |
+| `app/api/` | notion/*, views/*, ernesto/* (runner), review-dashboard/* (gate), retro, cache |
+| `lib/views/` | Named GROQ view registry (editorial-content, asset-identity, pif-ggomed, pif-compass) |
+| `lib/notion/` | Notion integration; `lib/notion/editorial.ts` for workflow DBs |
+| `lib/auth/` | next-auth config, roles, API guard |
+| `components/` | Shell (AppShell, Sidebar) + `Registro.tsx` (design primitives: Guilloche, Socket, Tally, RoomCrest…) |
+| `tools/parity/`, `tools/migration/` | Parity harness and mirror retirement (`npm run parity`, `retire:mirrors`) |
 
-## Environment Variables (required)
+## Deployment
 
-```
-NOTION_API_KEY
-NOTION_CONTENT_ASSETS_DB
-NOTION_PIF_TICK_COMPLIANCE_DB
-NOTION_EVIDENCE_SOURCES_DB
-NOTION_KEYWORDS_DB
-NOTION_PATIENT_JOURNEYS_DB
-NOTION_SCHEMA_VALIDATION_DB
-```
+- **Resident service:** LaunchAgent `uk.co.ggomed.content-manager.web` runs `next start -p 3010` (KeepAlive). Canonical URL: `http://localhost:3010`. After code changes: `npm run build` then `launchctl kickstart -k gui/$UID/uk.co.ggomed.content-manager.web` — otherwise the service keeps serving the old build.
+- Port 3000 belongs to Edelia; do not take it.
+- VPS deployment is planned (`docs/DEPLOY-REMOTE.md`); revisit `trustHost` then.
+
+## Design System
+
+Il Registro (seed key 9055bf41) — security engraving, seals, the register of signed decisions, with the house layer (per-room crests and inks). Everything is recorded in `DESIGN.md` + `.impeccable/design.json`; the direction contract is an HTML comment in `app/layout.tsx`. Room primitives live in `components/Registro.tsx`. Never reintroduce: rounded corners (except seals/sockets), drop shadows, gradients (except sealed wax), pill badges.
 
 ## Commands
 
 ```bash
-npm run dev      # Start dev server (Turbopack)
-npm run build    # Production build
-npm run start    # Start production server
-npm run lint     # Run ESLint (not yet configured)
+npm run dev          # Dev server (Turbopack)
+npm run build        # Production build (required before the resident service picks up changes)
+npm run test         # Vitest
+npm run parity       # Mirror-DB parity harness (gates retirement)
+npm run retire:mirrors  # Retire mirror DBs (guarded: --apply --views-live + parity RECONCILED)
 ```
-
-## Notion Database Schemas
-
-Property name mappings live in `lib/notion/schema.ts` — always reference SCHEMA constants when adding new fields. The 6 databases are:
-
-1. **ContentMaster** — Medical content assets (conditions, procedures, treatments, tests)
-2. **PifValidation** — PIF Tick compliance checklists
-3. **Evidence** — Research papers, guidelines, official sources
-4. **SchemaValidation** — Schema.org JSON-LD validation
-5. **Keywords** — SEO keyword tracking (Semrush integration)
-6. **PatientJourneys** — Patient language and journey stage mapping
-
-## Data Types
-
-All TypeScript interfaces are in `lib/notion/types.ts`:
-- `ContentItem`, `PifValidationItem`, `EvidenceItem`, `KeywordItem`, `PatientJourneyItem`, `SchemaValidationItem`
-
-## Design System
-
-- Brand colors defined as CSS variables in `app/globals.css` (--ggo-purple, --ggo-teal, --mint, etc.)
-- Global utility classes: `.card`, `.btn-pill`, `.btn-gradient`, `.table`, `.status-badge`
-- CSS Modules for page-specific styles (co-located as `page.module.css`)
-- Responsive breakpoints: `max-md`, `max-lg`, `max-xl`
-
-## Coding Conventions
-
-- PascalCase for components, camelCase for functions/variables
-- Pages are `"use client"` with `useState`/`useEffect` for data fetching
-- API routes export `async function GET()` returning `NextResponse.json()`
-- Notion property extraction goes through mapper functions in `lib/notion/mappers.ts`
-- Keep Notion schema property names in `lib/notion/schema.ts` — never hardcode them in components
 
 ## Known Limitations
 
-- No authentication — all API endpoints are public
-- Read-only — no write operations to Notion yet
-- No test suite — zero tests, no test framework installed
-- No ESLint/Prettier config
-- No caching — every page load fetches from Notion
-- Several UI buttons are non-functional (Export, Settings tabs, AI Assistant)
-- Analytics charts are placeholder containers
+- The 11 legacy pages still read the doomed Notion mirror DBs (retirement gated on parity + views-live).
+- No proprietary cache tier yet (SEMrush/GA4 metrics still ad hoc).
+- Atrium reporting lines exist only for rooms with HTTP endpoints; Ambrogio and Helm report "nessun riporto".
+- Family C (video worker) and the Notion→Sanity native-state migration are deliberate Phase-2 leftovers.
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
