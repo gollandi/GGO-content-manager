@@ -1,265 +1,546 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import AppShell from "../components/AppShell";
-import * as Icons from "../components/Icons";
+import { Guilloche, Socket, Tally, AgeBar, RoomCrest, ROOM_INK, type RoomId } from "../components/Registro";
 import { ContentItem, PifValidationItem } from "../lib/notion/types";
 
-export default function DashboardPage() {
-  const [content, setContent] = useState<ContentItem[]>([]);
-  const [compliance, setCompliance] = useState<PifValidationItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+/**
+ * L'ATRIO — the counterfoil wall.
+ *
+ * Every room of the house is a perforated stub torn from the same book.
+ * Volume reads as tally marks. Decisions read as seal sockets: filled is
+ * settled, empty is waiting for JJ. A room that needs him tears its own edge.
+ *
+ * Rooms with no reporting line say so. They are never given a number.
+ */
+
+const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
+
+type StubState = "quiet" | "attention" | "mute";
+
+interface RoomStub {
+  href: string;
+  name: string;
+  room: RoomId;
+  /** What the tally counts, in three words or fewer. */
+  unit: string;
+  /** The tally itself. Null when the room has no reporting line. */
+  volume: number | null;
+  /** Sockets: how many acts are settled, and how many still await a seal. */
+  sealed: number;
+  awaiting: number;
+  /** Days the oldest undecided item has been standing. */
+  oldestDays: number | null;
+  /** One line of plain fact under the rule. */
+  note: string;
+  state: StubState;
+  /** Ernesto only: the light under the closed door while a run is working. */
+  doorLight?: boolean;
+}
+
+/** The torn edge of a stub pulled from its book. Drawn, not masked. */
+function TornEdge({ colour }: { colour: string }) {
+  const teeth = 26;
+  const points: string[] = ["0,10"];
+  for (let i = 0; i < teeth; i += 1) {
+    const x = (i / teeth) * 100;
+    const next = ((i + 1) / teeth) * 100;
+    points.push(`${x.toFixed(2)},${i % 2 === 0 ? 3 : 8}`);
+    points.push(`${((x + next) / 2).toFixed(2)},${i % 2 === 0 ? 7 : 1}`);
+  }
+  points.push("100,10", "100,12", "0,12");
+  return (
+    <svg
+      viewBox="0 0 100 12"
+      preserveAspectRatio="none"
+      className="absolute -top-[11px] left-0 h-3 w-full"
+      aria-hidden="true"
+    >
+      <polygon points={points.join(" ")} fill={colour} />
+    </svg>
+  );
+}
+
+function Stub({ room }: { room: RoomStub }) {
+  const torn = room.state === "attention";
+  const mute = room.state === "mute";
+
+  const body = (
+    <>
+      {torn && <TornEdge colour="var(--stub-torn-paper, #f0dfd8)" />}
+
+      {/* Room name and its ex libris, struck like the heading of a counterfoil book. */}
+      <div className="flex items-start justify-between gap-2 px-4 pt-4">
+        <h3
+          className={[
+            "font-condensed text-[13px] font-bold uppercase leading-tight tracking-[0.14em]",
+            mute ? "text-plate-foreground-soft" : torn ? "text-seal-deep" : "text-paper-foreground"
+          ].join(" ")}
+        >
+          {room.name}
+        </h3>
+        <span style={mute ? undefined : { color: torn ? "var(--seal-deep)" : ROOM_INK[room.room].accent }}>
+          <RoomCrest room={room.room} size={20} className={mute ? "opacity-50" : "opacity-80"} />
+        </span>
+      </div>
+
+      <div
+        className={[
+          "mx-4 mt-2.5 border-t",
+          mute ? "border-plate-rule" : torn ? "border-seal/40" : "border-paper-edge"
+        ].join(" ")}
+      />
+
+      {/* The tally: volume you can read without reading a number. */}
+      <div className="flex flex-1 flex-col justify-center px-4 py-4">
+        {room.volume === null ? (
+          <p className="font-condensed text-[11px] uppercase leading-relaxed tracking-[0.12em] text-plate-foreground-soft">
+            Nessun riporto
+          </p>
+        ) : (
+          <>
+            <Tally
+              count={room.volume}
+              colour={torn ? "var(--seal-deep)" : "var(--engraving-ink)"}
+              label={`${room.volume} ${room.unit}`}
+            />
+            <p
+              className={[
+                "mt-2 font-condensed text-[10px] uppercase tracking-[0.16em]",
+                torn ? "text-seal-deep/80" : "text-paper-foreground-soft"
+              ].join(" ")}
+            >
+              {room.volume} {room.unit}
+            </p>
+          </>
+        )}
+
+        <p
+          className={[
+            "mt-3 text-[12px] leading-snug",
+            mute ? "text-plate-foreground-soft" : torn ? "text-seal-deep" : "text-paper-foreground-soft"
+          ].join(" ")}
+        >
+          {room.note}
+        </p>
+
+        {room.oldestDays !== null && room.oldestDays > 0 && (
+          <div className="mt-3 flex items-center gap-2">
+            <AgeBar days={room.oldestDays} />
+            <span className="serial text-seal-deep">
+              {room.oldestDays}d
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* The light under the door: on only while the girls are working. */}
+      {room.doorLight && (
+        <div
+          className="door-light mx-4"
+          role="img"
+          aria-label="Run in corso dietro la porta"
+          title="Run in corso dietro la porta"
+        />
+      )}
+
+      {/* The foot: one socket per act. Empty means it is waiting for you. */}
+      {!mute && (
+        <div
+          className={[
+            "flex items-center gap-1.5 border-t px-4 py-3",
+            torn ? "border-seal/40" : "border-paper-edge"
+          ].join(" ")}
+        >
+          {Array.from({ length: Math.min(room.awaiting, 5) }).map((_, i) => (
+            <Socket key={`a${i}`} sealed={false} size={18} title="Awaiting your seal" />
+          ))}
+          {Array.from({ length: Math.max(0, Math.min(5 - room.awaiting, room.sealed)) }).map((_, i) => (
+            <Socket key={`s${i}`} sealed size={18} title="Sealed" />
+          ))}
+          {room.awaiting > 5 && (
+            <span className="serial ml-1 text-seal-deep">+{room.awaiting - 5}</span>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  if (mute) {
+    return (
+      <Link href={room.href} className="stub stub-mute">
+        {body}
+      </Link>
+    );
+  }
+
+  return (
+    <Link href={room.href} className={torn ? "stub stub-torn" : "stub"}>
+      {body}
+    </Link>
+  );
+}
+
+/**
+ * The facade: Casa GGOMed cut open, engraved in the hairline grammar.
+ * Not decoration — each window is a real room, lit by its real state:
+ * oxblood glow = the room wants JJ; amber = Ernesto's girls at work;
+ * faint = quiet; outline only = no reporting line.
+ */
+function Facade({ rooms }: { rooms: RoomStub[] }) {
+  const by = (href: string) => rooms.find((r) => r.href === href);
+  // Two floors of the cut-open house, in the order the rooms sit in it.
+  const upper = [by("/soffitta"), by("/ambrogio"), by("/helm-pathways"), by("/youtube")];
+  const lower = [by("/review"), by("/casa-di-ernesto"), by("/editorial"), by("/pif-tick")];
+
+  const windowFill = (room?: RoomStub) => {
+    if (!room || room.state === "mute") return "transparent";
+    if (room.state === "attention") return "var(--seal-bright)";
+    if (room.doorLight) return "var(--sepia-bright)";
+    return "var(--plate-raised)";
+  };
+
+  const lit = rooms.filter((r) => r.state === "attention").length;
+
+  return (
+    <svg
+      viewBox="0 0 176 96"
+      width={176}
+      height={96}
+      fill="none"
+      stroke="var(--plate-fg-soft)"
+      strokeWidth={1}
+      aria-label={
+        lit === 0
+          ? "Casa GGOMed: nessuna finestra accesa"
+          : `Casa GGOMed: ${lit === 1 ? "una finestra accesa" : `${lit} finestre accese`}`
+      }
+      role="img"
+      className="flex-none max-sm:hidden"
+    >
+      {/* Roofline and carcass */}
+      <path d="M8 34 L88 6 L168 34" />
+      <path d="M20 34 V90 H156 V34" />
+      <path d="M20 62 H156" />
+      {/* Chimney */}
+      <path d="M132 20 v-8 h8 v11" />
+      {/* Windows: upper floor */}
+      {upper.map((room, i) => (
+        <rect
+          key={`u${i}`}
+          x={30 + i * 33}
+          y={40}
+          width={20}
+          height={14}
+          fill={windowFill(room)}
+          fillOpacity={room?.state === "attention" ? 0.85 : room?.doorLight ? 0.8 : 1}
+          strokeDasharray={room?.state === "mute" ? "2 2" : undefined}
+        />
+      ))}
+      {/* Windows: ground floor */}
+      {lower.map((room, i) => (
+        <rect
+          key={`l${i}`}
+          x={30 + i * 33}
+          y={68}
+          width={20}
+          height={16}
+          fill={windowFill(room)}
+          fillOpacity={room?.state === "attention" ? 0.85 : room?.doorLight ? 0.8 : 1}
+          strokeDasharray={room?.state === "mute" ? "2 2" : undefined}
+        />
+      ))}
+      {/* The gate stands where the entry is */}
+      <path d="M30 84 v-12 M40 84 v-12 M35 84 v-14 M30 76 h10" strokeWidth={0.8} />
+    </svg>
+  );
+}
+
+export default function AtrioPage() {
+  const [content, setContent] = useState<ContentItem[] | null>(null);
+  const [compliance, setCompliance] = useState<PifValidationItem[] | null>(null);
+  const [review, setReview] = useState<Record<string, unknown> | null>(null);
+  const [runs, setRuns] = useState<unknown[] | null>(null);
+  const [retro, setRetro] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchData() {
+    let cancelled = false;
+    const grab = async (url: string) => {
       try {
-        const [contentRes, complianceRes] = await Promise.all([
-          fetch("/api/notion/content"),
-          fetch("/api/notion/compliance")
-        ]);
-
-        const contentData = await contentRes.json();
-        const complianceData = await complianceRes.json();
-
-        if (Array.isArray(contentData)) setContent(contentData);
-        if (Array.isArray(complianceData)) setCompliance(complianceData);
+        const res = await fetch(url, { cache: "no-store" });
+        return res.ok ? await res.json() : null;
       } catch {
-        // Error handling delegated to error boundary
-      } finally {
-        setIsLoading(false);
+        return null;
       }
-    }
-    fetchData();
+    };
+
+    Promise.all([
+      grab("/api/notion/content"),
+      grab("/api/notion/compliance"),
+      grab("/api/review-dashboard/state"),
+      grab("/api/ernesto/runs"),
+      grab("/api/retro")
+    ]).then(([c, p, r, e, s]) => {
+      if (cancelled) return;
+      if (Array.isArray(c)) setContent(c);
+      if (Array.isArray(p)) setCompliance(p);
+      if (r && typeof r === "object") setReview(r as Record<string, unknown>);
+      setRuns(Array.isArray(e) ? e : Array.isArray(e?.runs) ? e.runs : null);
+      if (s && typeof s === "object") setRetro(s as Record<string, unknown>);
+      setLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Derived Operational Stats
-  const now = new Date();
-  const SIX_MONTHS_AGO = new Date(now.getTime() - (180 * 24 * 60 * 60 * 1000));
+  /* ── Derive each room's reporting line from what actually answered ────── */
 
-  const upcomingReviews = content
-    .filter(c => {
-      if (c.status === "👁️ Review" || c.status === "⚠️ Needs Update") return true;
-      if (!c.lastReviewed) return true;
-      return new Date(c.lastReviewed) < SIX_MONTHS_AGO;
-    })
-    .sort((a, b) => {
-      if (!a.lastReviewed) return -1;
-      if (!b.lastReviewed) return 1;
-      return new Date(a.lastReviewed).getTime() - new Date(b.lastReviewed).getTime();
-    })
-    .slice(0, 5);
+  const rows = (key: string): Record<string, unknown>[] => {
+    const value = review?.[key];
+    return Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
+  };
 
-  const isYoutubeAsset = (item: ContentItem) =>
+  const wall = rows("wall");
+  const desk = rows("desk");
+  const calendar = rows("calendar");
+  const website = rows("website");
+  const wallIds = new Set(wall.map((r) => r.rowId));
+
+  const awaitingSeal =
+    wall.length +
+    calendar.filter((r) => r.status === "Review").length +
+    desk.filter((r) => r.status === "Pending" && !wallIds.has(r.rowId)).length +
+    website.filter((r) => r.patch && r.patchState !== "awaiting-publish").length;
+
+  const scheduled = calendar.filter((r) => r.status === "Scheduled").length;
+
+  const oldestWaitDays = (() => {
+    const dues = desk
+      .filter((r) => r.status === "Pending" && typeof r.due === "string")
+      .map((r) => new Date(r.due as string).getTime())
+      .filter((t) => Number.isFinite(t));
+    if (dues.length === 0) return null;
+    const days = Math.floor((Date.now() - Math.min(...dues)) / 86_400_000);
+    return days > 0 ? days : null;
+  })();
+
+  const isVideo = (item: ContentItem) =>
     item.youtubeId.trim().length > 0 ||
-    item.platform.some((platform) => platform.toLowerCase().includes("youtube"));
+    item.platform.some((p) => p.toLowerCase().includes("youtube"));
 
-  const inventoryBreakdown = {
-    website: content.filter((item) =>
-      !isYoutubeAsset(item) &&
-      (item.liveUrl || item.platform.some((platform) => platform.toLowerCase().includes("website")))
-    ).length,
-    video: content.filter(isYoutubeAsset).length,
-    other: content.filter((item) => !item.liveUrl && !isYoutubeAsset(item)).length
-  };
+  const overdue = (content ?? []).filter((item) => {
+    if (item.status === "👁️ Review" || item.status === "⚠️ Needs Update") return true;
+    if (!item.lastReviewed) return true;
+    return new Date(item.lastReviewed).getTime() < Date.now() - SIX_MONTHS_MS;
+  });
 
-  const activeContentCount = content.length;
-  const compliantCount = compliance.filter(c => c.status === "✅ YES").length;
-  const complianceScore = compliance.length > 0 ? Math.round((compliantCount / compliance.length) * 100) : 0;
-  const overdueCount = upcomingReviews.length;
-  const riskAlerts = compliance.filter(c => c.status === "❌ NO").length;
+  const compliant = (compliance ?? []).filter((c) => c.status === "✅ YES").length;
+  const failing = (compliance ?? []).filter((c) => c.status === "❌ NO").length;
 
-  // Recent Activity — sorted by last clinical review date (from Sanity), not Notion edit time
-  const recentItems = [...content]
-    .filter(c => c.lastReviewed)
-    .sort((a, b) => new Date(b.lastReviewed!).getTime() - new Date(a.lastReviewed!).getTime())
-    .slice(0, 3);
+  const failedRuns = (runs ?? []).filter(
+    (r) => typeof r === "object" && r !== null && (r as { status?: string }).status === "Failed"
+  ).length;
 
-  const formatDistance = (dateStr: string) => {
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    return `${Math.floor(hours / 24)}d ago`;
-  };
+  // The light under Ernesto's door: on only while the girls are working.
+  const activeRuns = (runs ?? []).filter((r) => {
+    const status = typeof r === "object" && r !== null ? (r as { status?: string }).status : undefined;
+    return status === "running" || status === "awaiting-jj";
+  }).length;
+
+  const proposals = Array.isArray(retro?.proposals) ? (retro.proposals as unknown[]).length : null;
+
+  const ROOMS: RoomStub[] = [
+    {
+      href: "/review",
+      name: "Il Cancello",
+      room: "cancello",
+      unit: "in attesa",
+      volume: review ? awaitingSeal : null,
+      sealed: scheduled,
+      awaiting: awaitingSeal,
+      oldestDays: oldestWaitDays,
+      note: !review
+        ? "La dashboard di review non risponde."
+        : awaitingSeal === 0
+          ? "Niente aspetta il tuo sigillo."
+          : "Al cancello: bozze, caption e patch ferme sul tuo giudizio.",
+      state: !review ? "mute" : awaitingSeal > 0 ? "attention" : "quiet"
+    },
+    {
+      href: "/editorial",
+      name: "Editorial",
+      room: "editorial",
+      unit: "asset vivi",
+      volume: content ? content.length : null,
+      sealed: content ? content.length - overdue.length : 0,
+      awaiting: overdue.length,
+      oldestDays: null,
+      note: !content
+        ? "Content Assets non risponde."
+        : overdue.length === 0
+          ? "Nessuna review scaduta."
+          : `${overdue.length} oltre i sei mesi o segnati da rivedere.`,
+      state: !content ? "mute" : overdue.length > 0 ? "attention" : "quiet"
+    },
+    {
+      href: "/pif-tick",
+      name: "PIF Tick",
+      room: "pif",
+      unit: "criteri",
+      volume: compliance ? compliance.length : null,
+      sealed: compliant,
+      awaiting: failing,
+      oldestDays: null,
+      note: !compliance
+        ? "Compliance non risponde."
+        : failing === 0
+          ? "Nessun criterio in fallimento."
+          : `${failing} criteri falliti.`,
+      state: !compliance ? "mute" : failing > 0 ? "attention" : "quiet"
+    },
+    {
+      href: "/youtube",
+      name: "YouTube",
+      room: "youtube",
+      unit: "video",
+      volume: content ? content.filter(isVideo).length : null,
+      sealed: content ? content.filter(isVideo).length : 0,
+      awaiting: 0,
+      oldestDays: null,
+      note: content ? "Asset video registrati." : "Content Assets non risponde.",
+      state: content ? "quiet" : "mute"
+    },
+    {
+      href: "/casa-di-ernesto",
+      name: "La Casa di Ernesto",
+      room: "ernesto",
+      unit: "run",
+      volume: runs ? runs.length : null,
+      sealed: runs ? runs.length - failedRuns : 0,
+      awaiting: failedRuns,
+      oldestDays: null,
+      note: !runs
+        ? "Nessuna run leggibile."
+        : failedRuns > 0
+          ? `${failedRuns} run fallite dietro la porta.`
+          : activeRuns > 0
+            ? `La porta è chiusa: ${activeRuns === 1 ? "una run in corso" : `${activeRuns} run in corso`} dietro la porta.`
+            : "La porta è chiusa e la casa tace: nessuna run in corso.",
+      doorLight: activeRuns > 0,
+      state: !runs ? "mute" : failedRuns > 0 ? "attention" : "quiet"
+    },
+    {
+      href: "/soffitta",
+      name: "La Soffitta",
+      room: "soffitta",
+      unit: "proposte",
+      volume: proposals,
+      sealed: 0,
+      awaiting: proposals ?? 0,
+      oldestDays: null,
+      note:
+        proposals === null
+          ? "Il retro non risponde."
+          : proposals === 0
+            ? "Nessuna proposta in giacenza."
+            : "Proposte in giacenza fra i bauli.",
+      state: proposals === null ? "mute" : "quiet"
+    },
+    {
+      href: "/ambrogio",
+      name: "Lo Studio di Ambrogio",
+      room: "ambrogio",
+      unit: "",
+      volume: null,
+      sealed: 0,
+      awaiting: 0,
+      oldestDays: null,
+      note: "Lo studio non manda riporti in atrio: le relazioni si leggono dentro.",
+      state: "mute"
+    },
+    {
+      href: "/helm-pathways",
+      name: "Helm Pathways",
+      room: "helm",
+      unit: "",
+      volume: null,
+      sealed: 0,
+      awaiting: 0,
+      oldestDays: null,
+      note: "Server component: nessuna linea di riporto verso l'atrio.",
+      state: "mute"
+    }
+  ];
+
+  const wanting = ROOMS.filter((r) => r.state === "attention");
 
   return (
     <AppShell>
-      <header className="page-header">
-        <div>
-          <h1 className="page-title">Operational Dashboard</h1>
-          <p className="page-subtitle">PIF Tick Compliance & Content Governance Overview</p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <button className="btn-pill" onClick={() => window.location.reload()}>
-            <Icons.IconSync className="w-4 h-4" />
-            Fetch Updates
-          </button>
-          <button className="btn-gradient opacity-50 cursor-not-allowed" disabled title="Coming soon">View Reports</button>
+      <div className="relative min-h-screen overflow-hidden">
+        <Guilloche
+          size={1100}
+          rings={4}
+          opacity={0.2}
+          className="pointer-events-none absolute -right-80 -top-72 h-[1100px] w-[1100px]"
+        />
+        <Guilloche
+          size={820}
+          rings={3}
+          opacity={0.14}
+          className="pointer-events-none absolute -bottom-72 -left-72 h-[820px] w-[820px]"
+        />
 
-          <div className="flex items-center gap-2 ml-2 pl-4 border-l border-border-default">
-            <button className="w-10 h-10 rounded-full border border-border-default bg-white flex items-center justify-center text-charcoal relative hover:bg-surface-base hover:text-ggo-purple hover:border-ggo-purple transition-colors">
-              <Icons.IconBell className="w-[18px] h-[18px]" />
-              {overdueCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center border-2 border-white">
-                  {overdueCount}
-                </span>
-              )}
-            </button>
+        {/* The masthead of the book. */}
+        <header className="relative border-b border-plate-rule px-10 pb-5 pt-9 max-sm:px-4">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="column-label">Casa GGOMed · l’ingresso</p>
+              <h1 className="document-title mt-2 text-[34px] text-plate-foreground-strong max-sm:text-[26px]">
+                {loading
+                  ? "Apro il registro…"
+                  : wanting.length === 0
+                    ? "La casa è in ordine"
+                    : wanting.length === 1
+                      ? "Una stanza ti aspetta"
+                      : `${wanting.length} stanze ti aspettano`}
+              </h1>
+            </div>
+            <div className="flex items-end gap-6">
+              <p className="max-w-[22rem] text-[13px] leading-relaxed text-plate-foreground-soft">
+                Ogni stanza è una matrice staccata dallo stesso libro. Le tacche contano
+                il volume, le sedi contano gli atti: piena è decisa, vuota aspetta te.
+              </p>
+              <Facade rooms={ROOMS} />
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <div className="page-section">
-        {/* Statistics Grid */}
-        <div className="grid grid-cols-4 gap-6 mb-8 max-xl:grid-cols-2 max-md:grid-cols-1">
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-ggo-purple/10 text-ggo-purple">
-                <Icons.IconValidation className="w-[18px] h-[18px]" />
-              </div>
-              <span className="pill pill-green">+Live</span>
-            </div>
-            <div className="text-[28px] font-bold tracking-tighter">
-              {isLoading ? "..." : activeContentCount}
-            </div>
-            <div className="card-subtitle">Active Content Items</div>
-          </div>
-
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-ggo-teal/10 text-ggo-teal">
-                <Icons.IconEvidence className="w-[18px] h-[18px]" />
-              </div>
-              <span className={`pill ${complianceScore > 90 ? 'pill-green' : 'pill-blue'}`}>
-                {complianceScore}%
-              </span>
-            </div>
-            <div className="text-[28px] font-bold tracking-tighter">
-              {isLoading ? "..." : `${complianceScore}%`}
-            </div>
-            <div className="card-subtitle">Compliance Score</div>
-          </div>
-
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-mint/30 text-emerald-700">
-                <Icons.IconRequests className="w-[18px] h-[18px]" />
-              </div>
-              <span className="pill pill-yellow">{overdueCount} Pending</span>
-            </div>
-            <div className="text-[28px] font-bold tracking-tighter">
-              {isLoading ? "..." : overdueCount}
-            </div>
-            <div className="card-subtitle">Items Due for Review</div>
-          </div>
-
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-red-500/10 text-red-700">
-                <Icons.IconBell className="w-[18px] h-[18px]" />
-              </div>
-              <span className={`pill ${riskAlerts > 0 ? 'pill-red' : 'pill-green'}`}>
-                {riskAlerts > 0 ? "Critical" : "Stable"}
-              </span>
-            </div>
-            <div className="text-[28px] font-bold tracking-tighter">
-              {isLoading ? "..." : riskAlerts}
-            </div>
-            <div className="card-subtitle">Risk Alerts</div>
+        {/* The wall. */}
+        <div className="relative px-10 py-9 max-sm:px-4">
+          <div className="grid grid-cols-4 gap-x-5 gap-y-8 max-2xl:grid-cols-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
+            {ROOMS.map((room) => (
+              <Stub key={room.href} room={room} />
+            ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-[2fr_1fr] gap-8 max-xl:grid-cols-1">
-          {/* Left Column: Compliance Chart */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="card-title">Content Inventory</h2>
-                <p className="text-[11px] text-subtle mt-1">Breakdown by publishing platform</p>
-              </div>
-            </div>
-
-            <div className="h-[340px] flex items-center justify-center gap-12 px-8">
-              {[
-                { label: "Website", count: inventoryBreakdown.website, color: "bg-ggo-purple", icon: <Icons.IconFilter /> },
-                { label: "YouTube Video", count: inventoryBreakdown.video, color: "bg-red-500", icon: <Icons.IconSync /> },
-                { label: "Other", count: inventoryBreakdown.other, color: "bg-ggo-teal", icon: <Icons.IconSearch /> },
-              ].map((type) => {
-                const percent = activeContentCount > 0 ? Math.round((type.count / activeContentCount) * 100) : 0;
-                return (
-                  <div key={type.label} className="flex-1 flex flex-col items-center">
-                    <div className={`w-20 h-20 rounded-2xl ${type.color}/10 flex items-center justify-center mb-4 text-charcoal`}>
-                      <div className="flex flex-col items-center">
-                        <span className="text-2xl font-bold">{percent}%</span>
-                        <span className="text-[10px] uppercase tracking-wider font-semibold opacity-60">Total</span>
-                      </div>
-                    </div>
-                    <div className="text-sm font-semibold text-near-black mb-1">{type.label}</div>
-                    <div className="text-[11px] text-subtle">{type.count} Assets</div>
-                    <div className="w-full bg-gray-100 h-1.5 rounded-full mt-4 overflow-hidden">
-                      <div className={`h-full ${type.color}`} style={{ width: `${percent}%` }}></div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+        {/* The engraved strip that closes the page. */}
+        <footer className="relative mt-6 border-t border-plate-rule px-10 py-6 max-sm:px-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <p className="column-label">
+              Vecchio archivio · undici superfici in pensionamento
+            </p>
+            <p className="text-[12px] text-plate-foreground-soft">
+              Le matrici tratteggiate non hanno una linea di riporto: nessun numero è
+              stato inventato per riempirle.
+            </p>
           </div>
-
-          {/* Right Column: Recent Activity & Compliance by Category */}
-          <div className="flex flex-col gap-6">
-            <div className="card">
-              <h2 className="card-title">Recent Activity</h2>
-              <div className="flex flex-col gap-4 mt-5">
-                {isLoading ? (
-                  <div className="text-sm text-subtle">Loading activity...</div>
-                ) : recentItems.map((item, i) => (
-                  <div key={item.id} className="flex gap-4 pb-4 border-b border-border-soft last:border-b-0 last:pb-0">
-                    <div className="w-8 h-8 rounded-full bg-surface-base flex items-center justify-center text-[11px] font-bold text-ggo-purple border border-border-default">
-                      {item.reviewedBy[0]?.charAt(0) || "S"}
-                    </div>
-                    <div className="text-[13px] leading-relaxed text-charcoal">
-                      <strong className="text-near-black font-semibold">{item.reviewedBy[0] || "System"}</strong> reviewed{" "}
-                      <span className="text-ggo-purple font-medium">{item.title}</span>
-                      <div className="text-[11px] text-subtle mt-0.5">{item.lastReviewed ? formatDistance(item.lastReviewed) : "No date"}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="card">
-              <h2 className="card-title text-red-600 flex items-center gap-2">
-                <Icons.IconAlertCircle className="w-4 h-4" />
-                Upcoming Reviews
-              </h2>
-              <div className="flex flex-col gap-3 mt-5">
-                {isLoading ? (
-                  <div className="text-sm text-subtle">Checking deadlines...</div>
-                ) : upcomingReviews.length > 0 ? upcomingReviews.map((item) => (
-                  <div key={item.id} className="p-3 rounded-lg border border-border-soft bg-surface-base hover:border-red-200 transition-colors">
-                    <div className="text-[13px] font-semibold text-near-black truncate mb-1" title={item.title}>
-                      {item.title}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-subtle px-1.5 py-0.5 bg-white rounded border border-border-default uppercase">
-                        {item.status.replace(/^[^a-zA-Z0-9]+/, '')}
-                      </span>
-                      <span className="text-[11px] font-medium text-red-500">
-                        {item.lastReviewed ? `Due: ${new Date(new Date(item.lastReviewed).getTime() + 180 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}` : 'Missing Review'}
-                      </span>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="py-4 text-center">
-                    <Icons.IconCheck className="w-8 h-8 text-green-500 mx-auto mb-2 opacity-20" />
-                    <p className="text-sm text-subtle">No pending reviews</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        </footer>
       </div>
     </AppShell>
   );

@@ -28,13 +28,6 @@ export default function DataTable({
           <h3 className="card-title">{title}</h3>
           {subtitle && <p className="card-subtitle">{subtitle}</p>}
         </div>
-        <button
-          className="btn-pill opacity-50 cursor-not-allowed"
-          disabled
-          title="Coming soon"
-        >
-          Export
-        </button>
       </div>
       <div className="data-table-wrap">
         <table className="table">

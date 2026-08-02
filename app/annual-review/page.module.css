@@ -15,11 +15,10 @@
   position: relative;
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: 0;
   border: 1px solid var(--border-soft);
   background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  display: flex;
+    display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
@@ -36,13 +35,13 @@
   top: -6px;
   right: -6px;
   background: var(--danger);
-  color: #fff;
+  color: var(--paper);
   font-size: 11px;
   font-weight: 700;
   min-width: 20px;
   height: 20px;
   padding: 0 6px;
-  border-radius: 10px;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -58,18 +57,17 @@
 
 .statCard {
   background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border-soft);
-  border-radius: 24px;
+    border: 1px solid var(--border-soft);
+  border-radius: 0;
   padding: 24px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   transition: all 0.2s ease;
 }
 
 .statCard:hover {
   transform: translateY(-2px);
   border-color: var(--primary-light);
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
 }
 
 .statValue {
@@ -91,10 +89,10 @@
 .heatmapCard {
   background: var(--white);
   border: 1px solid var(--border-soft);
-  border-radius: 32px;
+  border-radius: 0;
   padding: 32px;
   margin-bottom: 32px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .heatmapHeader {
@@ -108,14 +106,14 @@
   display: flex;
   background: var(--bg);
   padding: 4px;
-  border-radius: 14px;
+  border-radius: 0;
   border: 1px solid var(--border-soft);
 }
 
 .yearToggle button {
   border: none;
   background: transparent;
-  border-radius: 10px;
+  border-radius: 0;
   padding: 8px 20px;
   font-size: 13px;
   font-weight: 700;
@@ -127,19 +125,13 @@
 .yearActive {
   background: var(--white) !important;
   color: var(--primary) !important;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .heatmap {
   height: 180px;
-  border-radius: 20px;
-  background: linear-gradient(90deg,
-      var(--blue-soft) 0%,
-      var(--primary-light) 20%,
-      var(--primary) 40%,
-      var(--green-soft) 60%,
-      var(--green) 80%,
-      var(--blue-soft) 100%);
+  border-radius: 0;
+  background: var(--plate-raised);
   opacity: 0.8;
   position: relative;
   overflow: hidden;
@@ -155,9 +147,9 @@
 .tableCard {
   background: var(--white);
   border: 1px solid var(--border-soft);
-  border-radius: 32px;
+  border-radius: 0;
   padding: 32px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .tableHeader {
@@ -196,7 +188,7 @@
 .outcome {
   display: inline-flex;
   padding: 6px 14px;
-  border-radius: 10px;
+  border-radius: 0;
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
@@ -222,7 +214,7 @@
 .action {
   display: inline-flex;
   padding: 6px 14px;
-  border-radius: 10px;
+  border-radius: 0;
   background: var(--blue-soft);
   color: var(--primary);
   font-size: 12px;
@@ -252,7 +244,7 @@
 .pageActive {
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: 0;
   border: 1px solid var(--border-soft);
   background: var(--white);
   color: var(--text-muted);
@@ -273,7 +265,7 @@
   background: var(--primary);
   color: var(--white);
   border-color: var(--primary);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+  box-shadow: none;
 }
 
 @media (max-width: 1200px) {

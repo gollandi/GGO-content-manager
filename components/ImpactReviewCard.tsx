@@ -63,7 +63,7 @@ export default function ImpactReviewCard(props: {
                 <button
                     onClick={() => void submit()}
                     disabled={state === "saving"}
-                    className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-ggo-purple to-ggo-teal text-white text-xs font-semibold disabled:opacity-50"
+                    className="px-4 py-1.5 rounded-lg bg-engraving-ink text-paper text-xs font-semibold disabled:opacity-50"
                 >
                     {state === "saving" ? "…" : "Registra verdetto"}
                 </button>

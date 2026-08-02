@@ -15,11 +15,10 @@
   position: relative;
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: 0;
   border: 1px solid var(--border-soft);
   background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  display: flex;
+    display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
@@ -36,13 +35,13 @@
   top: -6px;
   right: -6px;
   background: var(--danger);
-  color: #fff;
+  color: var(--paper);
   font-size: 11px;
   font-weight: 700;
   min-width: 20px;
   height: 20px;
   padding: 0 6px;
-  border-radius: 10px;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -58,15 +57,14 @@
 
 .settingsNav {
   background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border-soft);
-  border-radius: 32px;
+    border: 1px solid var(--border-soft);
+  border-radius: 0;
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   align-self: start;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .navItem,
@@ -75,7 +73,7 @@
   border: 1px solid transparent;
   background: none;
   padding: 14px 20px;
-  border-radius: 16px;
+  border-radius: 0;
   font-size: 14px;
   font-weight: 700;
   color: var(--text-muted);
@@ -91,8 +89,8 @@
 
 .navActive {
   background: var(--primary-gradient);
-  color: #fff;
-  box-shadow: var(--shadow-md);
+  color: var(--paper);
+  box-shadow: none;
 }
 
 .settingsContent {
@@ -104,12 +102,12 @@
 .sectionCard {
   background: var(--white);
   border: 1px solid var(--border-soft);
-  border-radius: 32px;
+  border-radius: 0;
   padding: 32px;
   display: flex;
   flex-direction: column;
   gap: 24px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .sectionHeader {
@@ -138,7 +136,7 @@
 .notice {
   background: var(--blue-soft);
   border: 1px solid var(--primary-soft);
-  border-radius: 20px;
+  border-radius: 0;
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -165,7 +163,7 @@
 .keyCard {
   background: var(--bg);
   border: 1px solid var(--border-soft);
-  border-radius: 20px;
+  border-radius: 0;
   padding: 20px;
   display: flex;
   align-items: center;
@@ -195,7 +193,7 @@
   background: var(--green-soft);
   color: var(--green-dark);
   border: 1px solid var(--green-light);
-  border-radius: 12px;
+  border-radius: 0;
   padding: 6px 14px;
   font-size: 12px;
   font-weight: 800;

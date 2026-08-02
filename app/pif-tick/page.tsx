@@ -2,18 +2,21 @@ import Link from "next/link";
 import { getPifGgomed, getPifCompass } from "../../lib/views";
 import { normaliseGgomed, normaliseCompass, type PifRow } from "../../lib/pif/normalise";
 import { settle } from "../../lib/settle";
-import StatusBadge from "../../components/StatusBadge";
 import AppShell from "../../components/AppShell";
+import { Guilloche, Socket, Mark } from "../../components/Registro";
 
 /**
- * Module 2 — PIF Tick (spec §3, §4). Every PIF criterion, per content
- * asset, across BOTH Sanity projects, in one normalised grid. Live GROQ —
- * no mirror. Server component (the cockpit's server-render path).
+ * Module 2 — PIF Tick. Every criterion, per asset, across BOTH Sanity
+ * projects, in one ruled register. Live GROQ — no mirror. Server component.
+ *
+ * In the register's vocabulary the mapping is literal: a criterion met is a
+ * tick struck in engraving ink, a criterion failed is a strike in seal red,
+ * and the badge itself is a socket — lit is sealed, unlit still waits.
  */
 export const dynamic = "force-dynamic";
 
 const CRITERIA: { key: keyof PifRow["criteria"]; label: string }[] = [
-    { key: "evidenceBased", label: "Evidence-based" },
+    { key: "evidenceBased", label: "Evidence" },
     { key: "readability", label: "Readability" },
     { key: "inclusivity", label: "Inclusivity" },
     { key: "expertPeerReview", label: "Peer review" },
@@ -21,11 +24,13 @@ const CRITERIA: { key: keyof PifRow["criteria"]; label: string }[] = [
 ];
 
 function Tick({ value }: { value: boolean | null }) {
-    if (value === null) return <span className="text-subtle" title="Not applicable / not assessed">—</span>;
+    if (value === null) {
+        return <span className="text-paper-foreground-soft" title="Not applicable / not assessed">—</span>;
+    }
     return value ? (
-        <span className="text-emerald-600 font-bold" title="Ticked">✓</span>
+        <span className="font-bold text-engraving-ink" title="Ticked">✓</span>
     ) : (
-        <span className="text-red-500 font-bold" title="Not ticked">✗</span>
+        <span className="font-bold text-seal" title="Not ticked">✗</span>
     );
 }
 
@@ -35,8 +40,8 @@ function FilterLink({ href, label, active }: { href: string; label: string; acti
             href={href}
             className={
                 active
-                    ? "px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-ggo-purple to-ggo-teal text-white"
-                    : "px-3 py-1.5 rounded-full text-xs font-medium bg-surface-muted text-charcoal hover:text-ggo-purple"
+                    ? "border-b-2 border-engraving-bright px-3 py-1.5 font-condensed text-[11px] font-bold uppercase tracking-[0.12em] text-engraving-bright"
+                    : "border-b-2 border-transparent px-3 py-1.5 font-condensed text-[11px] font-semibold uppercase tracking-[0.12em] text-plate-foreground-soft hover:text-plate-foreground"
             }
         >
             {label}
@@ -80,107 +85,128 @@ export default async function PifTickPage({
 
     return (
         <AppShell>
-        <div className="p-8 max-lg:p-4">
-            <header className="mb-6">
-                <h1 className="text-2xl font-bold tracking-tight">PIF Tick</h1>
-                <p className="text-sm text-muted-foreground mt-1">
-                    Live criterion tracking across <strong>gxyjgvr0</strong> (GGOMed site)
-                    and <strong>m05ykm6e</strong> (Patient-Compass slice) — two GROQ reads,
-                    normalised app-side. No Notion mirror.
-                </p>
-            </header>
+            <div className="relative min-h-screen overflow-hidden">
+                <Guilloche
+                    size={860}
+                    rings={4}
+                    opacity={0.16}
+                    className="pointer-events-none absolute -right-64 -top-56 h-[860px] w-[860px]"
+                />
 
-            {(ggomed.error || compass.error) && (
-                <div className="mb-6 p-4 rounded-xl border border-amber-300 bg-amber-50 text-sm text-amber-900">
-                    {ggomed.error && <p><strong>GGOMed view failed:</strong> {ggomed.error}</p>}
-                    {compass.error && <p><strong>Compass view failed:</strong> {compass.error}</p>}
-                    <p className="mt-1 text-xs">Check SANITY_VIEWER_TOKEN / SANITY_M05_VIEWER_TOKEN in .env.local (see .env.example).</p>
-                </div>
-            )}
+                <header className="relative border-b border-plate-rule px-8 pb-4 pt-7 max-sm:px-4">
+                    <p className="column-label">PIF Tick · certificazione</p>
+                    <h1 className="document-title mt-1.5 text-[30px] text-plate-foreground-strong max-sm:text-[24px]">
+                        {rows.length === 0
+                            ? "Il registro dei criteri"
+                            : lit === rows.length
+                                ? "Ogni badge è sigillato"
+                                : `${rows.length - lit} badge senza sigillo`}
+                    </h1>
+                    <p className="mt-2 max-w-[38rem] text-[13px] leading-relaxed text-plate-foreground-soft">
+                        Ogni criterio, per asset, sui due progetti Sanity — <strong className="text-plate-foreground">gxyjgvr0</strong> e{" "}
+                        <strong className="text-plate-foreground">m05ykm6e</strong> — letti vivi via GROQ, senza specchio Notion.
+                    </p>
 
-            {/* Summary */}
-            <div className="grid grid-cols-4 max-lg:grid-cols-2 gap-4 mb-6">
-                {[
-                    { label: "Tracked assets", value: rows.length },
-                    { label: "Badge lit", value: lit },
-                    { label: "Badge unlit", value: rows.length - lit },
-                    { label: "Review overdue", value: overdue },
-                ].map((s) => (
-                    <div key={s.label} className="bg-white rounded-2xl border border-border-default p-5">
-                        <div className="text-3xl font-bold">{s.value}</div>
-                        <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mt-1">{s.label}</div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Filters */}
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mr-1">Source</span>
-                {["all", "ggomed", "compass"].map((s) => (
-                    <FilterLink key={s} href={filterHref(s, state)} label={s === "all" ? "All" : s === "ggomed" ? "GGOMed site" : "Compass"} active={source === s} />
-                ))}
-                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground ml-4 mr-1">State</span>
-                {[
-                    ["all", "All"],
-                    ["badge-lit", "Badge lit"],
-                    ["unlit", "Unlit"],
-                    ["gaps", "Criterion gaps"],
-                    ["overdue", "Overdue"],
-                ].map(([st, label]) => (
-                    <FilterLink key={st} href={filterHref(source, st)} label={label} active={state === st} />
-                ))}
-            </div>
-
-            {/* Criterion grid */}
-            <div className="bg-white rounded-2xl border border-border-default overflow-x-auto">
-                <table className="w-full text-sm">
-                    <thead>
-                        <tr className="border-b border-border-default text-left">
-                            <th className="px-4 py-3 font-semibold">Asset</th>
-                            <th className="px-4 py-3 font-semibold">Source</th>
-                            {CRITERIA.map((c) => (
-                                <th key={c.key} className="px-3 py-3 font-semibold text-center whitespace-nowrap">{c.label}</th>
-                            ))}
-                            <th className="px-4 py-3 font-semibold text-center">Badge</th>
-                            <th className="px-4 py-3 font-semibold">Reviewer</th>
-                            <th className="px-4 py-3 font-semibold whitespace-nowrap">Next review</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filtered.map((r) => (
-                            <tr key={`${r.source}:${r.id}`} className="border-b border-border-soft hover:bg-surface-muted/50">
-                                <td className="px-4 py-3">
-                                    <div className="font-medium">{r.title}</div>
-                                    <div className="text-xs text-subtle">{r.docType}{r.pathname ? ` · ${r.pathname}` : ""}</div>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <StatusBadge tone={r.source === "ggomed" ? "info" : "secondary"} label={r.source === "ggomed" ? "GGOMed" : "Compass"} />
-                                </td>
-                                {CRITERIA.map((c) => (
-                                    <td key={c.key} className="px-3 py-3 text-center"><Tick value={r.criteria[c.key]} /></td>
-                                ))}
-                                <td className="px-4 py-3 text-center">
-                                    <StatusBadge tone={r.badgeLit ? "success" : "warning"} label={r.badgeLit ? "LIT" : "unlit"} />
-                                </td>
-                                <td className="px-4 py-3 text-muted-foreground">{r.reviewerName ?? "—"}</td>
-                                <td className={`px-4 py-3 whitespace-nowrap ${r.overdue ? "text-red-600 font-semibold" : "text-muted-foreground"}`}>
-                                    {r.nextReviewDate ?? "—"}{r.overdue ? " ⚠" : ""}
-                                </td>
-                            </tr>
+                    {/* The running totals, struck like a certificate's margin line. */}
+                    <div className="mt-4 flex flex-wrap items-baseline gap-x-8 gap-y-2">
+                        {[
+                            { label: "asset tracciati", value: rows.length, tone: "text-plate-foreground-strong" },
+                            { label: "badge sigillati", value: lit, tone: "text-engraving-bright" },
+                            { label: "senza sigillo", value: rows.length - lit, tone: "text-seal-bright" },
+                            { label: "review scadute", value: overdue, tone: overdue > 0 ? "text-sepia-bright" : "text-plate-foreground-soft" },
+                        ].map((s) => (
+                            <div key={s.label} className="flex items-baseline gap-2">
+                                <span className={`tabular font-serif text-[26px] font-bold ${s.tone}`}>{s.value}</span>
+                                <span className="column-label">{s.label}</span>
+                            </div>
                         ))}
-                        {filtered.length === 0 && (
-                            <tr><td colSpan={10} className="px-4 py-10 text-center text-muted-foreground">No rows match the current filter.</td></tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
+                    </div>
+                </header>
 
-            <p className="text-xs text-subtle mt-4">
-                Transparency applies to GGOMed only (no such check on m05ykm6e). GGOMed peer
-                review is derived from a named clinical reviewer. Badge state: stored
-                (GGOMed, Studio-reconciled) / computed predicate (Compass).
-            </p>
-        </div>
+                {(ggomed.error || compass.error) && (
+                    <div className="relative mx-8 mt-5 border border-sepia px-4 py-3 text-[13px] text-sepia-bright max-sm:mx-4" role="alert">
+                        {ggomed.error && <p><strong>GGOMed view failed:</strong> {ggomed.error}</p>}
+                        {compass.error && <p><strong>Compass view failed:</strong> {compass.error}</p>}
+                        <p className="mt-1 text-[11px] opacity-80">Check SANITY_VIEWER_TOKEN / SANITY_M05_VIEWER_TOKEN in .env.local (see .env.example).</p>
+                    </div>
+                )}
+
+                <div className="relative px-8 py-5 max-sm:px-4">
+                    {/* Filters, cut into the plate. */}
+                    <div className="mb-5 flex flex-wrap items-center gap-x-1 gap-y-2 border-b border-plate-rule pb-0">
+                        <span className="column-label mr-2 pb-1.5">Fonte</span>
+                        {["all", "ggomed", "compass"].map((s) => (
+                            <FilterLink key={s} href={filterHref(s, state)} label={s === "all" ? "Tutte" : s === "ggomed" ? "Sito GGOMed" : "Compass"} active={source === s} />
+                        ))}
+                        <span className="column-label ml-6 mr-2 pb-1.5">Stato</span>
+                        {[
+                            ["all", "Tutti"],
+                            ["badge-lit", "Sigillati"],
+                            ["unlit", "Senza sigillo"],
+                            ["gaps", "Criteri mancanti"],
+                            ["overdue", "Scaduti"],
+                        ].map(([st, label]) => (
+                            <FilterLink key={st} href={filterHref(source, st)} label={label} active={state === st} />
+                        ))}
+                    </div>
+
+                    {/* The ruled register of criteria. */}
+                    <div className="paper overflow-x-auto border border-paper-edge">
+                        <table className="w-full text-[13px]" style={{ fontVariantNumeric: "tabular-nums lining-nums" }}>
+                            <thead>
+                                <tr className="border-b-[3px] border-double border-paper-edge text-left">
+                                    <th className="column-label column-label-paper px-4 py-2.5 font-bold">Asset</th>
+                                    <th className="column-label column-label-paper px-4 py-2.5 font-bold">Fonte</th>
+                                    {CRITERIA.map((c) => (
+                                        <th key={c.key} className="column-label column-label-paper whitespace-nowrap px-3 py-2.5 text-center font-bold">{c.label}</th>
+                                    ))}
+                                    <th className="column-label column-label-paper px-4 py-2.5 text-center font-bold">Sigillo</th>
+                                    <th className="column-label column-label-paper px-4 py-2.5 font-bold">Reviewer</th>
+                                    <th className="column-label column-label-paper whitespace-nowrap px-4 py-2.5 font-bold">Prossima review</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filtered.map((r) => (
+                                    <tr key={`${r.source}:${r.id}`} className="border-b border-paper-edge text-paper-foreground hover:bg-[var(--engraving-wash)]">
+                                        <td className="px-4 py-2.5">
+                                            <div className="font-medium">{r.title}</div>
+                                            <div className="serial mt-0.5 text-paper-foreground-soft">{r.docType}{r.pathname ? ` · ${r.pathname}` : ""}</div>
+                                        </td>
+                                        <td className="px-4 py-2.5">
+                                            <Mark tone={r.source === "ggomed" ? "stamped" : "quiet"} onPaper>
+                                                {r.source === "ggomed" ? "GGOMed" : "Compass"}
+                                            </Mark>
+                                        </td>
+                                        {CRITERIA.map((c) => (
+                                            <td key={c.key} className="px-3 py-2.5 text-center"><Tick value={r.criteria[c.key]} /></td>
+                                        ))}
+                                        <td className="px-4 py-2.5 text-center">
+                                            <Socket sealed={r.badgeLit} size={22} title={r.badgeLit ? "Badge lit" : "Badge unlit"} />
+                                        </td>
+                                        <td className="px-4 py-2.5 text-paper-foreground-soft">{r.reviewerName ?? "—"}</td>
+                                        <td className={`whitespace-nowrap px-4 py-2.5 ${r.overdue ? "font-semibold text-seal" : "text-paper-foreground-soft"}`}>
+                                            {r.nextReviewDate ?? "—"}{r.overdue ? " · scaduta" : ""}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {filtered.length === 0 && (
+                                    <tr>
+                                        <td colSpan={10} className="px-4 py-10 text-center font-condensed text-[11px] uppercase tracking-[0.14em] text-paper-foreground-soft">
+                                            Nessuna riga per il filtro corrente
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p className="mt-4 max-w-[44rem] text-[12px] leading-relaxed text-plate-foreground-soft">
+                        Transparency vale solo per GGOMed (nessun check equivalente su m05ykm6e). Il peer
+                        review GGOMed deriva dal clinico nominato. Stato badge: memorizzato
+                        (GGOMed, riconciliato da Studio) / predicato calcolato (Compass).
+                    </p>
+                </div>
+            </div>
         </AppShell>
     );
 }

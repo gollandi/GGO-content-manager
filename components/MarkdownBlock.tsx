@@ -167,10 +167,10 @@ export default function MarkdownBlock({ content, className }: MarkdownBlockProps
                     );
                 }
                 if (block.type === "quote") {
-                    return <blockquote key={index} className="border-l-4 border-ggo-teal/50 pl-3 text-muted-foreground">{inlineMarkdown(block.text)}</blockquote>;
+                    return <blockquote key={index} className="border-l border-ggo-teal/50 pl-3 text-muted-foreground">{inlineMarkdown(block.text)}</blockquote>;
                 }
                 if (block.type === "code") {
-                    return <pre key={index} className="overflow-x-auto rounded-xl bg-charcoal p-3 text-xs text-white"><code>{block.text}</code></pre>;
+                    return <pre key={index} className="overflow-x-auto bg-plate p-3 text-xs text-plate-foreground"><code>{block.text}</code></pre>;
                 }
                 return <p key={index}>{inlineMarkdown(block.text)}</p>;
             })}

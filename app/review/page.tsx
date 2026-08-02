@@ -3,7 +3,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AppShell from "../../components/AppShell";
 import MarkdownBlock from "../../components/MarkdownBlock";
-import StatusBadge from "../../components/StatusBadge";
+import { Guilloche, Socket, Mark, AgeBar, type MarkTone } from "../../components/Registro";
+
+/**
+ * IL CANCELLO — the register spread.
+ *
+ * Left page: the ruled register. Every entry awaiting JJ is a line ending in
+ * an empty seal socket; selecting a line opens it on the right page.
+ * Right page: the document itself — caption, body, and every asset at
+ * document scale, because an unviewable asset is an undecidable one.
+ * At its foot, the three acts: seal, stamp back, void.
+ *
+ * On a phone the register is the list and the document opens over it,
+ * acts pinned under the thumb. One hand, between clinics.
+ */
 
 type Decision = "approve" | "modify" | "reject";
 type Target = "desk" | "calendar" | "website";
@@ -37,76 +50,111 @@ interface ReviewState {
     error?: string;
 }
 
-const proxyUrl = (url: string) => url.replace(/^\/(video|media)\?/, "/api/review-dashboard/$1?");
-
-function tagTone(value?: string | null): "success" | "info" | "warning" | "danger" | "secondary" {
-    if (!value) return "secondary";
-    if (/Urgent|Blocked|Rejected|FALLITA/i.test(value)) return "danger";
-    if (/Review|Pending|Needs|Draft|Modify/i.test(value)) return "warning";
-    if (/Approved|Scheduled|bozza|patch pronta/i.test(value)) return "success";
-    if (/Production|Create/i.test(value)) return "info";
-    return "secondary";
+/** One line of the register, whatever family it came from. */
+interface Entry {
+    key: string;
+    rowId: string;
+    target: Target;
+    family: "Social" | "Desk" | "Website";
+    title: string;
+    stateLabel: string;
+    dueDays: number | null;
+    hasMedia: boolean;
+    notionUrl: string;
+    desk?: DeskRow;
+    calendar?: CalendarRow;
+    website?: WebsiteArticle;
 }
 
-function MediaStrip({ media, videos }: { media?: MediaRef[]; videos?: VideoRef[] }) {
+const proxyUrl = (url: string) => url.replace(/^\/(video|media)\?/, "/api/review-dashboard/$1?");
+
+function daysUntil(due: string | null): number | null {
+    if (!due) return null;
+    const t = new Date(due).getTime();
+    if (!Number.isFinite(t)) return null;
+    return Math.floor((Date.now() - t) / 86_400_000);
+}
+
+function stateTone(value: string): MarkTone {
+    if (/Urgent|Blocked|Rejected|FALLITA/i.test(value)) return "pending";
+    if (/Review|Pending|Needs|Draft|Modify/i.test(value)) return "ageing";
+    if (/Approved|Scheduled|bozza|patch/i.test(value)) return "sealed";
+    return "quiet";
+}
+
+/* ===========================================================================
+   THE DOCUMENT'S ASSETS — full width of the page, never a thumbnail strip.
+   ========================================================================= */
+
+function AssetSheet({ media, videos }: { media?: MediaRef[]; videos?: VideoRef[] }) {
+    const [zoomed, setZoomed] = useState<string | null>(null);
     const images = media ?? [];
     const reels = [...(videos ?? []), ...images.filter((m) => m.kind === "video").map((m) => ({ url: m.url }))];
     const stills = images.filter((m) => m.kind === "image");
-    if (reels.length === 0 && stills.length === 0) return null;
+    if (reels.length === 0 && stills.length === 0) {
+        return (
+            <p className="mt-4 border border-dashed border-paper-edge px-4 py-6 text-center font-condensed text-[11px] uppercase tracking-[0.14em] text-paper-foreground-soft">
+                Nessun asset allegato a questo atto
+            </p>
+        );
+    }
 
     return (
-        <div className="mt-3 flex flex-wrap gap-3">
+        <div className="mt-4 flex flex-col gap-4">
             {stills.map((m, index) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={`${m.url}-${index}`} src={proxyUrl(m.url)} alt="" className="h-32 rounded-xl border border-border-soft object-cover" loading="lazy" />
+                <figure key={`${m.url}-${index}`} className="border border-paper-edge bg-paper-shade p-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                        src={proxyUrl(m.url)}
+                        alt={`Asset ${index + 1}`}
+                        loading="lazy"
+                        onClick={() => setZoomed(proxyUrl(m.url))}
+                        className="w-full cursor-zoom-in object-contain"
+                        style={{ maxHeight: "70vh" }}
+                    />
+                    <figcaption className="mt-1.5 flex items-center justify-between px-1">
+                        <span className="column-label column-label-paper">Allegato {index + 1}</span>
+                        <span className="font-condensed text-[10px] uppercase tracking-[0.12em] text-paper-foreground-soft">
+                            tocca per ingrandire
+                        </span>
+                    </figcaption>
+                </figure>
             ))}
             {reels.map((v, index) => (
-                <video key={`${v.url}-${index}`} controls preload="none" playsInline src={proxyUrl(v.url)} className="h-56 rounded-xl border border-border-soft bg-black" />
+                <figure key={`${v.url}-${index}`} className="border border-paper-edge bg-plate p-2">
+                    <video
+                        controls
+                        preload="metadata"
+                        playsInline
+                        src={proxyUrl(v.url)}
+                        className="mx-auto w-full"
+                        style={{ maxHeight: "70vh" }}
+                    />
+                    <figcaption className="mt-1.5 px-1">
+                        <span className="column-label">Video {index + 1}</span>
+                    </figcaption>
+                </figure>
             ))}
-        </div>
-    );
-}
 
-function NoteBox({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
-    return (
-        <textarea
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            rows={2}
-            placeholder={placeholder}
-            className="mt-3 w-full px-3 py-2 rounded-xl border border-border-default bg-white text-xs focus:outline-none focus:ring-2 focus:ring-ggo-teal"
-        />
-    );
-}
-
-function DecisionButtons({
-    rowId, target, note, title, busy, onDecision, onModify, websitePatch,
-}: {
-    rowId: string;
-    target: Target;
-    note: string;
-    title: string;
-    busy: boolean;
-    websitePatch?: boolean;
-    onDecision: (rowId: string, target: Target, decision: Decision, note: string) => void;
-    onModify: (rowId: string, target: Target, title: string, note: string) => void;
-}) {
-    return (
-        <div className="mt-3 flex flex-wrap gap-2">
-            <button disabled={busy} onClick={() => onDecision(rowId, target, "approve", note)} className="px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold disabled:opacity-50">
-                {target === "calendar" ? "Approve -> Scheduled" : target === "website" ? (websitePatch ? "Approva -> bozza Sanity" : "Commissiona a Edmondo") : "Approve"}
-            </button>
-            <button disabled={busy} onClick={() => onModify(rowId, target, title, note)} className="px-3 py-2 rounded-xl bg-amber-500 text-white text-xs font-semibold disabled:opacity-50">
-                Modify
-            </button>
-            {target !== "website" && (
-                <button disabled={busy} onClick={() => onDecision(rowId, target, "reject", note)} className="px-3 py-2 rounded-xl bg-red-600 text-white text-xs font-semibold disabled:opacity-50">
-                    Reject
+            {/* The loupe: the asset alone, full screen, one tap to close. */}
+            {zoomed && (
+                <button
+                    type="button"
+                    aria-label="Chiudi ingrandimento"
+                    className="fixed inset-0 z-[70] flex cursor-zoom-out items-center justify-center bg-plate-deep/95 p-4"
+                    onClick={() => setZoomed(null)}
+                >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={zoomed} alt="" className="max-h-full max-w-full object-contain" />
                 </button>
             )}
         </div>
     );
 }
+
+/* ===========================================================================
+   THE PAGE
+   ========================================================================= */
 
 export default function ReviewPage() {
     const [state, setState] = useState<ReviewState | null>(null);
@@ -114,7 +162,32 @@ export default function ReviewPage() {
     const [busyKey, setBusyKey] = useState<string | null>(null);
     const [notes, setNotes] = useState<Record<string, string>>({});
     const [toast, setToast] = useState<string | null>(null);
-    const [modifyDraft, setModifyDraft] = useState<{ rowId: string; target: Target; title: string; note: string } | null>(null);
+    const [openKey, setOpenKey] = useState<string | null>(null);
+    const [modifyOpen, setModifyOpen] = useState(false);
+    const [justSealed, setJustSealed] = useState<string | null>(null);
+    /**
+     * The acts ledger. Every act JJ performs is recorded here the moment the
+     * server confirms it, and rendered on the register line and the document
+     * — seal pressed, stamp struck, line voided — until the source itself
+     * catches up. It also makes the act unrepeatable: one act per entry.
+     * Session-persisted so a reload does not blank the marks.
+     */
+    const [acted, setActed] = useState<Record<string, { decision: Decision; at: number }>>({});
+
+    useEffect(() => {
+        try {
+            const raw = sessionStorage.getItem("cancello-acts");
+            if (raw) setActed(JSON.parse(raw));
+        } catch { /* a blank ledger is a valid ledger */ }
+    }, []);
+
+    const recordAct = useCallback((key: string, decision: Decision) => {
+        setActed((current) => {
+            const next = { ...current, [key]: { decision, at: Date.now() } };
+            try { sessionStorage.setItem("cancello-acts", JSON.stringify(next)); } catch { /* best effort */ }
+            return next;
+        });
+    }, []);
 
     const load = useCallback(async (refresh = false) => {
         setError(null);
@@ -129,62 +202,147 @@ export default function ReviewPage() {
 
     useEffect(() => { void load(); }, [load]);
 
-    const buckets = useMemo(() => {
-        const empty = { wall: [], inReview: [], pendingDesk: [], webPatch: [], webAwaiting: [], inProduction: [], queued: [], scheduled: [], webRest: [] } as {
-            wall: DeskRow[]; inReview: CalendarRow[]; pendingDesk: DeskRow[]; webPatch: WebsiteArticle[]; webAwaiting: WebsiteArticle[];
-            inProduction: (CalendarRow | DeskRow)[]; queued: DeskRow[]; scheduled: CalendarRow[]; webRest: WebsiteArticle[];
-        };
-        if (!state) return empty;
-        const wallIds = new Set(state.wall.map((row) => row.rowId));
-        empty.wall = state.wall;
-        empty.inReview = state.calendar.filter((row) => row.status === "Review");
-        empty.pendingDesk = state.desk.filter((row) => row.status === "Pending" && !wallIds.has(row.rowId));
-        empty.webAwaiting = state.website.filter((row) => row.patchState === "awaiting-publish");
-        empty.webPatch = state.website.filter((row) => row.patch && row.patchState !== "awaiting-publish");
-        empty.webRest = state.website.filter((row) => !row.patch);
-        empty.inProduction = [
-            ...state.calendar.filter((row) => row.status === "In Production" || row.status === "Draft"),
-            ...state.desk.filter((row) => row.status === "In production"),
-        ];
-        empty.queued = state.desk.filter((row) => row.status === "Approved");
-        empty.scheduled = state.calendar.filter((row) => row.status === "Scheduled");
-        return empty;
+    useEffect(() => {
+        if (!state) return;
+        setActed((current) => {
+            const live = new Set(entries.map((e) => e.key));
+            const kept = Object.fromEntries(Object.entries(current).filter(([k]) => live.has(k)));
+            if (Object.keys(kept).length !== Object.keys(current).length) {
+                try { sessionStorage.setItem("cancello-acts", JSON.stringify(kept)); } catch { /* best effort */ }
+                return kept;
+            }
+            return current;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [state]);
 
-    const decisionCount = buckets.wall.length + buckets.inReview.length + buckets.pendingDesk.length + buckets.webPatch.length;
+    /* ── The register's lines ─────────────────────────────────────────────── */
+
+    const entries = useMemo<Entry[]>(() => {
+        if (!state) return [];
+        const wallIds = new Set(state.wall.map((row) => row.rowId));
+        const fromDesk = (row: DeskRow): Entry => ({
+            key: `desk:${row.rowId}`,
+            rowId: row.rowId,
+            target: "desk",
+            family: "Desk",
+            title: row.title,
+            stateLabel: row.priority ? `${row.priority} · ${row.type}` : row.type,
+            dueDays: daysUntil(row.due),
+            hasMedia: row.videos.length > 0,
+            notionUrl: row.url,
+            desk: row
+        });
+        return [
+            ...state.wall.map(fromDesk),
+            ...state.calendar
+                .filter((row) => row.status === "Review")
+                .map((row): Entry => ({
+                    key: `calendar:${row.rowId}`,
+                    rowId: row.rowId,
+                    target: "calendar",
+                    family: "Social",
+                    title: row.title,
+                    stateLabel: [row.contentType, row.platforms].filter(Boolean).join(" · ") || "Social",
+                    dueDays: null,
+                    hasMedia: row.media.length > 0,
+                    notionUrl: row.url,
+                    calendar: row
+                })),
+            ...state.desk
+                .filter((row) => row.status === "Pending" && !wallIds.has(row.rowId))
+                .map(fromDesk),
+            ...state.website
+                .filter((row) => row.patch && row.patchState !== "awaiting-publish")
+                .map((row): Entry => ({
+                    key: `website:${row.rowId}`,
+                    rowId: row.rowId,
+                    target: "website",
+                    family: "Website",
+                    title: row.title,
+                    stateLabel: "Patch pronta",
+                    dueDays: null,
+                    hasMedia: false,
+                    notionUrl: row.url,
+                    website: row
+                }))
+        ];
+    }, [state]);
+
+    const open = entries.find((e) => e.key === openKey) ?? null;
+    const pendingEntries = entries.filter((e) => !acted[e.key]);
+
+    const laterSections = useMemo(() => {
+        if (!state) return [];
+        return [
+            {
+                label: "Bozze già in Sanity — apri Studio e pubblica",
+                rows: state.website
+                    .filter((r) => r.patchState === "awaiting-publish")
+                    .map((r) => ({ key: `w:${r.rowId}`, title: r.title, state: `bozza ${r.draftId ?? ""}`, url: r.url }))
+            },
+            {
+                label: "In lavorazione adesso",
+                rows: [
+                    ...state.calendar
+                        .filter((r) => r.status === "In Production" || r.status === "Draft")
+                        .map((r) => ({ key: `c:${r.rowId}`, title: r.title, state: r.status, url: r.url })),
+                    ...state.desk
+                        .filter((r) => r.status === "In production")
+                        .map((r) => ({ key: `d:${r.rowId}`, title: r.title, state: r.status, url: r.url }))
+                ]
+            },
+            {
+                label: "In coda — approvati, in attesa di uno slot",
+                rows: state.desk
+                    .filter((r) => r.status === "Approved")
+                    .map((r) => ({ key: `d:${r.rowId}`, title: r.title, state: "Approved", url: r.url }))
+            },
+            {
+                label: "Programmati verso pubblicazione",
+                rows: state.calendar
+                    .filter((r) => r.status === "Scheduled")
+                    .map((r) => ({ key: `c:${r.rowId}`, title: r.title, state: r.date ?? "Scheduled", url: r.url }))
+            }
+        ];
+    }, [state]);
+
+    /* ── Acts ─────────────────────────────────────────────────────────────── */
 
     function setNote(key: string, value: string) {
         setNotes((current) => ({ ...current, [key]: value }));
     }
 
-    function openModify(rowId: string, target: Target, title: string, note: string) {
-        setError(null);
-        setModifyDraft({ rowId, target, title, note });
-    }
-
-    async function decide(rowId: string, target: Target, decision: Decision, comment: string) {
+    async function decide(entry: Entry, decision: Decision, comment: string) {
         if (decision === "modify" && !comment.trim()) {
-            setError(target === "website"
-                ? "Scrivi cosa va cambiato: Modify manda la nota a Edmondo."
-                : "Scrivi cosa va cambiato: Modify manda la nota a Ernesto.");
+            setError(entry.target === "website"
+                ? "Scrivi cosa va cambiato: il timbro porta la nota a Edmondo."
+                : "Scrivi cosa va cambiato: il timbro porta la nota a Ernesto.");
             return;
         }
-        if (decision === "reject" && !comment.trim() && !window.confirm("Inviare senza nota a Ernesto?")) return;
+        if (decision === "reject" && !comment.trim() && !window.confirm("Annullare senza nota a Ernesto?")) return;
 
-        const key = `${target}:${rowId}`;
-        setBusyKey(key);
+        setBusyKey(entry.key);
         setError(null);
         try {
             const res = await fetch("/api/review-dashboard/decision", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
-                body: JSON.stringify({ rowId, decision, comment, target }),
+                body: JSON.stringify({ rowId: entry.rowId, decision, comment, target: entry.target }),
             });
             const result = await res.json();
             if (!res.ok || !result.ok) throw new Error(result.error ?? "Decisione non salvata");
-            setToast(`${result.status ?? decision} salvato`);
+            recordAct(entry.key, decision);
+            if (decision === "approve") {
+                setJustSealed(entry.key);
+                setTimeout(() => setJustSealed(null), 1200);
+            }
+            setToast(
+                decision === "approve" ? "Sigillato" : decision === "modify" ? "Timbrato e rimandato" : "Annullato"
+            );
             setTimeout(() => setToast(null), 2600);
-            if (decision === "modify") setModifyDraft(null);
+            setModifyOpen(false);
+            // The document stays open: the point of the act is seeing the wax land.
             await load(true);
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
@@ -193,211 +351,453 @@ export default function ReviewPage() {
         }
     }
 
-    const renderDesk = (row: DeskRow, active = row.status === "Pending") => {
-        const key = `desk:${row.rowId}`;
-        const note = notes[key] ?? row.correction ?? "";
-        return (
-            <article key={key} className="bg-white rounded-2xl border border-border-default p-5">
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <StatusBadge tone={tagTone(row.priority)} label={`${row.priority} · ${row.type}`} />
-                    <StatusBadge tone={tagTone(row.status)} label={row.status} />
-                    {row.due && <StatusBadge tone="secondary" label={`entro ${row.due}`} />}
-                </div>
-                <a href={row.url} target="_blank" rel="noreferrer" className="text-base font-bold hover:text-ggo-teal">{row.title}</a>
-                {row.body && <MarkdownBlock content={row.body} className="mt-3 text-xs text-muted-foreground" />}
-                <MediaStrip videos={row.videos} />
-                {active ? (
-                    <>
-                        <NoteBox value={note} onChange={(value) => setNote(key, value)} placeholder="Note to Ernesto..." />
-                        <DecisionButtons rowId={row.rowId} target="desk" note={note} title={row.title} busy={busyKey === key} onDecision={decide} onModify={openModify} />
-                    </>
-                ) : row.correction ? (
-                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs whitespace-pre-wrap">{row.correction}</div>
-                ) : null}
-            </article>
-        );
-    };
+    /* ── The document page (right leaf / phone sheet) ─────────────────────── */
 
-    const renderCalendar = (row: CalendarRow) => {
-        const key = `calendar:${row.rowId}`;
-        const note = notes[key] ?? row.notes ?? "";
-        return (
-            <article key={key} className="bg-white rounded-2xl border border-border-default p-5">
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <StatusBadge tone={tagTone(row.status)} label={row.status} />
-                    {row.contentType && <StatusBadge tone="info" label={row.contentType} />}
-                    {row.platforms && <StatusBadge tone="secondary" label={row.platforms} />}
-                    {row.date && <StatusBadge tone="secondary" label={row.date} />}
-                </div>
-                <a href={row.url} target="_blank" rel="noreferrer" className="text-base font-bold hover:text-ggo-teal">{row.title}</a>
-                {row.caption ? <div className="mt-3 border-l-4 border-ggo-teal/40 pl-3 text-sm whitespace-pre-wrap">{row.caption}</div> : <p className="mt-3 text-xs text-muted-foreground">Caption non ancora scritta.</p>}
-                {row.hashtags && <p className="mt-2 text-xs text-ggo-teal break-words">{row.hashtags}</p>}
-                <MediaStrip media={row.media} />
-                {row.status !== "Review" && row.hasAssets && <p className="mt-3 text-xs text-muted-foreground">Asset collegati, visibili quando la riga arriva in Review.</p>}
-                {!row.hasAssets && row.canva && <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">Solo vecchio link Canva, nessun asset locale visibile.</p>}
-                {!row.hasAssets && !row.canva && <p className="mt-3 rounded-xl border border-border-soft bg-surface-muted p-3 text-xs text-muted-foreground">Nessun asset ancora prodotto.</p>}
-                {row.status === "Review" ? (
-                    <>
-                        <NoteBox value={note} onChange={(value) => setNote(key, value)} placeholder="Note to Ernesto..." />
-                        <DecisionButtons rowId={row.rowId} target="calendar" note={note} title={row.title} busy={busyKey === key} onDecision={decide} onModify={openModify} />
-                    </>
-                ) : row.notes ? (
-                    <MarkdownBlock content={row.notes} className="mt-3 text-xs text-muted-foreground" />
-                ) : null}
-            </article>
-        );
-    };
+    function DocumentLeaf({ entry }: { entry: Entry }) {
+        const note = notes[entry.key] ?? entry.desk?.correction ?? entry.calendar?.notes ?? "";
+        const busy = busyKey === entry.key;
+        const act = acted[entry.key];
+        const c = entry.calendar;
+        const d = entry.desk;
+        const w = entry.website;
 
-    const renderArticle = (row: WebsiteArticle) => {
-        const key = `website:${row.rowId}`;
-        const note = notes[key] ?? "";
         return (
-            <article key={key} className="bg-white rounded-2xl border border-border-default p-5">
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                    {row.status && <StatusBadge tone={tagTone(row.status)} label={row.status} />}
-                    {row.category && <StatusBadge tone="secondary" label={row.category} />}
-                    {row.patch && <StatusBadge tone="success" label="patch pronta" />}
-                    {row.patchState === "awaiting-publish" && <StatusBadge tone="success" label="bozza in Sanity" />}
-                </div>
-                <a href={row.url} target="_blank" rel="noreferrer" className="text-base font-bold hover:text-ggo-teal">{row.title}</a>
-                {row.liveUrl && <a href={row.liveUrl} target="_blank" rel="noreferrer" className="block mt-1 text-xs text-ggo-teal hover:underline">{row.liveUrl}</a>}
-                {row.patchState === "awaiting-publish" ? (
-                    <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
-                        Patch applicata come bozza {row.draftId}. Prossimo atto: Sanity Studio, rileggi e pubblica.
+            <div className="paper flex h-full min-h-0 flex-col border border-paper-edge">
+                {/* Letterhead */}
+                <div className="border-b-[3px] border-double border-paper-edge px-5 pb-4 pt-5">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                            <p className="column-label column-label-paper">{entry.family} · atto in attesa</p>
+                            <h2 className="document-title mt-1.5 text-[22px] text-paper-foreground">{entry.title}</h2>
+                        </div>
+                        <Socket
+                            sealed={act?.decision === "approve"}
+                            size={34}
+                            justSealed={justSealed === entry.key}
+                            title={act?.decision === "approve" ? "Sigillato" : undefined}
+                        />
                     </div>
-                ) : (
-                    <>
-                        {row.proposals.length > 0 ? (
-                            <div className="mt-3 space-y-2">
-                                {row.proposals.map((proposal, index) => (
-                                    <div key={`${proposal.need}-${index}`} className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs">
-                                        <div className="font-bold">{proposal.need}</div>
-                                        {proposal.actionStatus && <div className="mt-1 text-amber-800">{proposal.actionStatus}</div>}
-                                        {proposal.details && <MarkdownBlock content={proposal.details} className="mt-2 text-muted-foreground" />}
-                                    </div>
-                                ))}
-                            </div>
-                        ) : <p className="mt-3 text-xs text-muted-foreground">Nessuna proposta di review aperta.</p>}
-                        {row.patch && (
-                            <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs">
-                                <div className="font-bold text-emerald-800">Patch pronta: Approve la applica come bozza Sanity, non pubblica.</div>
-                                <div className="mt-1">{row.patch.title ?? row.patch.id} · {row.patch.operations.length} op · {row.patch.sanityDocId}</div>
-                                {row.patch.rationale && <MarkdownBlock content={row.patch.rationale} className="mt-2 text-muted-foreground" />}
-                            </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <Mark tone={stateTone(entry.stateLabel)} onPaper>{entry.stateLabel}</Mark>
+                        {d?.due && <Mark tone="quiet" onPaper>entro {d.due}</Mark>}
+                        {c?.date && <Mark tone="quiet" onPaper>{c.date}</Mark>}
+                        <a
+                            href={entry.notionUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="ml-auto font-condensed text-[10px] uppercase tracking-[0.14em] text-engraving-ink underline underline-offset-2 hover:text-seal"
+                        >
+                            Apri in Notion
+                        </a>
+                    </div>
+                </div>
+
+                {/* The document body — caption and assets at document scale. */}
+                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                    {c && (
+                        <>
+                            {c.caption ? (
+                                <div className="border-l-2 border-engraving pl-3 text-[14px] leading-relaxed text-paper-foreground whitespace-pre-wrap">
+                                    {c.caption}
+                                </div>
+                            ) : (
+                                <p className="font-condensed text-[11px] uppercase tracking-[0.14em] text-paper-foreground-soft">
+                                    Caption non ancora scritta
+                                </p>
+                            )}
+                            {c.hashtags && (
+                                <p className="mt-2 break-words text-[12px] text-engraving-ink">{c.hashtags}</p>
+                            )}
+                            <AssetSheet media={c.media} />
+                            {!c.hasAssets && c.canva && (
+                                <p className="mt-3 border border-sepia px-3 py-2 text-[12px] text-sepia">
+                                    Solo vecchio link Canva, nessun asset locale visibile.
+                                </p>
+                            )}
+                        </>
+                    )}
+
+                    {d && (
+                        <>
+                            {d.body && <MarkdownBlock content={d.body} className="text-[13px] leading-relaxed text-paper-foreground" />}
+                            <AssetSheet videos={d.videos} />
+                            {d.correction && (
+                                <div className="mt-3 border border-stamp px-3 py-2 text-[12px] text-stamp whitespace-pre-wrap">
+                                    {d.correction}
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {w && (
+                        <>
+                            {w.liveUrl && (
+                                <a href={w.liveUrl} target="_blank" rel="noreferrer" className="block text-[12px] text-engraving-ink underline underline-offset-2">
+                                    {w.liveUrl}
+                                </a>
+                            )}
+                            {w.patch && (
+                                <div className="mt-3 border border-engraving px-3 py-2.5 text-[12px]">
+                                    <p className="font-condensed text-[10px] font-bold uppercase tracking-[0.14em] text-engraving-ink">
+                                        Patch pronta — il sigillo la applica come bozza Sanity, non pubblica
+                                    </p>
+                                    <p className="mt-1.5 text-paper-foreground">
+                                        {w.patch.title ?? w.patch.id} · {w.patch.operations.length} operazioni · {w.patch.sanityDocId}
+                                    </p>
+                                    {w.patch.rationale && (
+                                        <MarkdownBlock content={w.patch.rationale} className="mt-2 text-paper-foreground-soft" />
+                                    )}
+                                </div>
+                            )}
+                            {w.proposals.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                    {w.proposals.map((proposal, index) => (
+                                        <div key={`${proposal.need}-${index}`} className="border border-paper-edge px-3 py-2.5 text-[12px]">
+                                            <p className="font-bold text-paper-foreground">{proposal.need}</p>
+                                            {proposal.actionStatus && <p className="mt-1 text-sepia">{proposal.actionStatus}</p>}
+                                            {proposal.details && <MarkdownBlock content={proposal.details} className="mt-1.5 text-paper-foreground-soft" />}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {/* The registrar's note, ruled like a ledger margin. */}
+                    <label className="column-label column-label-paper mb-1.5 mt-5 block" htmlFor={`note-${entry.rowId}`}>
+                        Nota a {entry.target === "website" ? "Edmondo" : "Ernesto"}
+                    </label>
+                    <textarea
+                        id={`note-${entry.rowId}`}
+                        value={note}
+                        onChange={(event) => setNote(entry.key, event.target.value)}
+                        rows={2}
+                        placeholder="Facoltativa per il sigillo, obbligatoria per il timbro…"
+                        className="w-full border border-paper-edge bg-transparent px-3 py-2 text-[13px] text-paper-foreground outline-none placeholder:text-paper-foreground-soft focus:border-engraving-ink"
+                    />
+                </div>
+
+                {/* The three acts, pinned at the foot — under the thumb on a phone.
+                    Once an act lands, the record replaces the buttons: one act per entry. */}
+                <div className="border-t border-paper-edge bg-paper-shade px-5 py-3">
+                    {act ? (
+                        <div className="flex items-center gap-3" role="status">
+                            {act.decision === "approve" ? (
+                                <>
+                                    <Socket sealed size={26} />
+                                    <span className="font-condensed text-[12px] font-bold uppercase tracking-[0.14em] text-engraving-ink">
+                                        Sigillato alle {new Date(act.at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                                    </span>
+                                </>
+                            ) : act.decision === "modify" ? (
+                                <span
+                                    className="inline-block -rotate-2 border-2 px-3 py-1.5 font-condensed text-[12px] font-bold uppercase tracking-[0.16em]"
+                                    style={{ color: "var(--stamp)", borderColor: "var(--stamp)" }}
+                                >
+                                    Rimandato a {entry.target === "website" ? "Edmondo" : "Ernesto"}
+                                </span>
+                            ) : (
+                                <span className="font-condensed text-[12px] font-bold uppercase tracking-[0.14em] text-paper-foreground-soft line-through">
+                                    Annullato
+                                </span>
+                            )}
+                            <span className="ml-auto text-[11px] italic text-paper-foreground-soft">
+                                L&apos;atto è nel registro. La riga sparirà alla prossima rilettura.
+                            </span>
+                        </div>
+                    ) : (
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            disabled={busy}
+                            onClick={() => void decide(entry, "approve", note)}
+                            className="act-seal flex-1 min-w-[8rem]"
+                            type="button"
+                        >
+                            {entry.target === "calendar" ? "Sigilla → Scheduled"
+                                : entry.target === "website" ? (entry.website?.patch ? "Sigilla → bozza Sanity" : "Commissiona a Edmondo")
+                                : "Sigilla"}
+                        </button>
+                        <button
+                            disabled={busy}
+                            onClick={() => setModifyOpen(true)}
+                            className="act-stamp flex-1 min-w-[7rem]"
+                            type="button"
+                            style={{ color: "var(--stamp)", borderColor: "var(--stamp)" }}
+                        >
+                            Timbra e rimanda
+                        </button>
+                        {entry.target !== "website" && (
+                            <button
+                                disabled={busy}
+                                onClick={() => void decide(entry, "reject", note)}
+                                className="act-void flex-1 min-w-[6rem]"
+                                type="button"
+                                style={{ color: "var(--paper-fg-soft)", borderColor: "var(--paper-edge)" }}
+                            >
+                                Annulla
+                            </button>
                         )}
-                        <NoteBox value={note} onChange={(value) => setNote(key, value)} placeholder="Istruzioni per Edmondo..." />
-                        <DecisionButtons rowId={row.rowId} target="website" note={note} title={row.title} busy={busyKey === key} websitePatch={Boolean(row.patch)} onDecision={decide} onModify={openModify} />
-                    </>
-                )}
-            </article>
+                    </div>
+                    )}
+                </div>
+            </div>
         );
-    };
+    }
+
+    /* ── Render ───────────────────────────────────────────────────────────── */
 
     return (
         <AppShell>
-            <div className="p-6 max-lg:p-3">
-                <header className="mb-5 flex items-start justify-between gap-4">
-                    <div>
-                        <p className="text-xs uppercase tracking-widest text-muted-foreground font-bold">Il Cancello</p>
-                        <h1 className="text-2xl font-bold tracking-tight">Casa GGOMed — Review</h1>
-                        <p className="text-sm text-muted-foreground mt-1">
-                            Fonte: review dashboard di Ernesto. Desk, Calendar, website review e media locali sono dentro questa shell.
-                        </p>
-                        {state && (
-                            <p className="text-xs text-subtle mt-2">
-                                {decisionCount} decisioni per te · aggiornato {new Date(state.generatedAt).toLocaleTimeString("it-IT")}{state.cached ? " · cache" : ""}
-                            </p>
-                        )}
+            <div className="relative flex min-h-screen flex-col overflow-hidden">
+                <Guilloche
+                    size={900}
+                    rings={4}
+                    opacity={0.18}
+                    className="pointer-events-none absolute -right-72 -top-64 h-[900px] w-[900px]"
+                />
+
+                <header className="relative border-b border-plate-rule px-8 pb-4 pt-7 max-sm:px-4">
+                    <div className="flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                            <p className="column-label">Il Cancello · l'unico varco</p>
+                            <h1 className="document-title mt-1.5 text-[30px] text-plate-foreground-strong max-sm:text-[24px]">
+                                {state ? (pendingEntries.length === 0 ? "Niente aspetta il tuo sigillo" : pendingEntries.length === 1 ? "Un atto aspetta il tuo sigillo" : `${pendingEntries.length} atti aspettano il tuo sigillo`) : "Apro il registro…"}
+                            </h1>
+                            {state && pendingEntries.length > 0 && (() => {
+                                // The registrar's line: what stands at the gate, in one sentence.
+                                const social = pendingEntries.filter((e) => e.family === "Social").length;
+                                const deskN = pendingEntries.filter((e) => e.family === "Desk").length;
+                                const web = pendingEntries.filter((e) => e.family === "Website").length;
+                                const oldest = Math.max(0, ...pendingEntries.map((e) => e.dueDays ?? 0));
+                                const parts = [
+                                    social > 0 && `${social === 1 ? "un atto" : `${social} atti`} dal calendario sociale`,
+                                    deskN > 0 && `${deskN === 1 ? "uno" : deskN} dalla scrivania di Ernesto`,
+                                    web > 0 && `${web === 1 ? "una patch" : `${web} patch`} dal sito`
+                                ].filter(Boolean);
+                                return (
+                                    <p className="mt-2 max-w-[34rem] text-[13px] italic leading-relaxed text-plate-foreground-soft">
+                                        {parts.join(", ")}.{oldest > 0 ? ` Il più vecchio attende da ${oldest === 1 ? "un giorno" : `${oldest} giorni`}.` : ""}
+                                    </p>
+                                );
+                            })()}
+                            {state && (
+                                <p className="mt-1.5 font-condensed text-[10px] uppercase tracking-[0.14em] text-plate-foreground-soft">
+                                    aggiornato {new Date(state.generatedAt).toLocaleTimeString("it-IT")}{state.cached ? " · cache" : ""}
+                                </p>
+                            )}
+                        </div>
+                        <button onClick={() => void load(true)} className="act-quiet" type="button">
+                            Rileggi da Notion
+                        </button>
                     </div>
-                    <button onClick={() => void load(true)} className="px-4 py-2 rounded-xl border border-border-default bg-white text-sm font-semibold hover:border-ggo-teal">
-                        Aggiorna da Notion
-                    </button>
                 </header>
 
-                {toast && <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 rounded-xl border border-border-default bg-charcoal px-4 py-3 text-sm text-white">{toast}</div>}
-                {error && <div className="mb-4 p-4 rounded-xl border border-red-300 bg-red-50 text-sm text-red-800">{error}</div>}
-                {modifyDraft && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                        <section className="w-full max-w-xl rounded-2xl bg-white border border-border-default shadow-xl p-5">
-                            <div className="flex items-start justify-between gap-4 mb-3">
-                                <div>
-                                    <p className="text-xs uppercase tracking-widest text-muted-foreground font-bold">
-                                        {modifyDraft.target === "website" ? "Nota a Edmondo" : "Nota a Ernesto"}
-                                    </p>
-                                    <h2 className="text-lg font-bold tracking-tight">Cosa va modificato?</h2>
-                                </div>
-                                <button
-                                    onClick={() => setModifyDraft(null)}
-                                    className="px-3 py-1.5 rounded-lg border border-border-default text-xs font-semibold"
-                                >
-                                    Chiudi
-                                </button>
-                            </div>
-                            <p className="text-sm font-semibold mb-2">{modifyDraft.title}</p>
-                            <textarea
-                                value={modifyDraft.note}
-                                onChange={(event) => setModifyDraft((current) => current ? { ...current, note: event.target.value } : current)}
-                                rows={6}
-                                autoFocus
-                                placeholder={modifyDraft.target === "website"
-                                    ? "Scrivi a Edmondo cosa deve rilavorare, correggere o verificare..."
-                                    : "Scrivi a Ernesto cosa deve cambiare, rigenerare o correggere..."}
-                                className="w-full px-3 py-2 rounded-xl border border-border-default bg-white text-sm focus:outline-none focus:ring-2 focus:ring-ggo-teal"
-                            />
-                            <div className="mt-4 flex justify-end gap-2">
-                                <button
-                                    onClick={() => setModifyDraft(null)}
-                                    className="px-4 py-2 rounded-xl border border-border-default text-sm font-semibold"
-                                >
-                                    Annulla
-                                </button>
-                                <button
-                                    disabled={busyKey === `${modifyDraft.target}:${modifyDraft.rowId}` || !modifyDraft.note.trim()}
-                                    onClick={() => void decide(modifyDraft.rowId, modifyDraft.target, "modify", modifyDraft.note)}
-                                    className="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-semibold disabled:opacity-50"
-                                >
-                                    Invia modifica
-                                </button>
-                            </div>
-                        </section>
+                {toast && (
+                    <div className="fixed bottom-5 left-1/2 z-[80] -translate-x-1/2 border border-seal-deep bg-seal px-5 py-2.5 font-condensed text-[12px] font-bold uppercase tracking-[0.14em] text-paper">
+                        {toast}
+                    </div>
+                )}
+                {error && (
+                    <div className="relative mx-8 mt-4 border border-seal px-4 py-3 text-[13px] text-seal-bright max-sm:mx-4" role="alert">
+                        {error}
                     </div>
                 )}
 
-                {!state ? (
-                    <div className="rounded-2xl border border-border-default bg-white p-8 text-center text-sm text-muted-foreground">Carico cio che aspetta il tuo giudizio...</div>
-                ) : (
-                    <>
-                        <section className="mb-6">
-                            <h2 className="mb-3 text-base font-bold">Da decidere ora ({decisionCount})</h2>
-                            {decisionCount === 0 ? (
-                                <div className="rounded-2xl border border-border-default bg-white p-8 text-center text-sm text-muted-foreground">
-                                    Niente in attesa del tuo giudizio. Il resto della casa e qui sotto.
+                {/* The spread: register on the left, document on the right. */}
+                <div className="relative flex min-h-0 flex-1 gap-0 px-8 py-6 max-sm:px-0 max-sm:py-0">
+                    {/* Left page — the ruled register. */}
+                    <section
+                        className={[
+                            "paper flex min-h-0 min-w-0 flex-1 flex-col border border-paper-edge max-sm:border-x-0",
+                            open ? "max-w-[26rem] max-lg:hidden" : "max-w-none"
+                        ].join(" ")}
+                        aria-label="Registro degli atti in attesa"
+                    >
+                        <div className="flex items-baseline justify-between border-b-[3px] border-double border-paper-edge px-4 py-2.5">
+                            <span className="column-label column-label-paper">Atto</span>
+                            <span className="column-label column-label-paper">Sigillo</span>
+                        </div>
+                        <div className="min-h-0 flex-1 overflow-y-auto">
+                            {!state ? (
+                                <p className="px-4 py-8 text-center font-condensed text-[11px] uppercase tracking-[0.14em] text-paper-foreground-soft">
+                                    Carico ciò che aspetta il tuo giudizio…
+                                </p>
+                            ) : entries.length === 0 ? (
+                                <div className="px-4 py-12 text-center">
+                                    <Socket sealed size={40} />
+                                    <p className="mt-3 text-[13px] text-paper-foreground-soft">
+                                        Ogni atto è deciso. Il resto della casa è qui sotto.
+                                    </p>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-2 max-xl:grid-cols-1 gap-4">
-                                    {buckets.wall.map((row) => renderDesk(row))}
-                                    {buckets.inReview.map(renderCalendar)}
-                                    {buckets.pendingDesk.map((row) => renderDesk(row))}
-                                    {buckets.webPatch.map(renderArticle)}
-                                </div>
+                                <ul>
+                                    {entries.map((entry) => {
+                                        const active = entry.key === openKey;
+                                        const act = acted[entry.key];
+                                        return (
+                                            <li key={entry.key}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setOpenKey(active ? null : entry.key)}
+                                                    aria-expanded={active}
+                                                    className={[
+                                                        "flex w-full items-center gap-3 border-b border-paper-edge px-4 py-3 text-left transition-colors",
+                                                        active ? "bg-[var(--engraving-wash)]" : "hover:bg-[var(--engraving-wash)]"
+                                                    ].join(" ")}
+                                                >
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className={[
+                                                            "truncate text-[14px] font-semibold",
+                                                            act?.decision === "reject" ? "text-paper-foreground-soft line-through" : "text-paper-foreground"
+                                                        ].join(" ")}>{entry.title}</p>
+                                                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                                                            <Mark tone={stateTone(entry.stateLabel)} onPaper>{entry.family}</Mark>
+                                                            <span className="font-condensed text-[10px] uppercase tracking-[0.12em] text-paper-foreground-soft">
+                                                                {entry.stateLabel}
+                                                            </span>
+                                                            {entry.hasMedia && (
+                                                                <span className="font-condensed text-[10px] uppercase tracking-[0.12em] text-engraving-ink">
+                                                                    · asset
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {entry.dueDays !== null && entry.dueDays > 0 && (
+                                                            <div className="mt-1.5"><AgeBar days={entry.dueDays} /></div>
+                                                        )}
+                                                    </div>
+                                                    {act?.decision === "modify" ? (
+                                                        <span
+                                                            className="inline-block -rotate-3 border px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-[0.12em]"
+                                                            style={{ color: "var(--stamp)", borderColor: "var(--stamp)" }}
+                                                        >
+                                                            Rimandato
+                                                        </span>
+                                                    ) : (
+                                                        <Socket
+                                                            sealed={act?.decision === "approve"}
+                                                            size={24}
+                                                            justSealed={justSealed === entry.key}
+                                                            title={act?.decision === "approve" ? "Sigillato" : undefined}
+                                                        />
+                                                    )}
+                                                </button>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
                             )}
-                        </section>
+                        </div>
 
-                        {[
-                            [`Bozze gia in Sanity — apri Studio e pubblica (${buckets.webAwaiting.length})`, buckets.webAwaiting.map(renderArticle), buckets.webAwaiting.length > 0],
-                            [`In lavorazione adesso (${buckets.inProduction.length})`, buckets.inProduction.map((row) => "contentType" in row ? renderCalendar(row) : renderDesk(row, false)), false],
-                            [`In coda — approvati, in attesa di uno slot (${buckets.queued.length})`, buckets.queued.map((row) => renderDesk(row, false)), false],
-                            [`Programmati verso pubblicazione (${buckets.scheduled.length})`, buckets.scheduled.map(renderCalendar), false],
-                            [`Website — stato e proposte senza patch pronta (${buckets.webRest.length})`, buckets.webRest.map(renderArticle), false],
-                        ].map(([label, rows, open]) => (
-                            <details key={String(label)} open={Boolean(open)} className="mb-3 rounded-2xl border border-border-default bg-white">
-                                <summary className="cursor-pointer px-5 py-3 text-sm font-bold text-muted-foreground hover:text-charcoal">{label as string}</summary>
-                                <div className="grid grid-cols-2 max-xl:grid-cols-1 gap-4 border-t border-border-soft p-5">
-                                    {(rows as JSX.Element[]).length > 0 ? rows as JSX.Element[] : <p className="text-sm text-muted-foreground">Vuoto.</p>}
+                        {/* The rest of the house, folded under the register. */}
+                        {state && (
+                            <div className="border-t-[3px] border-double border-paper-edge">
+                                {laterSections.map((section) => (
+                                    <details key={section.label} className="group border-b border-paper-edge last:border-b-0">
+                                        <summary className="flex cursor-pointer items-baseline justify-between px-4 py-2.5 hover:bg-[var(--engraving-wash)]">
+                                            <span className="column-label column-label-paper">{section.label}</span>
+                                            <span className="serial text-paper-foreground-soft">[{section.rows.length}]</span>
+                                        </summary>
+                                        {section.rows.length > 0 ? (
+                                            <ul className="pb-2">
+                                                {section.rows.map((row) => (
+                                                    <li key={row.key} className="flex items-baseline justify-between gap-3 px-4 py-1.5">
+                                                        <a
+                                                            href={row.url}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="min-w-0 truncate text-[13px] text-paper-foreground hover:text-engraving-ink hover:underline"
+                                                        >
+                                                            {row.title}
+                                                        </a>
+                                                        <span className="whitespace-nowrap font-condensed text-[10px] uppercase tracking-[0.12em] text-paper-foreground-soft">
+                                                            {row.state}
+                                                        </span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className="px-4 pb-3 text-[12px] text-paper-foreground-soft">Vuoto.</p>
+                                        )}
+                                    </details>
+                                ))}
+                            </div>
+                        )}
+                    </section>
+
+                    {/* Perforation between the two pages. */}
+                    {open && <div className="perforation-y mx-4 max-lg:hidden" aria-hidden="true" />}
+
+                    {/* Right page — the open document (desktop). */}
+                    {open && (
+                        <section className="min-h-0 min-w-0 flex-1 max-lg:hidden" aria-label="Documento aperto">
+                            <DocumentLeaf entry={open} />
+                        </section>
+                    )}
+                </div>
+
+                {/* Phone: the document opens over the register, acts under the thumb. */}
+                {open && (
+                    <div className="fixed inset-0 z-[60] hidden max-lg:flex flex-col bg-plate-deep/80">
+                        <button
+                            type="button"
+                            aria-label="Chiudi il documento"
+                            className="h-14 flex-none"
+                            onClick={() => setOpenKey(null)}
+                        />
+                        <div className="min-h-0 flex-1 px-2 pb-2">
+                            <div className="relative h-full">
+                                <button
+                                    type="button"
+                                    onClick={() => setOpenKey(null)}
+                                    className="absolute -top-10 right-2 z-10 border border-plate-rule bg-plate px-3 py-1.5 font-condensed text-[11px] font-bold uppercase tracking-[0.14em] text-plate-foreground"
+                                >
+                                    Chiudi
+                                </button>
+                                <DocumentLeaf entry={open} />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* The stamp dialog: what must change, and to whom it goes back. */}
+                {modifyOpen && open && (
+                    <div className="fixed inset-0 z-[75] flex items-center justify-center bg-plate-deep/85 p-4">
+                        <section className="paper w-full max-w-lg border border-paper-edge" role="dialog" aria-modal="true" aria-label="Timbra e rimanda">
+                            <div className="border-b-[3px] border-double border-paper-edge px-5 py-4">
+                                <p className="column-label" style={{ color: "var(--stamp)" }}>
+                                    Timbro · nota a {open.target === "website" ? "Edmondo" : "Ernesto"}
+                                </p>
+                                <h2 className="document-title mt-1 text-[19px] text-paper-foreground">Cosa va modificato?</h2>
+                                <p className="mt-1 truncate text-[13px] text-paper-foreground-soft">{open.title}</p>
+                            </div>
+                            <div className="px-5 py-4">
+                                <textarea
+                                    value={notes[open.key] ?? ""}
+                                    onChange={(event) => setNote(open.key, event.target.value)}
+                                    rows={6}
+                                    autoFocus
+                                    placeholder={open.target === "website"
+                                        ? "Scrivi a Edmondo cosa deve rilavorare, correggere o verificare…"
+                                        : "Scrivi a Ernesto cosa deve cambiare, rigenerare o correggere…"}
+                                    className="w-full border border-paper-edge bg-transparent px-3 py-2 text-[13px] text-paper-foreground outline-none placeholder:text-paper-foreground-soft focus:border-engraving-ink"
+                                />
+                                <div className="mt-4 flex justify-end gap-2">
+                                    <button onClick={() => setModifyOpen(false)} className="act-void" type="button" style={{ color: "var(--paper-fg-soft)", borderColor: "var(--paper-edge)" }}>
+                                        Annulla
+                                    </button>
+                                    <button
+                                        disabled={busyKey === open.key || !(notes[open.key] ?? "").trim()}
+                                        onClick={() => void decide(open, "modify", notes[open.key] ?? "")}
+                                        className="act-stamp"
+                                        type="button"
+                                        style={{ color: "var(--stamp)", borderColor: "var(--stamp)" }}
+                                    >
+                                        Timbra e rimanda
+                                    </button>
                                 </div>
-                            </details>
-                        ))}
-                    </>
+                            </div>
+                        </section>
+                    </div>
                 )}
             </div>
         </AppShell>

@@ -191,7 +191,7 @@ export default function AnnualReviewPage() {
 
         <section className="page-section">
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 mb-4 text-sm text-red-800">
+            <div className=" border border-seal  px-4 py-3 mb-4 text-sm text-seal-bright">
               Error loading annual review log: {error}
             </div>
           )}

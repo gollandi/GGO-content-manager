@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import AppShell from "../../components/AppShell";
+import { RoomCrest } from "../../components/Registro";
 import MarkdownBlock from "../../components/MarkdownBlock";
 
 /**
@@ -104,10 +105,10 @@ export default function SoffittaPage() {
 
     return (
         <AppShell>
-            <div className="p-8 max-lg:p-4 max-w-4xl">
-                <header className="mb-6">
-                    <h1 className="text-2xl font-bold tracking-tight">La Soffitta</h1>
-                    <p className="text-sm text-muted-foreground mt-1">
+            <div className="room-soffitta p-8 max-lg:p-4 max-w-4xl">
+                <header className="mb-6 border-b border-plate-rule pb-4">
+                    <h1 className="document-title mt-1.5 flex items-center gap-3 text-[30px] text-plate-foreground-strong max-sm:text-[24px]"><RoomCrest room="soffitta" size={26} className="opacity-80" />La Soffitta</h1>
+                    <p className="mt-2 max-w-[38rem] text-[13px] leading-relaxed text-plate-foreground-soft">
                         Il sistema guarda i propri journal (verdetti dei critici, le tue correzioni,
                         impact outcomes, errori, costi) e propone come migliorarsi. Solo proposte:
                         finiscono sull&apos;Ernesto Desk in Pending — nessuna patch si applica da sola.
@@ -118,7 +119,7 @@ export default function SoffittaPage() {
                     <button
                         onClick={() => void runOfficina()}
                         disabled={running}
-                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-ggo-purple to-ggo-teal text-white text-sm font-semibold disabled:opacity-50"
+                        className="px-6 py-2.5 act-seal text-sm font-semibold disabled:opacity-50"
                         title="Analizza → propone → discute → applica in branch → testa → PR. Tu approvi solo il merge."
                     >
                         {running ? "Lavoro…" : "⚙︎ Officina (fino alla PR)"}
@@ -126,32 +127,32 @@ export default function SoffittaPage() {
                     <button
                         onClick={() => void run()}
                         disabled={running}
-                        className="px-5 py-2.5 rounded-xl border border-border-default text-sm font-medium disabled:opacity-50"
+                        className="px-5 py-2.5  border border-border-default text-sm font-medium disabled:opacity-50"
                         title="Solo analisi e proposte, nessun branch"
                     >
                         Solo retrospettiva
                     </button>
                 </div>
-                {notice && <div className="mb-3 text-xs text-emerald-600 whitespace-pre-wrap">{notice}</div>}
+                {notice && <div className="mb-3 text-xs text-engraving-ink whitespace-pre-wrap">{notice}</div>}
                 {workLog.length > 0 && (
-                    <div className="mb-6 p-4 rounded-xl bg-surface-muted/60 border border-border-soft font-mono text-[12px] space-y-1">
+                    <div className="mb-6 p-4  bg-surface-muted/60 border border-border-soft font-mono text-[12px] space-y-1">
                         {workLog.map((l, i) => <p key={i}>{l}</p>)}
                     </div>
                 )}
-                {error && <div className="mb-4 p-4 rounded-xl border border-red-300 bg-red-50 text-sm text-red-800">{error}</div>}
+                {error && <div className="mb-4 p-4  border border-seal px-4 py-3 text-[13px] text-seal-bright">{error}</div>}
 
                 {retros.length === 0 ? (
-                    <p className="text-sm text-subtle">Nessuna retrospettiva ancora — servono un po&apos; di run in archivio perché ci sia qualcosa da imparare.</p>
+                    <p className="text-sm text-paper-foreground-soft">Nessuna retrospettiva ancora — servono un po&apos; di run in archivio perché ci sia qualcosa da imparare.</p>
                 ) : (
                     <div className="space-y-3">
                         {retros.map((r) => (
-                            <section key={r.file} className="bg-white rounded-2xl border border-border-default">
+                            <section key={r.file} className="paper border border-paper-edge text-paper-foreground">
                                 <button
                                     onClick={() => setOpen(open === r.file ? null : r.file)}
                                     className="w-full text-left px-5 py-3 text-sm font-bold flex justify-between items-center"
                                 >
                                     {r.file.replace(/^retro-|\.md$/g, "")}
-                                    <span className="text-subtle">{open === r.file ? "▾" : "▸"}</span>
+                                    <span className="text-paper-foreground-soft">{open === r.file ? "▾" : "▸"}</span>
                                 </button>
                                 {open === r.file && (
                                     <div className="px-5 pb-5 text-sm max-h-[520px] overflow-y-auto border-t border-border-soft pt-4">

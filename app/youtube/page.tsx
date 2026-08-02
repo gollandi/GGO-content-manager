@@ -94,24 +94,24 @@ export default function YoutubePage() {
 
         <section className="page-section">
           {error && (
-            <div className="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">
+            <div className="mb-6 p-4  border border-seal px-4 py-3 text-[13px] text-seal-bright">
               {error}
             </div>
           )}
 
           <div className="grid grid-cols-4 max-xl:grid-cols-2 max-md:grid-cols-1 gap-4 mb-6">
             {[
-              { label: "YouTube assets", value: youtubeItems.length, tone: "bg-red-500/10 text-red-700" },
-              { label: "Linked videos", value: connected, tone: "bg-emerald-500/10 text-emerald-700" },
-              { label: "Missing video ID", value: missingVideoId, tone: "bg-amber-500/10 text-amber-700" },
+              { label: "YouTube assets", value: youtubeItems.length, tone: "text-plate-foreground-soft" },
+              { label: "Linked videos", value: connected, tone: "text-engraving-bright" },
+              { label: "Missing video ID", value: missingVideoId, tone: "text-sepia-bright" },
               { label: "Transcript check", value: transcriptNeeded, tone: "bg-ggo-purple/10 text-ggo-purple" },
             ].map((stat) => (
-              <div key={stat.label} className="bg-white rounded-2xl border border-border-default p-5">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${stat.tone}`}>
+              <div key={stat.label} className="flex items-baseline gap-2">
+                <div className={`w-10 h-10  flex items-center justify-center mb-4 ${stat.tone}`}>
                   <Icons.IconYoutube className="w-5 h-5" />
                 </div>
-                <div className="text-3xl font-bold">{loading ? "..." : stat.value}</div>
-                <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mt-1">{stat.label}</div>
+                <div className="tabular font-serif text-[26px] font-bold text-plate-foreground-strong">{loading ? "..." : stat.value}</div>
+                <div className="column-label">{stat.label}</div>
               </div>
             ))}
           </div>
@@ -125,38 +125,38 @@ export default function YoutubePage() {
             />
           </div>
 
-          <div className="bg-white rounded-2xl border border-border-default overflow-x-auto">
+          <div className="paper border border-paper-edge overflow-x-auto text-paper-foreground">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border-default text-left">
-                  <th className="px-4 py-3 font-semibold">Asset</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold">Pathway</th>
-                  <th className="px-4 py-3 font-semibold">Transcript</th>
-                  <th className="px-4 py-3 font-semibold">PIF Reviews</th>
-                  <th className="px-4 py-3 font-semibold text-right">Links</th>
+                <tr className="border-b-[3px] border-double border-paper-edge text-left">
+                  <th className="column-label column-label-paper px-4 py-3 font-bold">Asset</th>
+                  <th className="column-label column-label-paper px-4 py-3 font-bold">Status</th>
+                  <th className="column-label column-label-paper px-4 py-3 font-bold">Pathway</th>
+                  <th className="column-label column-label-paper px-4 py-3 font-bold">Transcript</th>
+                  <th className="column-label column-label-paper px-4 py-3 font-bold">PIF Reviews</th>
+                  <th className="column-label column-label-paper px-4 py-3 font-bold text-right">Links</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">Loading YouTube assets...</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-10 text-center text-paper-foreground-soft">Loading YouTube assets...</td></tr>
                 ) : filteredItems.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">No YouTube assets match the current filter.</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-10 text-center text-paper-foreground-soft">No YouTube assets match the current filter.</td></tr>
                 ) : filteredItems.map((item) => {
                   const youtubeUrl = getYoutubeUrl(item);
                   return (
-                    <tr key={item.id} className="border-b border-border-soft hover:bg-surface-muted/50">
+                    <tr key={item.id} className="border-b border-paper-edge hover:bg-[var(--engraving-wash)]">
                       <td className="px-4 py-3">
                         <div className="font-medium">{item.title}</div>
-                        <div className="text-xs text-subtle">{item.youtubeId ? `YouTube ID: ${normaliseYoutubeId(item.youtubeId)}` : "No YouTube ID stored"}</div>
+                        <div className="text-xs text-paper-foreground-soft">{item.youtubeId ? `YouTube ID: ${normaliseYoutubeId(item.youtubeId)}` : "No YouTube ID stored"}</div>
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge tone={getStatusTone(item.status)} label={item.status} />
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="px-4 py-3 text-paper-foreground-soft">
                         {item.pathway.length > 0 ? item.pathway.join(", ") : "-"}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="px-4 py-3 text-paper-foreground-soft">
                         {item.transcriptStatus ?? "-"}
                       </td>
                       <td className="px-4 py-3">

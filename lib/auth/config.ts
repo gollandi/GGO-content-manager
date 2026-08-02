@@ -38,6 +38,12 @@ if (process.env.COCKPIT_USER_EMAIL && cockpitHash) {
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+    // The cockpit is served by the resident LaunchAgent (`next start` on
+    // localhost:3010). In production next-auth refuses any host it has not
+    // been told to trust — dev trusts localhost implicitly, prod does not —
+    // so every API call died with UntrustedHost. Local-only service today;
+    // revisit when the VPS deploy fronts this with a real hostname.
+    trustHost: true,
     providers: [
         Google({
             clientId: process.env.GOOGLE_CLIENT_ID,
