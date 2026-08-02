@@ -6,6 +6,7 @@ import {
 import { settle } from "../../lib/settle";
 import StatusBadge from "../../components/StatusBadge";
 import AppShell from "../../components/AppShell";
+import Citofono from "../../components/Citofono";
 import { RoomCrest } from "../../components/Registro";
 
 /**
@@ -157,6 +158,7 @@ export default async function AmbrogioPage() {
                 </table>
             </section>
         </div>
+            <Citofono voice="ambrogio" />
         </AppShell>
     );
 }

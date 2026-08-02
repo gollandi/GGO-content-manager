@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "../components/AppShell";
+import Citofono from "../components/Citofono";
 import { Guilloche, Socket, Tally, AgeBar, RoomCrest, ROOM_INK, type RoomId } from "../components/Registro";
 import { ContentItem, PifValidationItem } from "../lib/notion/types";
 
@@ -542,6 +543,7 @@ export default function AtrioPage() {
           </div>
         </footer>
       </div>
-    </AppShell>
+        <Citofono voice="portineria" />
+        </AppShell>
   );
 }

@@ -11,6 +11,7 @@ import {
 import { settle, type Settled } from "../../lib/settle";
 import StatusBadge, { getStatusTone } from "../../components/StatusBadge";
 import AppShell from "../../components/AppShell";
+import Citofono from "../../components/Citofono";
 import NeedIntakeForm from "../../components/NeedIntakeForm";
 import ImpactReviewCard from "../../components/ImpactReviewCard";
 
@@ -313,6 +314,7 @@ export default async function EditorialPage({
                 </Section>
             </div>
         </div>
+            <Citofono voice="edmondo" />
         </AppShell>
     );
 }

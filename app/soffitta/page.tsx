@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import AppShell from "../../components/AppShell";
+import Citofono from "../../components/Citofono";
 import { RoomCrest } from "../../components/Registro";
 import MarkdownBlock from "../../components/MarkdownBlock";
 
@@ -164,6 +165,7 @@ export default function SoffittaPage() {
                     </div>
                 )}
             </div>
+            <Citofono voice="ettore" />
         </AppShell>
     );
 }

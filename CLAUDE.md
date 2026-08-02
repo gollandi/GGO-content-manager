@@ -50,6 +50,19 @@ Named GROQ views are exposed twice: as a library (`lib/views`) and over HTTP (`/
 - Port 3000 belongs to Edelia; do not take it.
 - VPS deployment is planned (`docs/DEPLOY-REMOTE.md`); revisit `trustHost` then.
 
+## Il Citofono (room intercom)
+
+Per-room chat with the house voices, on the existing auth: Portineria
+(atrio), Edmondo (editorial), Ettore (soffitta), Ambrogio (studio).
+Voices converse and READ their room live (`lib/citofono/voices.ts`);
+Edmondo and Ettore may deposit proposals into Content Needs (marked
+`[Proposta di <voce>, via citofono]`, always "To do"). Ambrogio has NO
+deposit tool — his independence stays structural. Route:
+`app/api/citofono/[voice]` (streaming NDJSON, `claude-sonnet-5` by
+default, override with `COCKPIT_CITOFONO_MODEL`). Transcripts live in the
+client session only. Voices never publish, never touch Sanity, never
+change workflow state.
+
 ## Design System
 
 Il Registro (seed key 9055bf41) — security engraving, seals, the register of signed decisions, with the house layer (per-room crests and inks). Everything is recorded in `DESIGN.md` + `.impeccable/design.json`; the direction contract is an HTML comment in `app/layout.tsx`. Room primitives live in `components/Registro.tsx`. Never reintroduce: rounded corners (except seals/sockets), drop shadows, gradients (except sealed wax), pill badges.
