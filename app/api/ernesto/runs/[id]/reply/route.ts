@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireWriter } from "../../../../../../lib/auth/api-guard";
+import { canApproveProposal } from "../../../../../../lib/runner/proposal-gate";
+import { loadMeta, runExists } from "../../../../../../lib/runner/store";
 import { streamLeg } from "../../../stream";
 
 /**
@@ -25,6 +27,19 @@ export async function POST(
     }
     if (!body.approve && !body.message?.trim()) {
         return new Response(JSON.stringify({ error: "message or approve required" }), { status: 400 });
+    }
+    if (body.approve) {
+        try {
+            if (!runExists(id)) {
+                return new Response(JSON.stringify({ error: `Run ${id} not found` }), { status: 404 });
+            }
+            const gate = canApproveProposal(loadMeta(id));
+            if (!gate.ok) {
+                return new Response(JSON.stringify({ error: gate.reason }), { status: 409 });
+            }
+        } catch (err) {
+            return new Response(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }), { status: 400 });
+        }
     }
     return streamLeg(req, { runId: id, userMessage: body.message, approve: body.approve });
 }

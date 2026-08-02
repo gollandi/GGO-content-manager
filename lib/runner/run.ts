@@ -16,6 +16,7 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { runnerConfig } from "../config";
+import { draftEssence } from "../portable-text/preview";
 import { ggomedRawClient } from "../sanity/clients";
 import { TOOL_DEFINITIONS, FAMILY_B_TOOLS, dispatchTool, type SkillFamily, type ToolContext } from "./tools";
 import { SHAPE_NOTES } from "./shape";
@@ -197,56 +198,6 @@ function withHistoryCache(messages: Anthropic.MessageParam[]): Anthropic.Message
     return prepared;
 }
 
-/** Slim critic payload: prose + governance only, never the full JSON dump. */
-function extractDraftEssence(doc: Record<string, unknown>): string {
-    const walk = (blocks: unknown): string => {
-        if (!Array.isArray(blocks)) return "";
-        return blocks
-            .map((b) => {
-                const block = b as Record<string, unknown>;
-                switch (block._type) {
-                    case "block": {
-                        const kids = (block.children as { text?: string }[] | undefined) ?? [];
-                        const prefix = block.style && block.style !== "normal" ? `[${block.style}] ` : "";
-                        return prefix + kids.map((k) => k.text ?? "").join("");
-                    }
-                    case "accordionBlock":
-                        return `[accordion: ${block.title}]\n` + ((block.items as Record<string, unknown>[] | undefined) ?? []).map((i) => `  · ${i.title}\n${walk(i.content)}`).join("\n");
-                    case "highlightBlock":
-                    case "infoBoxBlock":
-                        return `[${block._type}: ${block.title ?? ""}]\n${walk(block.content)}`;
-                    case "faqInlineBlock":
-                        return `[faqInlineBlock: ${((block.faqs as unknown[]) ?? []).length} FAQ refs]`;
-                    case "quizBlock":
-                        return `[quiz: ${block.question}]`;
-                    case "svgBlock":
-                        return `[svg infographic: ${block.caption ?? "no caption"}]`;
-                    case "linkCardBlock":
-                        return `[link card: ${block.title} → ${block.href}]`;
-                    case "ctaBannerBlock":
-                        return `[CTA: ${block.title}]`;
-                    default:
-                        return `[${String(block._type)}]`;
-                }
-            })
-            .join("\n");
-    };
-    const gov = doc.pifTickGovernance as Record<string, unknown> | undefined;
-    const refs = ((gov?.references as Record<string, unknown>[] | undefined) ?? [])
-        .map((r) => `- ${r.title} (${r.source ?? ""} ${r.url ?? ""})`)
-        .join("\n");
-    return [
-        `## ${doc._type}: ${doc.title ?? doc.name ?? doc.question ?? "(untitled)"}`,
-        doc.slug ? `slug: ${JSON.stringify(doc.slug)}` : "",
-        doc.description ? `description: ${doc.description}` : "",
-        doc.answer ? `answer: ${doc.answer}` : "",
-        doc.content ? walk(doc.content) : "",
-        refs ? `### references on doc\n${refs}` : "### references on doc\n(none)",
-    ]
-        .filter(Boolean)
-        .join("\n");
-}
-
 /** Run one leg of a session. Streams events via emit; persists everything. */
 export async function runLeg(
     input: LegInput,
@@ -389,7 +340,7 @@ export async function runLeg(
                 ? science.map((s, i) => `${i + 1}. ${s.claim} — ${s.source} (${s.url})`).join("\n")
                 : "(empty — no clinical claims should appear in the drafts)";
         // Essence, not raw JSON: ~70% smaller critic input, same signal.
-        const essence = docs.map(extractDraftEssence).join("\n\n---\n\n");
+        const essence = docs.map((doc) => draftEssence(doc)).join("\n\n---\n\n");
         const payload = `# SCIENCE LEDGER\n${ledger}\n\n# DRAFTS (prose + governance extract)\n${essence.slice(0, 60_000)}`;
         const critic = async (sys: string) => {
             const res = await client.messages.create(

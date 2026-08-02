@@ -19,12 +19,11 @@ import { join } from "node:path";
 import { runnerConfig } from "../config";
 import { collectSignals } from "./collect";
 import { createDeskProposal } from "../notion/desk-write";
+import { pathAllowed } from "./edit-policy";
 
 const exec = promisify(execFile);
 const REPO = process.cwd();
 
-/** Solo la conoscenza editoriale è auto-migliorabile. */
-const EDIT_ALLOWLIST = [/^skills\/[^/]+\/(SKILL\.md|references\/.+\.md)$/, /^lib\/runner\/shape\.ts$/];
 const MAX_EDITS = 8;
 
 interface ProposedEdit {
@@ -50,8 +49,6 @@ export interface OfficinaResult {
     testsPassed: boolean;
     reportPath: string;
 }
-
-const pathAllowed = (file: string) => EDIT_ALLOWLIST.some((rx) => rx.test(file));
 
 function parseJson<T>(text: string): T {
     const stripped = text.replace(/^[\s\S]*?```(?:json)?\n?/, "").replace(/\n?```[\s\S]*$/, "");
