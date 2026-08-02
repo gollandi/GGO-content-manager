@@ -9,7 +9,10 @@ const navItems = [
   { href: "/", label: "Dashboard", Icon: Icons.IconDashboard },
   // ── Cockpit modules (live GROQ + editorial state — spec Sprint 1) ──
   { href: "/editorial", label: "Editorial", Icon: Icons.IconCalendar },
+  { href: "/youtube", label: "YouTube", Icon: Icons.IconYoutube },
   { href: "/pif-tick", label: "PIF Tick", Icon: Icons.IconShield },
+  { href: "/helm-pathways", label: "Helm Pathways", Icon: Icons.IconJourney },
+  { href: "/review", label: "Il Cancello", Icon: Icons.IconShield },
   { href: "/casa-di-ernesto", label: "La Casa di Ernesto", Icon: Icons.IconEdit },
   { href: "/soffitta", label: "La Soffitta", Icon: Icons.IconAnnual },
   { href: "/ambrogio", label: "Lo Studio di Ambrogio", Icon: Icons.IconSparkles },
@@ -61,15 +64,13 @@ export default function Sidebar() {
             JJ approves, modifies or rejects everything awaiting his decision.
             Prominent by design (JJ, 2026-07-24). */}
         <div className="px-4 pb-3">
-          <a
-            href="http://127.0.0.1:4317"
-            target="_blank"
-            rel="noopener"
+          <Link
+            href="/review"
             className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-white bg-gradient-to-r from-ggo-purple to-ggo-teal font-bold text-sm shadow-glow-purple hover:scale-[1.02] transition-transform"
           >
             <Icons.IconShield className="w-[18px] h-[18px]" />
-            <span>🚪 Il Cancello — Review &amp; Publish</span>
-          </a>
+            <span>Il Cancello — Review &amp; Publish</span>
+          </Link>
         </div>
 
         {/* Navigation */}

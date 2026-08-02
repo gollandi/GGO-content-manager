@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import AppShell from "../../components/AppShell";
+import MarkdownBlock from "../../components/MarkdownBlock";
 
 /**
  * La Soffitta — il loop di self-improvement del cockpit.
@@ -153,8 +154,8 @@ export default function SoffittaPage() {
                                     <span className="text-subtle">{open === r.file ? "▾" : "▸"}</span>
                                 </button>
                                 {open === r.file && (
-                                    <div className="px-5 pb-5 text-sm whitespace-pre-wrap max-h-[520px] overflow-y-auto border-t border-border-soft pt-4">
-                                        {r.content}
+                                    <div className="px-5 pb-5 text-sm max-h-[520px] overflow-y-auto border-t border-border-soft pt-4">
+                                        <MarkdownBlock content={r.content} />
                                     </div>
                                 )}
                             </section>

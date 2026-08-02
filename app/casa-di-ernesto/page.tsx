@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import AppShell from "../../components/AppShell";
+import MarkdownBlock from "../../components/MarkdownBlock";
 import StatusBadge from "../../components/StatusBadge";
 import type { Proposal, RunEvent } from "../../lib/runner/types";
 
@@ -12,7 +14,6 @@ import type { Proposal, RunEvent } from "../../lib/runner/types";
  * I run restano in lista finché JJ non li archivia (post-publish).
  */
 
-const STUDIO_BASE = "https://ggomed.co.uk/studio";
 const SKILLS = [
     { id: "ggomed-page-writer-v2", label: "Pagine sito (page-writer)" },
     { id: "samantha-social-groupie", label: "Social captions (Samantha)" },
@@ -117,16 +118,22 @@ export default function CasaDiErnestoPage() {
 
     useEffect(() => { void loadRuns(); }, [loadRuns]);
 
-    // Prefill dal Topic Pool (?brief=…) — window.location per evitare la
+    // Prefill dal Topic Pool (?brief=…) o apertura run (?run=…) — window.location per evitare la
     // trappola Suspense di useSearchParams in prerender.
     useEffect(() => {
-        const briefParam = new URLSearchParams(window.location.search).get("brief");
+        const params = new URLSearchParams(window.location.search);
+        const runParam = params.get("run");
+        const briefParam = params.get("brief");
+        if (runParam) {
+            void openRun(runParam);
+            window.history.replaceState({}, "", "/casa-di-ernesto");
+            return;
+        }
         if (briefParam) {
             setInput(briefParam);
             window.history.replaceState({}, "", "/casa-di-ernesto");
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [openRun]);
     useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [log]);
 
     async function consumeStream(res: Response) {
@@ -219,9 +226,6 @@ export default function CasaDiErnestoPage() {
         void loadRuns();
     }
 
-    const studioLink = (d: { draftId: string; docType: string }) =>
-        `${STUDIO_BASE}/intent/edit/id=${encodeURIComponent(d.draftId.replace(/^drafts\./, ""))};type=${d.docType}`;
-
     const canChat = !!activeId && !streaming && meta?.status !== "archived";
     const showApprove = !!meta?.proposal && !meta?.proposalApproved && meta?.status === "awaiting-jj" && !streaming;
 
@@ -264,7 +268,7 @@ export default function CasaDiErnestoPage() {
                     <header className="mb-4">
                         <h1 className="text-2xl font-bold tracking-tight">La Casa di Ernesto</h1>
                         <p className="text-sm text-muted-foreground mt-1">
-                            Brief → ricerca → <strong>proposta</strong> → tua approvazione → bozze → critici → Studio.
+                            Brief → ricerca → <strong>proposta</strong> → tua approvazione → bozze → critici → Cancello.
                             Il log resta qui finché non archivi il run.
                         </p>
                     </header>
@@ -301,8 +305,8 @@ export default function CasaDiErnestoPage() {
                                     </button>
                                 )}
                             </div>
-                            <div className="text-sm whitespace-pre-wrap max-h-96 overflow-y-auto border border-border-soft rounded-xl p-4 mb-4">
-                                {meta.proposal.proposalMarkdown}
+                            <div className="text-sm max-h-96 overflow-y-auto border border-border-soft rounded-xl p-4 mb-4">
+                                <MarkdownBlock content={meta.proposal.proposalMarkdown} />
                             </div>
                             {meta.proposal.deliverables.length > 0 && (
                                 <div className="mb-4">
@@ -346,7 +350,15 @@ export default function CasaDiErnestoPage() {
                     {/* Drafts */}
                     {meta && meta.drafts.length > 0 && (
                         <section className="bg-white rounded-2xl border border-border-default p-5 mb-4">
-                            <h2 className="text-base font-bold mb-3">Bozze in Sanity — da rivedere nello Studio</h2>
+                            <div className="flex items-center justify-between gap-3 mb-3">
+                                <h2 className="text-base font-bold">Bozze in Sanity — verdetto nel Cancello</h2>
+                                <Link
+                                    href={`/review?run=${encodeURIComponent(meta.runId)}`}
+                                    className="text-xs font-semibold text-ggo-teal hover:underline shrink-0"
+                                >
+                                    Apri review interna
+                                </Link>
+                            </div>
                             <ul className="divide-y divide-border-soft">
                                 {meta.drafts.map((d) => (
                                     <li key={d.draftId} className="py-2.5 flex items-center justify-between gap-3">
@@ -354,8 +366,12 @@ export default function CasaDiErnestoPage() {
                                             <div className="text-sm font-medium">{d.title}</div>
                                             <div className="text-xs text-subtle">{d.docType}</div>
                                         </div>
-                                        <a href={studioLink(d)} target="_blank" rel="noreferrer"
-                                           className="text-xs font-semibold text-ggo-teal hover:underline shrink-0">Apri nello Studio ↗</a>
+                                        <Link
+                                            href={`/review?run=${encodeURIComponent(meta.runId)}`}
+                                            className="text-xs font-semibold text-ggo-teal hover:underline shrink-0"
+                                        >
+                                            Decidi nel Cancello
+                                        </Link>
                                     </li>
                                 ))}
                             </ul>
@@ -365,15 +381,19 @@ export default function CasaDiErnestoPage() {
                     {/* Captions (Family B) */}
                     {meta && (meta.captions?.length ?? 0) > 0 && (
                         <section className="bg-white rounded-2xl border border-border-default p-5 mb-4">
-                            <h2 className="text-base font-bold mb-3">Caption scritte sul Calendar — da schedulare tu in Notion</h2>
+                            <div className="flex items-center justify-between gap-3 mb-3">
+                                <h2 className="text-base font-bold">Caption scritte sul Calendar — verdetto nel Cancello</h2>
+                                <Link
+                                    href={`/review?run=${encodeURIComponent(meta.runId)}`}
+                                    className="text-xs font-semibold text-ggo-teal hover:underline shrink-0"
+                                >
+                                    Apri review interna
+                                </Link>
+                            </div>
                             <ul className="divide-y divide-border-soft">
                                 {meta.captions!.map((c) => (
                                     <li key={c.rowId} className="py-2.5">
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div className="text-sm font-medium">{c.rowTitle}{c.platform ? ` · ${c.platform}` : ""}</div>
-                                            <a href={`https://notion.so/${c.rowId.replace(/-/g, "")}`} target="_blank" rel="noreferrer"
-                                               className="text-xs font-semibold text-ggo-teal hover:underline shrink-0">Apri in Notion ↗</a>
-                                        </div>
+                                        <div className="text-sm font-medium">{c.rowTitle}{c.platform ? ` · ${c.platform}` : ""}</div>
                                         <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">{c.caption}</p>
                                         <p className="text-xs text-ggo-teal mt-0.5">{c.hashtags}</p>
                                     </li>
@@ -388,7 +408,9 @@ export default function CasaDiErnestoPage() {
                             {verdicts.map((v, i) => (
                                 <section key={i} className="bg-white rounded-2xl border border-border-default p-5">
                                     <h2 className="text-base font-bold mb-2">{v.critic === "tatiana" ? "Tatiana — avversariale" : "Aspasia — personas"}</h2>
-                                    <div className="text-xs whitespace-pre-wrap max-h-56 overflow-y-auto text-muted-foreground">{v.verdict}</div>
+                                    <div className="text-xs max-h-56 overflow-y-auto text-muted-foreground">
+                                        <MarkdownBlock content={v.verdict} />
+                                    </div>
                                 </section>
                             ))}
                         </div>
@@ -482,8 +504,9 @@ export default function CasaDiErnestoPage() {
                     </section>
 
                     {meta?.summary && (
-                        <div className="p-4 rounded-xl border border-emerald-300 bg-emerald-50 text-sm whitespace-pre-wrap">
-                            <StatusBadge tone="success" label="Nota di riconsegna" className="mb-2" /> {meta.summary}
+                        <div className="p-4 rounded-xl border border-emerald-300 bg-emerald-50 text-sm">
+                            <StatusBadge tone="success" label="Nota di riconsegna" className="mb-2" />
+                            <MarkdownBlock content={meta.summary} />
                         </div>
                     )}
                 </main>

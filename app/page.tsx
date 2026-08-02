@@ -49,12 +49,17 @@ export default function DashboardPage() {
     })
     .slice(0, 5);
 
-  // Currently all content assets are website pages.
-  // Future databases will populate YouTube and other platforms.
+  const isYoutubeAsset = (item: ContentItem) =>
+    item.youtubeId.trim().length > 0 ||
+    item.platform.some((platform) => platform.toLowerCase().includes("youtube"));
+
   const inventoryBreakdown = {
-    website: content.length,
-    video: 0,
-    other: 0
+    website: content.filter((item) =>
+      !isYoutubeAsset(item) &&
+      (item.liveUrl || item.platform.some((platform) => platform.toLowerCase().includes("website")))
+    ).length,
+    video: content.filter(isYoutubeAsset).length,
+    other: content.filter((item) => !item.liveUrl && !isYoutubeAsset(item)).length
   };
 
   const activeContentCount = content.length;
@@ -259,4 +264,3 @@ export default function DashboardPage() {
     </AppShell>
   );
 }
-
