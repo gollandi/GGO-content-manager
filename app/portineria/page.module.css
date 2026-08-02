@@ -1,0 +1,269 @@
+.page {
+  padding: 32px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--plate-rule);
+}
+
+.subtitle {
+  margin-top: 8px;
+  max-width: 680px;
+  color: var(--plate-fg-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.headerStamp {
+  border: 1px solid var(--engraving);
+  color: var(--engraving-bright);
+  padding: 10px 12px;
+  font-family: var(--font-condensed);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.summaryCard,
+.panel,
+.signalCard {
+  border: 1px solid var(--paper-edge);
+  background: var(--paper);
+  color: var(--paper-fg);
+}
+
+.summaryCard {
+  padding: 16px;
+  min-height: 106px;
+}
+
+.summaryLabel,
+.panelLabel,
+.metaLabel {
+  font-family: var(--font-condensed);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--paper-fg-soft);
+}
+
+.summaryValue {
+  margin-top: 10px;
+  font-family: var(--font-serif);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.summaryNote {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--paper-fg-soft);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.panel {
+  padding: 18px;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 3px double var(--paper-edge);
+}
+
+.panelTitle {
+  font-family: var(--font-serif);
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--paper-fg);
+}
+
+.chartGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.chartBox {
+  height: 260px;
+  border: 1px solid var(--paper-edge);
+  background: rgba(255, 255, 255, 0.24);
+  padding: 10px;
+}
+
+.signalList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.signalCard {
+  padding: 14px;
+}
+
+.signalTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.signalTitle {
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.signalMeta,
+.empty,
+.statusLine {
+  color: var(--paper-fg-soft);
+  font-size: 12px;
+}
+
+.signalStats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.metric {
+  border-left: 2px solid var(--engraving);
+  padding-left: 8px;
+}
+
+.metric strong {
+  display: block;
+  font-size: 15px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.button {
+  border: 1px solid var(--seal);
+  background: transparent;
+  color: var(--seal-deep);
+  cursor: pointer;
+  font-family: var(--font-condensed);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 8px 10px;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--seal-wash);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.sourcePill {
+  border: 1px solid var(--paper-edge);
+  color: var(--paper-fg-soft);
+  font-family: var(--font-condensed);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 4px 6px;
+  white-space: nowrap;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  border-bottom: 3px double var(--paper-edge);
+  color: var(--paper-fg-soft);
+  font-family: var(--font-condensed);
+  font-size: 11px;
+  text-align: left;
+  text-transform: uppercase;
+  padding: 8px;
+  white-space: nowrap;
+}
+
+.table td {
+  border-bottom: 1px solid var(--paper-edge);
+  padding: 9px 8px;
+  vertical-align: top;
+}
+
+.rowTitle {
+  min-width: 240px;
+  font-weight: 700;
+}
+
+.negative {
+  color: var(--seal-deep);
+}
+
+.positive {
+  color: var(--engraving-ink);
+}
+
+@media (max-width: 1180px) {
+  .summaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 16px;
+  }
+
+  .header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .summaryGrid,
+  .signalStats {
+    grid-template-columns: 1fr 1fr;
+  }
+}
