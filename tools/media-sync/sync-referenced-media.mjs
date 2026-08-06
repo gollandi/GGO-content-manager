@@ -81,4 +81,12 @@ execFileSync("rsync", [
     DEST + "/",
 ], { stdio: "inherit", timeout: 15 * 60 * 1000 });
 
+// macOS rsync preserves Mac home permissions (750, uid 501) which the VPS
+// service user cannot traverse — open read/traverse on the synced tree.
+const [destHost, destPath] = DEST.split(":");
+execFileSync("ssh", ["-i", SSH_KEY, "-o", "BatchMode=yes", destHost, `chmod -R a+rX ${destPath}`], {
+    stdio: "inherit",
+    timeout: 5 * 60 * 1000,
+});
+
 console.log(`media-sync: shipped ${files.length} file(s) to ${DEST}`);
