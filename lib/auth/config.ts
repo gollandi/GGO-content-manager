@@ -29,12 +29,34 @@ const CREDENTIALS_USERS: Record<string, { name: string; hash: string }> = {
 const cockpitHash = process.env.COCKPIT_USER_HASH_B64
     ? Buffer.from(process.env.COCKPIT_USER_HASH_B64, "base64").toString("utf8")
     : process.env.COCKPIT_USER_HASH;
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+const googleProvider =
+    googleClientId && googleClientSecret
+        ? Google({
+              clientId: googleClientId,
+              clientSecret: googleClientSecret,
+          })
+        : null;
 
 if (process.env.COCKPIT_USER_EMAIL && cockpitHash) {
     CREDENTIALS_USERS[process.env.COCKPIT_USER_EMAIL.toLowerCase()] = {
         name: process.env.COCKPIT_USER_NAME || "Operator",
         hash: cockpitHash,
     };
+}
+
+const publicAuthUrl = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL;
+const productionAuthUrl = "https://cockpit.ggo-suite.co.uk";
+const resolvedAuthUrl =
+    process.env.NODE_ENV === "production" &&
+    (!publicAuthUrl || /^https?:\/\/(0\.0\.0\.0|127\.0\.0\.1|localhost)(:\d+)?\/?$/i.test(publicAuthUrl))
+        ? productionAuthUrl
+        : publicAuthUrl;
+
+if (resolvedAuthUrl) {
+    process.env.AUTH_URL = resolvedAuthUrl;
+    process.env.NEXTAUTH_URL = resolvedAuthUrl;
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -45,10 +67,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     // revisit when the VPS deploy fronts this with a real hostname.
     trustHost: true,
     providers: [
-        Google({
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        }),
+        ...(googleProvider ? [googleProvider] : []),
         Credentials({
             name: "Email & Password",
             credentials: {

@@ -57,6 +57,9 @@ export const notionConfig = {
         newsletterItems: lazyDb("NOTION_NEWSLETTER_ITEMS_DB"),
         publishQueue: lazyDb("NOTION_PUBLISH_QUEUE_DB"),
         ernestoDesk: lazyDb("NOTION_ERNESTO_DESK_DB"),
+        // The house's Content Asset DB (env name matches ernesto's .env) —
+        // read by Il Cancello's website section.
+        contentAssetHouse: lazyDb("NOTION_CONTENT_ASSET_DB"),
         agentsActivityLog: lazyDb("NOTION_AGENTS_ACTIVITY_LOG_DB"),
         performanceSnapshot: lazyDb("NOTION_PERFORMANCE_SNAPSHOT_DB"),
 

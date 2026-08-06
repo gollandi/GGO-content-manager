@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireWriter } from "../../../../lib/auth/api-guard";
+import { applyCancelloDecision, type DecisionInput } from "../../../../lib/cancello/decision";
 
-const REVIEW_DASHBOARD = process.env.REVIEW_DASHBOARD_URL ?? "http://127.0.0.1:4317";
-
+/**
+ * JJ's acts on the register, applied natively. The status flip happens only
+ * in direct response to the click that reaches this route; heavy pipeline
+ * legs (Sanity staging, Buffer publish, patch apply) are delegated to the
+ * house's own jobs and CLIs — see lib/cancello/decision.ts.
+ */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -10,7 +15,7 @@ export async function POST(req: NextRequest) {
     const auth = await requireWriter();
     if (!auth.authenticated) return auth.response;
 
-    let body: unknown;
+    let body: DecisionInput;
     try {
         body = await req.json();
     } catch {
@@ -18,20 +23,12 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        const upstream = await fetch(`${REVIEW_DASHBOARD}/api/decision`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(body),
-        });
-        const text = await upstream.text();
-        return new NextResponse(text, {
-            status: upstream.status,
-            headers: { "content-type": upstream.headers.get("content-type") ?? "application/json; charset=utf-8" },
-        });
+        const result = await applyCancelloDecision(body);
+        return NextResponse.json({ ok: true, ...result });
     } catch (err) {
         return NextResponse.json(
-            { ok: false, error: `review dashboard unavailable: ${err instanceof Error ? err.message : String(err)}` },
-            { status: 502 }
+            { ok: false, error: err instanceof Error ? err.message : String(err) },
+            { status: 500 }
         );
     }
 }

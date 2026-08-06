@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "../components/AppShell";
 import Citofono from "../components/Citofono";
+import WeeklyCronReport from "../components/WeeklyCronReport";
 import { Guilloche, Socket, Tally, AgeBar, RoomCrest, ROOM_INK, type RoomId } from "../components/Registro";
 import { ContentItem, PifValidationItem } from "../lib/notion/types";
 
@@ -529,6 +530,8 @@ export default function AtrioPage() {
             ))}
           </div>
         </div>
+
+        <WeeklyCronReport />
 
         {/* The engraved strip that closes the page. */}
         <footer className="relative mt-6 border-t border-plate-rule px-10 py-6 max-sm:px-4">

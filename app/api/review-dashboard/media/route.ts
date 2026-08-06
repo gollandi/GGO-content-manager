@@ -1,35 +1,83 @@
 import { NextRequest, NextResponse } from "next/server";
+import fs from "node:fs";
+import path from "node:path";
+import { Readable } from "node:stream";
 import { requireAuth } from "../../../../lib/auth/api-guard";
+import {
+    IMAGE_EXTS, IMAGE_MIME, VIDEO_EXTS, VIDEO_MIME, isPathWithinRoots,
+} from "../../../../lib/cancello/paths";
 
-const REVIEW_DASHBOARD = process.env.REVIEW_DASHBOARD_URL ?? "http://127.0.0.1:4317";
-
+/**
+ * Local media for Il Cancello, served natively — images inline, videos with
+ * Range support so the browser can seek. Path-guarded to JJ's own media
+ * trees (~/GGOMed, ~/Movies); nothing else is readable through this route.
+ */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function proxyReviewMedia(req: NextRequest, kind: "media" | "video") {
+function toWebStream(stream: fs.ReadStream): ReadableStream {
+    return Readable.toWeb(stream) as ReadableStream;
+}
+
+export async function serveLocalMedia(req: NextRequest): Promise<NextResponse> {
     const auth = await requireAuth();
     if (!auth.authenticated) return auth.response;
 
-    const path = req.nextUrl.searchParams.get("path");
-    if (!path) return new NextResponse("path required", { status: 400 });
+    const p = req.nextUrl.searchParams.get("path");
+    if (!p) return new NextResponse("path required", { status: 400 });
+    if (!isPathWithinRoots(p)) return new NextResponse("forbidden", { status: 403 });
 
-    const headers: HeadersInit = {};
-    const range = req.headers.get("range");
-    if (range) headers.range = range;
-
+    let stat: fs.Stats;
     try {
-        const upstream = await fetch(`${REVIEW_DASHBOARD}/${kind}?path=${encodeURIComponent(path)}`, { headers });
-        const responseHeaders = new Headers();
-        for (const key of ["content-type", "content-length", "content-range", "accept-ranges"]) {
-            const value = upstream.headers.get(key);
-            if (value) responseHeaders.set(key, value);
-        }
-        return new NextResponse(upstream.body, { status: upstream.status, headers: responseHeaders });
-    } catch (err) {
-        return new NextResponse(`review dashboard unavailable: ${err instanceof Error ? err.message : String(err)}`, { status: 502 });
+        stat = fs.statSync(p);
+    } catch {
+        return new NextResponse("not found", { status: 404 });
     }
+
+    const ext = path.extname(p).toLowerCase();
+
+    if (IMAGE_EXTS.has(ext)) {
+        return new NextResponse(toWebStream(fs.createReadStream(p)), {
+            status: 200,
+            headers: { "content-type": IMAGE_MIME[ext], "content-length": String(stat.size) },
+        });
+    }
+
+    if (!VIDEO_EXTS.has(ext)) return new NextResponse("unsupported", { status: 415 });
+    const type = VIDEO_MIME[ext] || "application/octet-stream";
+
+    const range = req.headers.get("range");
+    if (range) {
+        const m = /bytes=(\d*)-(\d*)/.exec(range) || [];
+        const start = m[1] ? parseInt(m[1], 10) : 0;
+        const end = m[2] ? parseInt(m[2], 10) : stat.size - 1;
+        if (start > end || end >= stat.size) {
+            return new NextResponse(null, {
+                status: 416,
+                headers: { "content-range": `bytes */${stat.size}` },
+            });
+        }
+        return new NextResponse(toWebStream(fs.createReadStream(p, { start, end })), {
+            status: 206,
+            headers: {
+                "content-range": `bytes ${start}-${end}/${stat.size}`,
+                "accept-ranges": "bytes",
+                "content-length": String(end - start + 1),
+                "content-type": type,
+            },
+        });
+    }
+
+    return new NextResponse(toWebStream(fs.createReadStream(p)), {
+        status: 200,
+        headers: {
+            "content-length": String(stat.size),
+            "content-type": type,
+            "accept-ranges": "bytes",
+        },
+    });
 }
 
 export async function GET(req: NextRequest) {
-    return proxyReviewMedia(req, "media");
+    return serveLocalMedia(req);
 }
