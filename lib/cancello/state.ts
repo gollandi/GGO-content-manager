@@ -13,7 +13,7 @@ import { notion } from "../notion/client";
 import { notionConfig } from "../config";
 import { ggomedRawClient } from "../sanity/clients";
 import {
-    extractVideoPaths, isPathWithinRoots, IMAGE_EXTS, VIDEO_EXTS,
+    extractVideoPaths, isPathWithinRoots, resolveLocalMediaPath, IMAGE_EXTS, VIDEO_EXTS,
 } from "./paths";
 import { findPatchForAsset, patchAlreadyApplied, type PreparedPatch } from "./patches";
 import type {
@@ -143,7 +143,8 @@ async function resolveRowMedia(props: Props): Promise<MediaRef[]> {
             let p = m[1];
             try { p = decodeURIComponent(p); } catch { /* keep raw */ }
             const ext = path.extname(p).toLowerCase();
-            if (!isPathWithinRoots(p) || !fs.existsSync(p)) continue;
+            const local = resolveLocalMediaPath(p);
+            if (!isPathWithinRoots(local) || !fs.existsSync(local)) continue;
             if (IMAGE_EXTS.has(ext)) media.push({ kind: "image", url: MEDIA_URL(p) });
             else if (VIDEO_EXTS.has(ext)) media.push({ kind: "video", url: VIDEO_URL(p) });
         }
@@ -174,8 +175,9 @@ async function loadDeskRows(): Promise<DeskRow[]> {
         for (const p of candidatePaths) {
             if (seen.has(p)) continue;
             seen.add(p);
-            if (!isPathWithinRoots(p) || !fs.existsSync(p)) continue;
-            const mtimeMs = fs.statSync(p).mtimeMs;
+            const local = resolveLocalMediaPath(p);
+            if (!isPathWithinRoots(local) || !fs.existsSync(local)) continue;
+            const mtimeMs = fs.statSync(local).mtimeMs;
             videos.push({
                 url: VIDEO_URL(p),
                 name: path.basename(p),

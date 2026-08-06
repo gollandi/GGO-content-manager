@@ -4,7 +4,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { requireAuth } from "../../../../lib/auth/api-guard";
 import {
-    IMAGE_EXTS, IMAGE_MIME, VIDEO_EXTS, VIDEO_MIME, isPathWithinRoots,
+    IMAGE_EXTS, IMAGE_MIME, VIDEO_EXTS, VIDEO_MIME, isPathWithinRoots, resolveLocalMediaPath,
 } from "../../../../lib/cancello/paths";
 
 /**
@@ -23,8 +23,11 @@ export async function serveLocalMedia(req: NextRequest): Promise<NextResponse> {
     const auth = await requireAuth();
     if (!auth.authenticated) return auth.response;
 
-    const p = req.nextUrl.searchParams.get("path");
-    if (!p) return new NextResponse("path required", { status: 400 });
+    const recorded = req.nextUrl.searchParams.get("path");
+    if (!recorded) return new NextResponse("path required", { status: 400 });
+    // Recorded paths are Mac-absolute; on the VPS they land under the synced
+    // media tree. The guard applies to the path actually read.
+    const p = resolveLocalMediaPath(recorded);
     if (!isPathWithinRoots(p)) return new NextResponse("forbidden", { status: 403 });
 
     let stat: fs.Stats;
