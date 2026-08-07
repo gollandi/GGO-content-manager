@@ -70,6 +70,7 @@ export interface DeskRow {
     due: string | null;
     creditsEstimate: number | null;
     decidedAt: string | null;
+    url: string;
 }
 
 export interface PublishQueueRow {
@@ -217,6 +218,7 @@ const mapDesk = (p: PageObjectResponse): DeskRow => ({
     due: x.date(x.prop(p.properties, "Due")),
     creditsEstimate: x.number(x.prop(p.properties, "Credits Estimate")),
     decidedAt: x.date(x.prop(p.properties, "Decided At")),
+    url: p.url,
 });
 
 const mapPublishQueue = (p: PageObjectResponse): PublishQueueRow => ({
