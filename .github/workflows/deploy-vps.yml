@@ -1,0 +1,66 @@
+# Deploy to the VPS on every push to main.
+#
+# Mirrors the manual procedure exactly: rsync the sources to
+# /srv/ggo-content-manager (env, node_modules and build artefacts excluded),
+# build ON the VPS as the service user, restart the systemd unit, then fail
+# loudly unless the service answers. Secrets: VPS_SSH_KEY (dedicated deploy
+# key), VPS_HOST.
+name: Deploy VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Rsync sources
+        run: |
+          rsync -az --delete \
+            --exclude .git \
+            --exclude node_modules \
+            --exclude .next \
+            --exclude .env.local \
+            --exclude tsconfig.tsbuildinfo \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            ./ "root@${{ secrets.VPS_HOST }}:/srv/ggo-content-manager/"
+
+      - name: Build and restart
+        run: |
+          ssh -i ~/.ssh/deploy_key "root@${{ secrets.VPS_HOST }}" '
+            set -e
+            chown -R jj:jj /srv/ggo-content-manager
+            cd /srv/ggo-content-manager
+            sudo -u jj npm ci --no-audit --no-fund || sudo -u jj npm install --no-audit --no-fund
+            sudo -u jj npm run build
+            systemctl restart ggo-content-manager
+          '
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 12); do
+            sleep 5
+            code=$(ssh -i ~/.ssh/deploy_key "root@${{ secrets.VPS_HOST }}" \
+              'curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3010/login') || code=000
+            echo "attempt $i → HTTP $code"
+            if [ "$code" = "200" ]; then exit 0; fi
+          done
+          echo "service did not come up healthy" >&2
+          ssh -i ~/.ssh/deploy_key "root@${{ secrets.VPS_HOST }}" \
+            'journalctl -u ggo-content-manager --since "-3 min" --no-pager | tail -30' || true
+          exit 1
