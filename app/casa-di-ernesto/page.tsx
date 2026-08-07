@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import AppShell from "../../components/AppShell";
+import ErnestoOperationsBoard from "../../components/ErnestoOperationsBoard";
 import MarkdownBlock from "../../components/MarkdownBlock";
 import StatusBadge from "../../components/StatusBadge";
 import type { Proposal, RunEvent } from "../../lib/runner/types";
@@ -268,10 +269,12 @@ export default function CasaDiErnestoPage() {
                     <header className="mb-4">
                         <h1 className="document-title mt-1.5 text-[30px] text-plate-foreground-strong max-sm:text-[24px]">La Casa di Ernesto</h1>
                         <p className="mt-2 max-w-[38rem] text-[13px] leading-relaxed text-plate-foreground-soft">
+                            Operazioni, direttive e conversazioni: qui distribuisci il lavoro che Ernesto registra nelle sue fonti.
                             Brief → ricerca → <strong>proposta</strong> → tua approvazione → bozze → critici → Cancello.
-                            Il log resta qui finché non archivi il run.
                         </p>
                     </header>
+
+                    <ErnestoOperationsBoard />
 
                     {error && <div className="mb-4 p-4  border border-seal px-4 py-3 text-[13px] text-seal-bright">{error}</div>}
 

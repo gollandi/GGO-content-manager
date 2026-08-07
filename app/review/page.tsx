@@ -161,6 +161,8 @@ export default function ReviewPage() {
     const [error, setError] = useState<string | null>(null);
     const [busyKey, setBusyKey] = useState<string | null>(null);
     const [notes, setNotes] = useState<Record<string, string>>({});
+    /** Per-entry publish-date overrides: JJ corrects the proposed date before sealing. */
+    const [dates, setDates] = useState<Record<string, string>>({});
     const [toast, setToast] = useState<string | null>(null);
     const [openKey, setOpenKey] = useState<string | null>(null);
     const [modifyOpen, setModifyOpen] = useState(false);
@@ -313,7 +315,12 @@ export default function ReviewPage() {
         setNotes((current) => ({ ...current, [key]: value }));
     }
 
-    async function decide(entry: Entry, decision: Decision, comment: string) {
+    async function decide(
+        entry: Entry,
+        decision: Decision,
+        comment: string,
+        opts: { date?: string; publishNow?: boolean } = {}
+    ) {
         if (decision === "modify" && !comment.trim()) {
             setError(entry.target === "website"
                 ? "Scrivi cosa va cambiato: il timbro porta la nota a Edmondo."
@@ -328,7 +335,11 @@ export default function ReviewPage() {
             const res = await fetch("/api/review-dashboard/decision", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
-                body: JSON.stringify({ rowId: entry.rowId, decision, comment, target: entry.target }),
+                body: JSON.stringify({
+                    rowId: entry.rowId, decision, comment, target: entry.target,
+                    ...(opts.date ? { date: opts.date } : {}),
+                    ...(opts.publishNow ? { publishNow: true } : {}),
+                }),
             });
             const result = await res.json();
             if (!res.ok || !result.ok) throw new Error(result.error ?? "Decisione non salvata");
@@ -338,7 +349,9 @@ export default function ReviewPage() {
                 setTimeout(() => setJustSealed(null), 1200);
             }
             setToast(
-                decision === "approve" ? "Sigillato" : decision === "modify" ? "Timbrato e rimandato" : "Annullato"
+                decision === "approve"
+                    ? (opts.publishNow ? "Sigillato — pubblicazione invocata" : "Sigillato")
+                    : decision === "modify" ? "Timbrato e rimandato" : "Annullato"
             );
             setTimeout(() => setToast(null), 2600);
             setModifyOpen(false);
@@ -360,6 +373,8 @@ export default function ReviewPage() {
         const c = entry.calendar;
         const d = entry.desk;
         const w = entry.website;
+        // The publish date under JJ's pen: the proposed one until he corrects it.
+        const plannedDate = dates[entry.key] ?? (c?.date ? c.date.slice(0, 10) : "");
 
         return (
             <div className="paper flex h-full min-h-0 flex-col border border-paper-edge">
@@ -463,6 +478,27 @@ export default function ReviewPage() {
                         </>
                     )}
 
+                    {/* The proposed publish date — visible and correctable before the seal. */}
+                    {c && (
+                        <>
+                            <label className="column-label column-label-paper mb-1.5 mt-5 block" htmlFor={`date-${entry.rowId}`}>
+                                Data di pubblicazione proposta
+                            </label>
+                            <input
+                                id={`date-${entry.rowId}`}
+                                type="date"
+                                value={plannedDate}
+                                onChange={(event) => setDates((current) => ({ ...current, [entry.key]: event.target.value }))}
+                                className="border border-paper-edge bg-transparent px-3 py-2 text-[13px] text-paper-foreground outline-none focus:border-engraving-ink"
+                            />
+                            {plannedDate && c.date && plannedDate !== c.date.slice(0, 10) && (
+                                <span className="ml-3 font-condensed text-[10px] uppercase tracking-[0.14em] text-stamp">
+                                    corretta — il sigillo la registra
+                                </span>
+                            )}
+                        </>
+                    )}
+
                     {/* The registrar's note, ruled like a ledger margin. */}
                     <label className="column-label column-label-paper mb-1.5 mt-5 block" htmlFor={`note-${entry.rowId}`}>
                         Nota a {entry.target === "website" ? "Edmondo" : "Ernesto"}
@@ -509,14 +545,29 @@ export default function ReviewPage() {
                     <div className="flex flex-wrap items-center gap-2">
                         <button
                             disabled={busy}
-                            onClick={() => void decide(entry, "approve", note)}
+                            onClick={() => void decide(entry, "approve", note,
+                                entry.target === "calendar" && plannedDate ? { date: plannedDate } : {})}
                             className="act-seal flex-1 min-w-[8rem]"
                             type="button"
                         >
-                            {entry.target === "calendar" ? "Sigilla → Scheduled"
+                            {entry.target === "calendar" ? "Sigilla → in coda"
                                 : entry.target === "website" ? (entry.website?.patch ? "Sigilla → bozza Sanity" : "Commissiona a Edmondo")
                                 : "Sigilla"}
                         </button>
+                        {entry.target === "calendar" && (
+                            <button
+                                disabled={busy}
+                                onClick={() => void decide(entry, "approve", note, {
+                                    ...(plannedDate ? { date: plannedDate } : {}),
+                                    publishNow: true,
+                                })}
+                                className="act-seal flex-1 min-w-[9rem]"
+                                type="button"
+                                title="Sigilla e invoca subito i job di staging e pubblicazione"
+                            >
+                                Sigilla e pubblica ora
+                            </button>
+                        )}
                         <button
                             disabled={busy}
                             onClick={() => setModifyOpen(true)}

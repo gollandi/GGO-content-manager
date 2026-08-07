@@ -1,27 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "../../../../lib/auth/api-guard";
+import { loadCancelloState } from "../../../../lib/cancello/state";
 
-const REVIEW_DASHBOARD = process.env.REVIEW_DASHBOARD_URL ?? "http://127.0.0.1:4317";
-
+/**
+ * Il Cancello's state, assembled natively — the resident review-dashboard
+ * service on :4317 is retired; the cockpit reads Notion, the patch store and
+ * Sanity itself. Response shape unchanged.
+ */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
-    const auth = await requireAuth();
-    if (!auth.authenticated) return auth.response;
+/**
+ * Machine-to-machine read access (the media-sync job on the Mac): same
+ * env-gated bearer as /api/views. Read-only — decisions stay session-only.
+ */
+function serviceTokenOk(req: NextRequest): boolean {
+    const expected = process.env.COCKPIT_SERVICE_TOKEN;
+    if (!expected) return false;
+    return req.headers.get("authorization") === `Bearer ${expected}`;
+}
 
-    const refresh = req.nextUrl.searchParams.get("refresh") === "1" ? "?refresh=1" : "";
+export async function GET(req: NextRequest) {
+    if (!serviceTokenOk(req)) {
+        const auth = await requireAuth();
+        if (!auth.authenticated) return auth.response;
+    }
+
     try {
-        const upstream = await fetch(`${REVIEW_DASHBOARD}/api/state${refresh}`, { cache: "no-store" });
-        const body = await upstream.text();
-        return new NextResponse(body, {
-            status: upstream.status,
-            headers: { "content-type": upstream.headers.get("content-type") ?? "application/json; charset=utf-8" },
+        const state = await loadCancelloState({
+            refresh: req.nextUrl.searchParams.get("refresh") === "1",
         });
+        return NextResponse.json(state);
     } catch (err) {
         return NextResponse.json(
-            { error: `review dashboard unavailable: ${err instanceof Error ? err.message : String(err)}` },
-            { status: 502 }
+            { error: err instanceof Error ? err.message : String(err) },
+            { status: 500 }
         );
     }
 }

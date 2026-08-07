@@ -16,7 +16,11 @@ export default auth((req) => {
         pathname.startsWith("/favicon") ||
         // View API does its own auth (NextAuth session OR service token for
         // headless consumers) — a login redirect would break machine calls.
-        pathname.startsWith("/api/views")
+        pathname.startsWith("/api/views") ||
+        // Same contract for the Cancello state read: the route accepts the
+        // service token (read-only) and otherwise enforces the session
+        // itself — the redirect would break the media-sync job.
+        pathname === "/api/review-dashboard/state"
     ) {
         return NextResponse.next();
     }
