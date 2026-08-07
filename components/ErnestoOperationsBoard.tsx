@@ -40,7 +40,29 @@ interface DeskItem {
   status: string | null;
   priority: string | null;
   due: string | null;
+  url?: string;
 }
+
+/**
+ * The Desk holds very different natures of row — an agent's doubt is not a
+ * work order is not a piece of content waiting to publish. JJ reads them in
+ * separate ledgers, each with its own label, never shuffled together.
+ */
+const DESK_FAMILIES: { key: string; label: string; types: string[] }[] = [
+  { key: "voices", label: "Domande e perplessità degli agenti", types: ["question", "budget-request"] },
+  { key: "proposals", label: "Proposte e piani", types: ["recommendation", "plan-proposal"] },
+  { key: "production", label: "Produzione e pubblicazione", types: ["clip-script", "long-video-proposal", "publish-approval"] },
+];
+
+const DESK_TYPE_LABEL: Record<string, string> = {
+  question: "Domanda",
+  "budget-request": "Richiesta budget",
+  recommendation: "Proposta",
+  "plan-proposal": "Piano",
+  "clip-script": "Script clip",
+  "long-video-proposal": "Long video",
+  "publish-approval": "Da pubblicare",
+};
 
 interface OperationsData {
   activity: ActivityRow[];
@@ -119,6 +141,13 @@ export default function ErnestoOperationsBoard() {
   const [instruction, setInstruction] = useState("");
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  /** Quick directive anchored to one asset — opened from the card itself. */
+  const [quickAsset, setQuickAsset] = useState<MediaAsset | null>(null);
+  const [quickTitle, setQuickTitle] = useState("");
+  const [quickText, setQuickText] = useState("");
+  const [quickAgent, setQuickAgent] = useState(AGENTS[0]);
+  const [quickSending, setQuickSending] = useState(false);
+  const [quickNotice, setQuickNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -176,6 +205,37 @@ export default function ErnestoOperationsBoard() {
     setSelectedAssetIds((ids) =>
       ids.includes(assetId) ? ids.filter((id) => id !== assetId) : [...ids, assetId]
     );
+  }
+
+  async function sendQuickDirective(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!quickAsset) return;
+    setQuickSending(true);
+    setQuickNotice(null);
+    try {
+      const response = await fetch("/api/ernesto/directives", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: quickTitle,
+          instruction: quickText,
+          agent: quickAgent,
+          type: "recommendation",
+          priority: "Normal",
+          mediaAssetIds: [quickAsset.id],
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Unable to file directive");
+      setQuickNotice("Registrata sul Desk come Pending — la sigilli nel Cancello.");
+      setQuickTitle("");
+      setQuickText("");
+      await load();
+    } catch (err) {
+      setQuickNotice(err instanceof Error ? err.message : "Unable to file directive");
+    } finally {
+      setQuickSending(false);
+    }
   }
 
   async function sendDirective(event: React.FormEvent<HTMLFormElement>) {
@@ -452,10 +512,22 @@ export default function ErnestoOperationsBoard() {
                     </div>
                   </div>
                 </button>
-                <label className="flex cursor-pointer items-center gap-2 border-t border-paper-edge px-2.5 py-2 text-[11px] text-paper-foreground-soft">
-                  <input type="checkbox" checked={linked} onChange={() => toggleAsset(asset.id)} />{" "}
-                  Collega alla direttiva
-                </label>
+                {/* The card's own menu — every act happens here, at this level. */}
+                <div className="flex items-center gap-2 border-t border-paper-edge px-2.5 py-2 text-[11px]">
+                  <label className="flex cursor-pointer items-center gap-1.5 text-paper-foreground-soft">
+                    <input type="checkbox" checked={linked} onChange={() => toggleAsset(asset.id)} /> Collega
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickAsset(asset);
+                      setQuickNotice(null);
+                    }}
+                    className="ml-auto font-semibold text-engraving-ink hover:underline"
+                  >
+                    Direttiva
+                  </button>
+                </div>
               </article>
             );
           })}
@@ -477,25 +549,133 @@ export default function ErnestoOperationsBoard() {
             Apri Il Cancello
           </Link>
         </div>
-        <div className="grid grid-cols-3 gap-3 max-lg:grid-cols-1">
-          {openDesk.slice(0, 9).map((item) => (
-            <div key={item.id} className="border border-paper-edge p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="text-sm font-semibold">{item.item}</div>
-                <StatusBadge tone={statusTone(item.status)} label={item.status ?? "-"} />
+        {/* One ledger per nature: doubts, proposals and production never mixed. */}
+        <div className="grid grid-cols-3 gap-4 max-lg:grid-cols-1">
+          {DESK_FAMILIES.map((family) => {
+            const rows = openDesk.filter((item) => family.types.includes(item.type ?? ""));
+            const others = family.key === "proposals"
+              ? openDesk.filter((item) => !DESK_FAMILIES.some((f) => f.types.includes(item.type ?? "")))
+              : [];
+            const visible = [...rows, ...others];
+            return (
+              <div key={family.key} className="min-w-0">
+                <div className="column-label column-label-paper mb-2 border-b border-paper-edge pb-1.5">
+                  {family.label} · {visible.length}
+                </div>
+                <div className="space-y-2">
+                  {visible.slice(0, 6).map((item) => (
+                    <div key={item.id} className="border border-paper-edge p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 text-sm font-semibold">{item.item}</div>
+                        <StatusBadge tone={statusTone(item.status)} label={item.status ?? "-"} />
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-paper-foreground-soft">
+                        <span className="border border-paper-edge px-1.5 py-0.5 font-condensed text-[10px] uppercase tracking-[0.1em]">
+                          {DESK_TYPE_LABEL[item.type ?? ""] ?? item.type ?? "altro"}
+                        </span>
+                        {item.priority && <span>{item.priority}</span>}
+                        {item.due && <span>entro {item.due.slice(0, 10)}</span>}
+                        {/* The card's own actions — no trip to the top of the page. */}
+                        <span className="ml-auto flex gap-2">
+                          {item.url && (
+                            <a href={item.url} target="_blank" rel="noreferrer" className="font-semibold text-engraving-ink hover:underline">
+                              Apri
+                            </a>
+                          )}
+                          {item.status === "Pending" && (
+                            <Link href="/review" className="font-semibold text-engraving-ink hover:underline">
+                              Decidi
+                            </Link>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {visible.length > 6 && (
+                    <p className="text-[11px] text-paper-foreground-soft">e altre {visible.length - 6}…</p>
+                  )}
+                  {!loading && visible.length === 0 && (
+                    <p className="border border-dashed border-paper-edge px-3 py-4 text-center text-xs text-paper-foreground-soft">
+                      Niente qui.
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="mt-1 text-xs text-paper-foreground-soft">
-                {[item.type, item.priority, item.due?.slice(0, 10)].filter(Boolean).join(" | ")}
-              </div>
-            </div>
-          ))}
-          {!loading && openDesk.length === 0 && (
-            <p className="col-span-full py-6 text-center text-sm text-paper-foreground-soft">
-              Nessuna direttiva aperta.
-            </p>
-          )}
+            );
+          })}
         </div>
       </section>
+
+      {/* Quick directive: opened from an asset card, filed without leaving it. */}
+      {quickAsset && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-plate/90 p-4"
+          onClick={() => setQuickAsset(null)}
+        >
+          <form
+            onSubmit={sendQuickDirective}
+            className="w-full max-w-lg border border-paper-edge bg-paper p-5 text-paper-foreground"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <div className="column-label column-label-paper">Direttiva su questo asset</div>
+                <h3 className="mt-1 text-base font-bold line-clamp-1">{quickAsset.title || "Asset"}</h3>
+              </div>
+              <button type="button" className="act-quiet" onClick={() => setQuickAsset(null)}>
+                Chiudi
+              </button>
+            </div>
+            <label className="block text-xs font-semibold">
+              Agente
+              <select
+                value={quickAgent}
+                onChange={(event) => setQuickAgent(event.target.value)}
+                className="mt-1 w-full border border-paper-edge bg-paper px-2.5 py-2 text-sm font-normal"
+              >
+                {AGENTS.map((entry) => (
+                  <option key={entry}>{entry}</option>
+                ))}
+              </select>
+            </label>
+            <label className="mt-3 block text-xs font-semibold">
+              Titolo
+              <input
+                value={quickTitle}
+                onChange={(event) => setQuickTitle(event.target.value)}
+                required
+                maxLength={190}
+                className="mt-1 w-full border border-paper-edge bg-paper px-3 py-2.5 text-sm font-normal outline-none focus:border-engraving"
+              />
+            </label>
+            <label className="mt-3 block text-xs font-semibold">
+              Cosa va fatto
+              <textarea
+                value={quickText}
+                onChange={(event) => setQuickText(event.target.value)}
+                required
+                rows={4}
+                className="mt-1 w-full resize-y border border-paper-edge bg-paper px-3 py-2.5 text-sm font-normal outline-none focus:border-engraving"
+              />
+            </label>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <span className="text-xs text-paper-foreground-soft">Asset collegato automaticamente</span>
+              <button
+                type="submit"
+                disabled={quickSending || !quickTitle.trim() || !quickText.trim()}
+                className="act-seal"
+              >
+                {quickSending ? "Registro…" : "Invia al Desk"}
+              </button>
+            </div>
+            {quickNotice && (
+              <p className="mt-3 border-t border-paper-edge pt-3 text-xs text-paper-foreground-soft">{quickNotice}</p>
+            )}
+          </form>
+        </div>
+      )}
 
       {selectedAsset && (
         <div
