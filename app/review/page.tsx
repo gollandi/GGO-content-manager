@@ -478,44 +478,43 @@ export default function ReviewPage() {
                         </>
                     )}
 
-                    {/* The proposed publish date — visible and correctable before the seal. */}
-                    {c && (
-                        <>
-                            <label className="column-label column-label-paper mb-1.5 mt-5 block" htmlFor={`date-${entry.rowId}`}>
-                                Data di pubblicazione proposta
-                            </label>
-                            <input
-                                id={`date-${entry.rowId}`}
-                                type="date"
-                                value={plannedDate}
-                                onChange={(event) => setDates((current) => ({ ...current, [entry.key]: event.target.value }))}
-                                className="border border-paper-edge bg-transparent px-3 py-2 text-[13px] text-paper-foreground outline-none focus:border-engraving-ink"
-                            />
-                            {plannedDate && c.date && plannedDate !== c.date.slice(0, 10) && (
-                                <span className="ml-3 font-condensed text-[10px] uppercase tracking-[0.14em] text-stamp">
-                                    corretta — il sigillo la registra
-                                </span>
-                            )}
-                        </>
-                    )}
-
-                    {/* The registrar's note, ruled like a ledger margin. */}
-                    <label className="column-label column-label-paper mb-1.5 mt-5 block" htmlFor={`note-${entry.rowId}`}>
-                        Nota a {entry.target === "website" ? "Edmondo" : "Ernesto"}
-                    </label>
-                    <textarea
-                        id={`note-${entry.rowId}`}
-                        value={note}
-                        onChange={(event) => setNote(entry.key, event.target.value)}
-                        rows={2}
-                        placeholder="Facoltativa per il sigillo, obbligatoria per il timbro…"
-                        className="w-full border border-paper-edge bg-transparent px-3 py-2 text-[13px] text-paper-foreground outline-none placeholder:text-paper-foreground-soft focus:border-engraving-ink"
-                    />
                 </div>
 
-                {/* The three acts, pinned at the foot — under the thumb on a phone.
-                    Once an act lands, the record replaces the buttons: one act per entry. */}
+                {/* The command bar: date, note and the three acts live TOGETHER,
+                    pinned at the foot and always in view — one level, no travel.
+                    Once an act lands, the record replaces the buttons. */}
                 <div className="border-t border-paper-edge bg-paper-shade px-5 py-3">
+                    {!act && (
+                        <div className="mb-2.5 flex flex-wrap items-end gap-3">
+                            {c && (
+                                <label className="text-[10px] font-condensed uppercase tracking-[0.14em] text-paper-foreground-soft">
+                                    Pubblicazione
+                                    <input
+                                        id={`date-${entry.rowId}`}
+                                        type="date"
+                                        value={plannedDate}
+                                        onChange={(event) => setDates((current) => ({ ...current, [entry.key]: event.target.value }))}
+                                        className="mt-1 block border border-paper-edge bg-transparent px-2.5 py-1.5 text-[13px] normal-case tracking-normal text-paper-foreground outline-none focus:border-engraving-ink"
+                                    />
+                                </label>
+                            )}
+                            <label className="min-w-[12rem] flex-1 text-[10px] font-condensed uppercase tracking-[0.14em] text-paper-foreground-soft">
+                                Nota a {entry.target === "website" ? "Edmondo" : "Ernesto"}
+                                <input
+                                    id={`note-${entry.rowId}`}
+                                    value={note}
+                                    onChange={(event) => setNote(entry.key, event.target.value)}
+                                    placeholder="Facoltativa per il sigillo, obbligatoria per il timbro…"
+                                    className="mt-1 block w-full border border-paper-edge bg-transparent px-2.5 py-1.5 text-[13px] normal-case tracking-normal text-paper-foreground outline-none placeholder:text-paper-foreground-soft focus:border-engraving-ink"
+                                />
+                            </label>
+                            {c && plannedDate && c.date && plannedDate !== c.date.slice(0, 10) && (
+                                <span className="pb-2 font-condensed text-[10px] uppercase tracking-[0.14em] text-stamp">
+                                    data corretta
+                                </span>
+                            )}
+                        </div>
+                    )}
                     {act ? (
                         <div className="flex items-center gap-3" role="status">
                             {act.decision === "approve" ? (
@@ -599,7 +598,9 @@ export default function ReviewPage() {
 
     return (
         <AppShell>
-            <div className="relative flex min-h-screen flex-col overflow-hidden">
+            {/* The spread is the viewport: each leaf scrolls by itself, the acts
+                never leave the eye. */}
+            <div className="relative flex h-[100dvh] flex-col overflow-hidden">
                 <Guilloche
                     size={900}
                     rings={4}
@@ -681,8 +682,20 @@ export default function ReviewPage() {
                                     </p>
                                 </div>
                             ) : (
-                                <ul>
-                                    {entries.map((entry) => {
+                                ([
+                                    ["Social", "Calendario sociale"],
+                                    ["Desk", "Scrivania di Ernesto"],
+                                    ["Website", "Sito"],
+                                ] as const).map(([family, label]) => {
+                                    const rows = entries.filter((e) => e.family === family);
+                                    if (rows.length === 0) return null;
+                                    return (
+                                <ul key={family}>
+                                    <li className="sticky top-0 z-10 flex items-baseline justify-between border-b border-paper-edge bg-paper-shade px-4 py-2">
+                                        <span className="column-label column-label-paper">{label}</span>
+                                        <span className="serial text-paper-foreground-soft">[{rows.length}]</span>
+                                    </li>
+                                    {rows.map((entry) => {
                                         const active = entry.key === openKey;
                                         const act = acted[entry.key];
                                         return (
@@ -736,6 +749,8 @@ export default function ReviewPage() {
                                         );
                                     })}
                                 </ul>
+                                    );
+                                })
                             )}
                         </div>
 
