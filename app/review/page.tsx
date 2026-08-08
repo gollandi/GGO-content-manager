@@ -36,7 +36,11 @@ interface WebsiteArticle {
     rowId: string; title: string; status: string | null; category: string | null; reviewDue: string | null;
     lastReviewed: string | null; liveUrl: string | null; url: string;
     proposals: { need: string; details: string; actionStatus: string | null; url: string }[];
-    patch: { id: string; title: string | null; rationale: string | null; sources: string[]; operations: string[]; sanityDocId: string; batch?: string } | null;
+    patch: {
+        id: string; title: string | null; rationale: string | null; sources: string[];
+        operations: { type: string; anchorText: string | null; newText: string | null; blocksText: string | null; blocksCount: number }[];
+        sanityDocId: string; batch?: string;
+    } | null;
     patchState?: "awaiting-publish" | "published";
     draftId?: string;
 }
@@ -255,14 +259,17 @@ export default function ReviewPage() {
                 .filter((row) => row.status === "Pending" && !wallIds.has(row.rowId))
                 .map(fromDesk),
             ...state.website
-                .filter((row) => row.patch && row.patchState !== "awaiting-publish")
+                .filter((row) => row.patch)
                 .map((row): Entry => ({
                     key: `website:${row.rowId}`,
                     rowId: row.rowId,
                     target: "website",
                     family: "Website",
                     title: row.title,
-                    stateLabel: "Patch pronta",
+                    // A draft already staged opens like any document — the change
+                    // is read HERE, not on Notion; only the final publish lives
+                    // in Sanity Studio.
+                    stateLabel: row.patchState === "awaiting-publish" ? "Bozza in Sanity — da pubblicare" : "Patch pronta",
                     dueDays: null,
                     hasMedia: false,
                     notionUrl: row.url,
@@ -277,12 +284,6 @@ export default function ReviewPage() {
     const laterSections = useMemo(() => {
         if (!state) return [];
         return [
-            {
-                label: "Bozze già in Sanity — apri Studio e pubblica",
-                rows: state.website
-                    .filter((r) => r.patchState === "awaiting-publish")
-                    .map((r) => ({ key: `w:${r.rowId}`, title: r.title, state: `bozza ${r.draftId ?? ""}`, url: r.url }))
-            },
             {
                 label: "In lavorazione adesso",
                 rows: [
@@ -456,14 +457,40 @@ export default function ReviewPage() {
                             {w.patch && (
                                 <div className="mt-3 border border-engraving px-3 py-2.5 text-[12px]">
                                     <p className="font-condensed text-[10px] font-bold uppercase tracking-[0.14em] text-engraving-ink">
-                                        Patch pronta — il sigillo la applica come bozza Sanity, non pubblica
+                                        {w.patchState === "awaiting-publish"
+                                            ? "Bozza già in Sanity — rileggi qui, pubblica in Studio"
+                                            : "Patch pronta — il sigillo la applica come bozza Sanity, non pubblica"}
                                     </p>
                                     <p className="mt-1.5 text-paper-foreground">
-                                        {w.patch.title ?? w.patch.id} · {w.patch.operations.length} operazioni · {w.patch.sanityDocId}
+                                        {w.patch.title ?? w.patch.id} · {w.patch.operations.length} operazioni
                                     </p>
                                     {w.patch.rationale && (
                                         <MarkdownBlock content={w.patch.rationale} className="mt-2 text-paper-foreground-soft" />
                                     )}
+
+                                    {/* What the draft actually does, change by change. */}
+                                    <div className="mt-3 space-y-2.5">
+                                        {w.patch.operations.map((op, index) => (
+                                            <div key={index} className="border-l-2 border-engraving pl-2.5">
+                                                <p className="font-condensed text-[10px] font-bold uppercase tracking-[0.12em] text-paper-foreground-soft">
+                                                    {index + 1} · {op.type === "replace-text" ? "Sostituisce"
+                                                        : op.type === "insert-after" ? `Inserisce ${op.blocksCount} blocco/i dopo`
+                                                        : op.type === "append" ? `Aggiunge ${op.blocksCount} blocco/i in coda`
+                                                        : op.type}
+                                                </p>
+                                                {op.anchorText && (
+                                                    <p className="mt-1 text-paper-foreground-soft line-through decoration-[var(--stamp)]/60 whitespace-pre-wrap">
+                                                        {op.anchorText}
+                                                    </p>
+                                                )}
+                                                {(op.newText || op.blocksText) && (
+                                                    <p className="mt-1 text-paper-foreground whitespace-pre-wrap">
+                                                        {op.newText ?? op.blocksText}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                             {w.proposals.length > 0 && (
@@ -486,6 +513,12 @@ export default function ReviewPage() {
                     pinned at the foot and always in view — one level, no travel.
                     Once an act lands, the record replaces the buttons. */}
                 <div className="border-t border-paper-edge bg-paper-shade px-5 py-3">
+                    {w?.patchState === "awaiting-publish" ? (
+                        <p className="font-condensed text-[12px] font-bold uppercase tracking-[0.14em] text-engraving-ink">
+                            La bozza è già in Sanity ({w.draftId ?? "drafts"}) — l&apos;unico atto che resta è pubblicarla in Studio.
+                        </p>
+                    ) : (
+                    <>
                     {!act && (
                         <div className="mb-2.5 flex flex-wrap items-end gap-3">
                             {c && (
@@ -602,6 +635,8 @@ export default function ReviewPage() {
                             </button>
                         )}
                     </div>
+                    )}
+                    </>
                     )}
                 </div>
             </div>

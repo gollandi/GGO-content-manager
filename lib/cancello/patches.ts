@@ -73,6 +73,33 @@ export function findPatchForAsset(assetId: string | null | undefined): PreparedP
     );
 }
 
+export interface PatchOperationView {
+    type: string;
+    anchorText: string | null;
+    newText: string | null;
+    blocksText: string | null;
+    blocksCount: number;
+}
+
+const blockPlainText = (blocks: { _key?: string; children?: { text?: string }[] }[] | undefined): string =>
+    (blocks ?? [])
+        .map((b) => (b.children ?? []).map((c) => c.text ?? "").join(""))
+        .filter(Boolean)
+        .join("\n");
+
+/** What the patch actually does, readable in the register — no Studio trip. */
+export function operationViews(patch: PreparedPatch): PatchOperationView[] {
+    return (patch.operations ?? []).map((op) => ({
+        type: op.type,
+        anchorText: op.anchorText ? op.anchorText.slice(0, 240) : null,
+        newText: op.newText ? op.newText.slice(0, 700) : null,
+        blocksText: op.blocks?.length
+            ? blockPlainText(op.blocks as { children?: { text?: string }[] }[]).slice(0, 700) || null
+            : null,
+        blocksCount: op.blocks?.length ?? 0,
+    }));
+}
+
 /**
  * Deterministic "already applied" test — inserted blocks carry patch-derived
  * `_key`s, replacements leave their `newText` behind. Mirrors the applier's

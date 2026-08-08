@@ -15,7 +15,10 @@ import { ggomedRawClient } from "../sanity/clients";
 import {
     extractVideoPaths, isPathWithinRoots, resolveLocalMediaPath, IMAGE_EXTS, VIDEO_EXTS,
 } from "./paths";
-import { findPatchForAsset, patchAlreadyApplied, type PreparedPatch } from "./patches";
+import {
+    findPatchForAsset, patchAlreadyApplied, operationViews,
+    type PreparedPatch, type PatchOperationView,
+} from "./patches";
 import type {
     PageObjectResponse, QueryDatabaseResponse,
 } from "@notionhq/client/build/src/api-endpoints";
@@ -40,7 +43,7 @@ export interface WebsiteArticle {
     proposals: { need: string; details: string; actionStatus: string | null; url: string }[];
     patch: {
         id: string; title: string | null; rationale: string | null; sources: string[];
-        operations: string[]; sanityDocId: string; batch: string;
+        operations: PatchOperationView[]; sanityDocId: string; batch: string;
     } | null;
     patchState?: "awaiting-publish" | "published";
     draftId?: string;
@@ -280,7 +283,7 @@ async function loadWebsiteReview(warnings: string[]): Promise<WebsiteArticle[]> 
                 title: patch.title || null,
                 rationale: patch.rationale || null,
                 sources: patch.sources || [],
-                operations: (patch.operations || []).map((o) => o.type),
+                operations: operationViews(patch),
                 sanityDocId: patch.sanityDocId,
                 batch: patch.batch,
             } : null,
