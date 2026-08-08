@@ -45,7 +45,7 @@ export async function POST(
         return Response.json({ error: "Invalid JSON" }, { status: 400 });
     }
     const history = (body.messages ?? [])
-        .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+        .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim().length > 0)
         .slice(-30);
     if (history.length === 0 || history[history.length - 1].role !== "user") {
         return Response.json({ error: "Last message must be from JJ" }, { status: 400 });
@@ -117,18 +117,23 @@ export async function POST(
                     const toolUses = blocks.filter(
                         (b): b is Anthropic.ToolUseBlock => b?.type === "tool_use"
                     );
-                    const assistantContent = blocks.map((b) => {
-                        if (b.type === "tool_use") {
-                            const raw = (b as { _json?: string })._json;
-                            return {
-                                type: "tool_use" as const,
-                                id: b.id,
-                                name: b.name,
-                                input: raw ? JSON.parse(raw) : {}
-                            };
-                        }
-                        return { type: "text" as const, text: b.type === "text" ? b.text : "" };
-                    });
+                    // An empty text block (the model "clearing its throat" before a
+                    // tool call) must not travel back — the API rejects it with 400
+                    // "text content blocks must be non-empty".
+                    const assistantContent = blocks
+                        .map((b) => {
+                            if (b.type === "tool_use") {
+                                const raw = (b as { _json?: string })._json;
+                                return {
+                                    type: "tool_use" as const,
+                                    id: b.id,
+                                    name: b.name,
+                                    input: raw ? JSON.parse(raw) : {}
+                                };
+                            }
+                            return { type: "text" as const, text: b.type === "text" ? b.text : "" };
+                        })
+                        .filter((b) => b.type !== "text" || b.text.trim().length > 0);
                     messages.push({ role: "assistant", content: assistantContent });
 
                     const results: Anthropic.ToolResultBlockParam[] = [];
