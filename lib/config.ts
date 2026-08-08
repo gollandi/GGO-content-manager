@@ -57,9 +57,12 @@ export const notionConfig = {
         newsletterItems: lazyDb("NOTION_NEWSLETTER_ITEMS_DB"),
         publishQueue: lazyDb("NOTION_PUBLISH_QUEUE_DB"),
         ernestoDesk: lazyDb("NOTION_ERNESTO_DESK_DB"),
-        // The house's Content Asset DB (env name matches ernesto's .env) —
-        // read by Il Cancello's website section.
-        contentAssetHouse: lazyDb("NOTION_CONTENT_ASSET_DB"),
+        // The website registry read by Il Cancello. Ernesto's .env calls it
+        // NOTION_CONTENT_ASSET_DB; the cockpit has always held the same DB
+        // as NOTION_CONTENT_ASSETS_DB (verified identical, 2026-08-08) — so
+        // either name works and no new variable is required.
+        contentAssetHouse: () =>
+            process.env.NOTION_CONTENT_ASSET_DB || required("NOTION_CONTENT_ASSETS_DB"),
         agentsActivityLog: lazyDb("NOTION_AGENTS_ACTIVITY_LOG_DB"),
         performanceSnapshot: lazyDb("NOTION_PERFORMANCE_SNAPSHOT_DB"),
 
