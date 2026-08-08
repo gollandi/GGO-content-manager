@@ -18,7 +18,7 @@ import { Guilloche, Socket, Mark, AgeBar, type MarkTone } from "../../components
  * acts pinned under the thumb. One hand, between clinics.
  */
 
-type Decision = "approve" | "modify" | "reject";
+type Decision = "approve" | "modify" | "reject" | "done";
 type Target = "desk" | "calendar" | "website";
 
 interface VideoRef { url: string; name?: string; path?: string; ageDays?: number }
@@ -351,7 +351,9 @@ export default function ReviewPage() {
             setToast(
                 decision === "approve"
                     ? (opts.publishNow ? "Sigillato — pubblicazione invocata" : "Sigillato")
-                    : decision === "modify" ? "Timbrato e rimandato" : "Annullato"
+                    : decision === "modify" ? "Timbrato e rimandato"
+                    : decision === "done" ? "Archiviato — non tornerà a chiedere"
+                    : "Annullato"
             );
             setTimeout(() => setToast(null), 2600);
             setModifyOpen(false);
@@ -533,7 +535,7 @@ export default function ReviewPage() {
                                 </span>
                             ) : (
                                 <span className="font-condensed text-[12px] font-bold uppercase tracking-[0.14em] text-paper-foreground-soft line-through">
-                                    Annullato
+                                    {act.decision === "done" ? "Archiviato" : "Annullato"}
                                 </span>
                             )}
                             <span className="ml-auto text-[11px] italic text-paper-foreground-soft">
@@ -585,6 +587,18 @@ export default function ReviewPage() {
                                 style={{ color: "var(--paper-fg-soft)", borderColor: "var(--paper-edge)" }}
                             >
                                 Annulla
+                            </button>
+                        )}
+                        {entry.target === "desk" && (
+                            <button
+                                disabled={busy}
+                                onClick={() => void decide(entry, "done", note)}
+                                className="act-void flex-1 min-w-[7rem]"
+                                type="button"
+                                title="Lavoro già eseguito altrove: chiude la riga, non tornerà a chiedere"
+                                style={{ color: "var(--paper-fg-soft)", borderColor: "var(--paper-edge)" }}
+                            >
+                                Già fatto — archivia
                             </button>
                         )}
                     </div>
