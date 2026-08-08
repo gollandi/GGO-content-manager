@@ -34,7 +34,12 @@ export interface PreparedPatch {
 }
 
 export function patchRoot(): string {
-    return join(ernestoHouseDir(), "docs", "edmondo-patches");
+    const houseRoot = join(ernestoHouseDir(), "docs", "edmondo-patches");
+    if (existsSync(houseRoot)) return houseRoot;
+    // On the VPS the house repo does not exist; the media-sync job ships the
+    // patch specs alongside the media, so the already-applied filter works
+    // there too and published patches stop haunting the register.
+    return "/srv/ggomed-media/edmondo-patches";
 }
 
 export function loadPatches(root = patchRoot()): PreparedPatch[] {
