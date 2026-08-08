@@ -81,6 +81,18 @@ execFileSync("rsync", [
     DEST + "/",
 ], { stdio: "inherit", timeout: 15 * 60 * 1000 });
 
+// The prepared-patch specs travel too (tiny JSON): the VPS needs them to
+// recognise already-applied patches and drop those cards from the register.
+const PATCH_DIR = path.join(HOME, "Documents", "GitHub", "ernesto-agents-house", "docs", "edmondo-patches");
+if (existsSync(PATCH_DIR)) {
+    execFileSync("rsync", [
+        "-az", "--delete", "--perms", "--chmod=a+rX",
+        "-e", `ssh -i ${SSH_KEY} -o BatchMode=yes`,
+        PATCH_DIR + "/",
+        DEST + "/edmondo-patches/",
+    ], { stdio: "inherit", timeout: 5 * 60 * 1000 });
+}
+
 // macOS rsync preserves Mac home permissions (750, uid 501) which the VPS
 // service user cannot traverse — open read/traverse on the synced tree.
 const [destHost, destPath] = DEST.split(":");
