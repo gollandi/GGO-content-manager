@@ -22,12 +22,16 @@ import { findPatchForAsset } from "./patches";
 import { kickstartJob, runHouseScript } from "./house";
 import { invalidateCancelloCache } from "./state";
 
-export type Decision = "approve" | "modify" | "reject";
+export type Decision = "approve" | "modify" | "reject" | "done";
 export type Target = "desk" | "calendar" | "website";
 
 // Verbatim from the house's core/publish-state.js — approve is publish.
-const STATUS_MAPS: Record<"desk" | "calendar", Record<Decision, string>> = {
-    desk: { approve: "Approved", reject: "Rejected", modify: "Pending" },
+// `done` is JJ's broom: work already carried out elsewhere (a draft he
+// published in Studio, a request that lapsed) — the row closes and stops
+// haunting the register. Desk only; unproduced calendar work is
+// rescheduled, never archived.
+const STATUS_MAPS: Record<"desk" | "calendar", Partial<Record<Decision, string>>> = {
+    desk: { approve: "Approved", reject: "Rejected", modify: "Pending", done: "Done" },
     calendar: { approve: "Approved", modify: "Draft", reject: "Blocked" },
 };
 const COMMENT_PROP: Record<"desk" | "calendar", string> = {

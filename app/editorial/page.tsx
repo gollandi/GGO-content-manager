@@ -11,6 +11,8 @@ import {
 import { settle, type Settled } from "../../lib/settle";
 import StatusBadge, { getStatusTone } from "../../components/StatusBadge";
 import AppShell from "../../components/AppShell";
+import ArticleActions from "../../components/ArticleActions";
+import { loadPatches } from "../../lib/cancello/patches";
 import Citofono from "../../components/Citofono";
 import NeedIntakeForm from "../../components/NeedIntakeForm";
 import ImpactReviewCard from "../../components/ImpactReviewCard";
@@ -69,6 +71,10 @@ export default async function EditorialPage({
             settle(getNewsletterItems),
             settle(getContentNeeds),
         ]);
+
+    // Prepared patches on the house's disk, keyed by Sanity doc id: the table
+    // shows which pages already have reviewed work waiting at the gate.
+    const patchDocIds = new Set(loadPatches().map((p) => p.sanityDocId));
 
     const today = new Date().toISOString().slice(0, 10);
     const reviewDue = (d: string | null) => !!d && d <= today;
@@ -158,6 +164,7 @@ export default async function EditorialPage({
                                 <th className="column-label column-label-paper px-3 py-2 font-bold whitespace-nowrap">Last reviewed</th>
                                 <th className="column-label column-label-paper px-3 py-2 font-bold text-center">PIF</th>
                                 <th className="column-label column-label-paper px-3 py-2 font-bold whitespace-nowrap">Updated</th>
+                                <th className="column-label column-label-paper px-3 py-2 font-bold text-right">Lavori</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -172,6 +179,13 @@ export default async function EditorialPage({
                                     <td className="px-3 py-2 text-paper-foreground-soft whitespace-nowrap">{r.lastReviewed ?? "—"}</td>
                                     <td className="px-3 py-2 text-center">{r.showPifTick ? "✓" : "—"}</td>
                                     <td className="px-3 py-2 text-paper-foreground-soft whitespace-nowrap">{r._updatedAt.slice(0, 10)}</td>
+                                    <td className="px-3 py-2 text-right align-top">
+                                        <ArticleActions
+                                            title={r.title ?? "(untitled)"}
+                                            pathname={r.pathname ?? null}
+                                            patchReady={patchDocIds.has(r._id)}
+                                        />
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
