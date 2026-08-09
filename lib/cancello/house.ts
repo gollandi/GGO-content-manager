@@ -19,10 +19,14 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 export function ernestoHouseDir(): string {
-    return (
-        process.env.ERNESTO_HOUSE_DIR ||
-        join(os.homedir(), "Documents", "GitHub", "ernesto-agents-house")
-    );
+    if (process.env.ERNESTO_HOUSE_DIR) return process.env.ERNESTO_HOUSE_DIR;
+    // The clone moved from ~/Documents to ~/Developer (2026-08-08); accept
+    // either so a future move only needs the env var.
+    const candidates = [
+        join(os.homedir(), "Developer", "GitHub", "ernesto-agents-house"),
+        join(os.homedir(), "Documents", "GitHub", "ernesto-agents-house"),
+    ];
+    return candidates.find((c) => existsSync(c)) ?? candidates[0];
 }
 
 export function houseAvailable(): boolean {

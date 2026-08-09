@@ -83,8 +83,11 @@ execFileSync("rsync", [
 
 // The prepared-patch specs travel too (tiny JSON): the VPS needs them to
 // recognise already-applied patches and drop those cards from the register.
-const PATCH_DIR = path.join(HOME, "Documents", "GitHub", "ernesto-agents-house", "docs", "edmondo-patches");
-if (existsSync(PATCH_DIR)) {
+const PATCH_DIR = [
+    path.join(HOME, "Developer", "GitHub", "ernesto-agents-house", "docs", "edmondo-patches"),
+    path.join(HOME, "Documents", "GitHub", "ernesto-agents-house", "docs", "edmondo-patches"),
+].find(existsSync);
+if (PATCH_DIR) {
     execFileSync("rsync", [
         "-az", "--delete", "--perms", "--chmod=a+rX",
         "-e", `ssh -i ${SSH_KEY} -o BatchMode=yes`,
