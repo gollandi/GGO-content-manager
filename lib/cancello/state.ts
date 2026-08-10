@@ -152,6 +152,21 @@ async function resolveRowMedia(props: Props): Promise<MediaRef[]> {
             else if (VIDEO_EXTS.has(ext)) media.push({ kind: "video", url: VIDEO_URL(p) });
         }
     }
+    // Stories carry no Media Assets relation: their card is a parameterised
+    // image rendered by ggomed.co.uk, referenced in the Card URL property
+    // (page-story-writer, ernesto-agents-house 1a59714). Same-host only, in
+    // the spirit of the brand-asset guard.
+    if (media.length === 0) {
+        const cardUrl = propText(props, "Card URL");
+        if (cardUrl) {
+            try {
+                const host = new URL(cardUrl).hostname;
+                if (host === "ggomed.co.uk" || host.endsWith(".ggomed.co.uk")) {
+                    media.push({ kind: "image", url: cardUrl });
+                }
+            } catch { /* an unparseable URL yields no media — not fatal */ }
+        }
+    }
     return media;
 }
 
@@ -232,7 +247,9 @@ async function loadCalendarRows(): Promise<CalendarRow[]> {
             hashtags: propText(row.properties, "Hashtags") || "",
             notes: propText(row.properties, "Notes") || "",
             canva: propText(row.properties, "Canva Link"),
-            hasAssets: relationIds(row.properties, "Media Assets").length > 0,
+            hasAssets:
+                relationIds(row.properties, "Media Assets").length > 0 ||
+                Boolean(propText(row.properties, "Card URL")),
             // Inline media only where JJ decides (Review) — resolving assets
             // for every Draft row was most of the old load time.
             media: status === "Review" ? await resolveRowMedia(row.properties) : [],
