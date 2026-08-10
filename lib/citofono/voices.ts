@@ -6,7 +6,10 @@
  * Powers are deliberately bounded:
  *   - voices never publish, never touch Sanity, never write workflow state;
  *   - Ambrogio is read-only BY CONSTRUCTION: no proposal tool, and this app
- *     holds no write path to his databases (asserted in tests);
+ *     holds no write path to his databases (asserted in tests). This file in
+ *     particular contains no Notion write at all — the one write the intercom
+ *     may perform lives in ./tools/deposita-proposta.ts, so that a reader can
+ *     confirm the boundary from this file alone rather than by tracing arrays;
  *   - every action beyond a proposal goes through the existing channels
  *     (Ernesto's runner, Il Cancello, the skills).
  */
@@ -22,66 +25,15 @@ import {
     getAmbrogioProposals,
     getAgentsActivityLog
 } from "../notion/editorial";
-import { notion } from "../notion/client";
-import { notionConfig } from "../config";
+import { depositaProposta } from "./tools/deposita-proposta";
+import type { ToolSpec, VoiceId } from "./types";
 
-export type VoiceId = "portineria" | "edmondo" | "ettore" | "ambrogio";
-
-export interface ToolResultPayload {
-    ok: boolean;
-    data?: unknown;
-    error?: string;
-}
-
-interface ToolSpec {
-    name: string;
-    description: string;
-    input_schema: { type: "object"; properties: Record<string, unknown>; required?: string[] };
-    run: (input: Record<string, unknown>, ctx: { isWriter: boolean; voice: VoiceId }) => Promise<ToolResultPayload>;
-}
+// Re-exported so existing importers keep their paths. The definitions moved to
+// ./types purely so a tool can live in its own module without importing this
+// registry back — see tools/deposita-proposta.ts for why that matters.
+export type { VoiceId, ToolResultPayload } from "./types";
 
 /* ── Shared tools ──────────────────────────────────────────────────────── */
-
-const depositaProposta: ToolSpec = {
-    name: "deposita_proposta",
-    description:
-        "Deposit a written proposal into the Content Needs register (the house's intake). Use ONLY when JJ agrees the idea is worth recording. The proposal enters as 'To do' and JJ triages it like any other need — depositing is not approval.",
-    input_schema: {
-        type: "object",
-        properties: {
-            need: { type: "string", description: "The proposal title, one line, concrete" },
-            details: { type: "string", description: "The reasoning: what, why, expected effect" }
-        },
-        required: ["need", "details"]
-    },
-    run: async (input, ctx) => {
-        if (!ctx.isWriter) {
-            return { ok: false, error: "JJ's session lacks writer role; the proposal was not recorded." };
-        }
-        const need = String(input.need ?? "").trim();
-        const details = String(input.details ?? "").trim();
-        if (!need) return { ok: false, error: "need is required" };
-        const page = await notion.pages.create({
-            parent: { database_id: notionConfig.dbs.contentNeeds() },
-            properties: {
-                Need: { title: [{ type: "text", text: { content: need.slice(0, 190) } }] },
-                Source: { select: { name: "Internal" } },
-                "Action Status": { status: { name: "To do" } },
-                Details: {
-                    rich_text: [
-                        {
-                            type: "text",
-                            text: {
-                                content: `[Proposta di ${ctx.voice}, via citofono] ${details}`.slice(0, 1990)
-                            }
-                        }
-                    ]
-                }
-            }
-        });
-        return { ok: true, data: { recorded: true, pageId: page.id } };
-    }
-};
 
 const trim = <T,>(rows: T[], n: number) => rows.slice(0, n);
 
