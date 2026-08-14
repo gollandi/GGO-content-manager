@@ -10,6 +10,8 @@ import bcryptjs from "bcryptjs";
  *
  * To generate a hash: node -e "require('bcryptjs').hash('password', 10).then(console.log)"
  */
+const MIN_PASSWORD_LENGTH = 12;
+
 const CREDENTIALS_USERS: Record<string, { name: string; hash: string }> = {
     // Example:
     // "admin@ggomed.co.uk": { name: "JJ", hash: "$2a$10$..." },
@@ -78,6 +80,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 const email = (credentials?.email as string)?.toLowerCase();
                 const password = credentials?.password as string;
                 if (!email || !password) return null;
+
+                // Password policy: minimum 12 characters, no upper limit.
+                // The stored bcrypt hash must belong to a compliant password.
+                if (password.length < MIN_PASSWORD_LENGTH) return null;
 
                 const user = CREDENTIALS_USERS[email];
                 if (!user) return null;
