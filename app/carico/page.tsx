@@ -41,6 +41,26 @@ interface Manifest {
     completedAt: string | null;
 }
 
+/** What the worker made of a deposit — read-only, it runs on the server. */
+interface Job {
+    id: string;
+    status: "running" | "ready" | "failed";
+    error?: string;
+    outputs: { role: string; bytes: number }[];
+    notes?: string[];
+    probe?: { durationSeconds: number };
+}
+
+/** Output roles in the operator's language, not the worker's. */
+const OUTPUT_LABELS: Record<string, string> = {
+    "roll-a": "roll A",
+    "roll-b": "roll B",
+    poster: "fermo immagine",
+    audio: "audio",
+    "transcript-srt": "sottotitoli",
+    "transcript-txt": "trascrizione",
+};
+
 type Phase = "idle" | "uploading" | "assembling" | "done" | "error" | "paused";
 
 function formatBytes(bytes: number): string {
@@ -67,6 +87,38 @@ function formatWhen(iso: string | null): string {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * What the worker did with a deposit. Absent while the timer has not yet
+ * come round to it — silence here means "not yet", never "lost".
+ */
+function WorkerLine({ job }: { job: Job | undefined }) {
+    if (!job) {
+        return (
+            <div className="column-label mt-1 text-plate-foreground-soft">
+                in attesa del worker
+            </div>
+        );
+    }
+    if (job.status === "running") {
+        return <div className="column-label mt-1 text-plate-foreground-soft">in lavorazione</div>;
+    }
+    if (job.status === "failed") {
+        return (
+            <div className="column-label mt-1 text-seal-deep" title={job.error}>
+                lavorazione fallita
+            </div>
+        );
+    }
+
+    const made = job.outputs.map((o) => OUTPUT_LABELS[o.role] ?? o.role).join(", ");
+    return (
+        <div className="column-label mt-1 text-plate-foreground-soft">
+            lavorato{made ? ` · ${made}` : ""}
+            {job.notes?.length ? ` · ${job.notes.join(" · ")}` : ""}
+        </div>
+    );
+}
+
 export default function CaricoPage() {
     const [file, setFile] = useState<File | null>(null);
     const [kind, setKind] = useState<string>("talking-head");
@@ -75,6 +127,7 @@ export default function CaricoPage() {
     const [sent, setSent] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const [inbox, setInbox] = useState<Manifest[]>([]);
+    const [jobs, setJobs] = useState<Record<string, Job>>({});
 
     /** Kept across a pause so "Riprendi" resumes instead of restarting. */
     const uploadId = useRef<string | null>(null);
@@ -88,10 +141,23 @@ export default function CaricoPage() {
         } catch {
             /* the inbox listing is informational — never block the upload */
         }
+        try {
+            const res = await fetch("/api/media/jobs");
+            if (res.ok) {
+                const list: Job[] = (await res.json()).jobs ?? [];
+                setJobs(Object.fromEntries(list.map((job) => [job.id, job])));
+            }
+        } catch {
+            /* same: what the worker made of it is never load-bearing here */
+        }
     }, []);
 
     useEffect(() => {
         void loadInbox();
+        // The worker runs on its own timer; poll so a deposit stops reading
+        // "in lavorazione" without JJ having to reload the room.
+        const tick = setInterval(() => void loadInbox(), 60_000);
+        return () => clearInterval(tick);
     }, [loadInbox]);
 
     function reset() {
@@ -389,6 +455,7 @@ export default function CaricoPage() {
                                                 {m.note}
                                             </div>
                                         )}
+                                        <WorkerLine job={jobs[m.id]} />
                                     </div>
                                     <span className="serial whitespace-nowrap text-xs text-plate-foreground-soft">
                                         {m.status === "ready" ? "pronto" : m.status}

@@ -129,6 +129,50 @@ Sanity or Notion, and the three publish gates are untouched.
 
 Retention is not automated yet — prune `inbox/` once outputs are approved.
 
+### The worker (Family C, second half)
+
+`tools/worker/carico-worker.mjs` consumes the inbox. It ships with the app,
+so a deploy updates it; what lives outside the repo is provisioned by
+`tools/vps/worker-setup.sh inspect|apply` (ffmpeg static, whisper.cpp with
+the `base` model, `ready/`, and the systemd unit + timer).
+
+```bash
+scp -i ~/.ssh/ionos_ggo_xl tools/vps/worker-setup.sh root@85.215.37.39:/root/
+ssh -i ~/.ssh/ionos_ggo_xl root@85.215.37.39 '/root/worker-setup.sh inspect'
+ssh -i ~/.ssh/ionos_ggo_xl root@85.215.37.39 '/root/worker-setup.sh apply'
+```
+
+`ggo-carico-worker.timer` fires `ggo-carico-worker.service` every 5 minutes
+as `jj`. The service is `Type=oneshot` rather than a daemon: a pass that
+wedges cannot wedge its successor, and the journal reads as discrete passes.
+`Nice=10` and `IOSchedulingClass=idle` keep ffmpeg from starving the cockpit
+JJ is using. One pass handles at most `COCKPIT_WORKER_BATCH` (3) manifests,
+so a backlog drains in timer-sized bites.
+
+What a pass does, by `kind`:
+
+| kind | output in `ready/<id>/` |
+|---|---|
+| `dual-roll` | side-by-side (width ≥ 2×height) split into `roll-a.mp4` + `roll-b.mp4`; a single-camera clip is left whole and noted as needing Titti's transcript pairing |
+| `talking-head` | `poster.jpg`, `audio.wav` (16 kHz mono), `transcript.srt` + `.txt` |
+| `voce` | audio + transcript |
+| `b-roll`, `altro` | probe + `poster.jpg` |
+
+Every pass writes `ready/<id>/job.json` — created exclusively (`wx`), which
+is also how a job is claimed, so an overlapping timer cannot double-run one.
+A job left `running` for more than 6 hours is treated as abandoned and
+reclaimed. Failures are recorded in `job.json` rather than thrown away.
+
+Watching it:
+
+```bash
+journalctl -u ggo-carico-worker.service -n 50 --no-pager
+systemctl list-timers ggo-carico-worker.timer
+```
+
+Transcription is optional equipment: if whisper-cli or the model is missing,
+the job still delivers its media outputs and records the gap in `notes`.
+
 **Keep the media root outside `/srv/ggo-content-manager`.** The deploy
 rsyncs with `--delete`, so footage stored inside the app directory would be
 erased by the next push to main. `/srv/ggo-media` is a sibling path for
@@ -138,10 +182,10 @@ exactly that reason.
 
 - The local resident service (LaunchAgent on `localhost:3010`) continues
   to run in parallel.
-- The video worker (Greta/Titti): ffmpeg still runs on the Mac. Footage no
-  longer has to — Il Carico lands it in `/srv/ggo-media/inbox` on the
-  server; the worker that consumes those manifests is the remaining half of
-  Family C.
+- Greta's and Titti's full edits: the first pass over the material now runs
+  on the server (split, probe, poster, transcript), but the editing
+  judgement — Titti pairing two rolls by transcript similarity, Greta's
+  micro-cuts — stays on the Mac with the skills.
 - Ernesto's skills stay in `~/.claude` on the Mac.
 
 ## Mirror retirement (Phase 2 tail)

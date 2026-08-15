@@ -77,6 +77,14 @@ Sanity or Notion writes, no publish gate touched. nginx needs
 `client_max_body_size` and `proxy_request_buffering off` (see
 `docs/DEPLOY-REMOTE.md`).
 
+The worker (`tools/worker/carico-worker.mjs`) is the other half: a systemd
+timer on the VPS runs one pass every 5 minutes as `jj`, routing by `kind`
+(dual-roll → split into two rolls for Titti; talking-head/voce → audio +
+Whisper transcript; everything → probe + poster). Outputs land in
+`ready/<id>/` with a `job.json`, surfaced read-only at `/api/media/jobs`
+and on `/carico`. Provisioning: `tools/vps/worker-setup.sh inspect|apply`.
+The worker never publishes — review stays JJ's, through Il Cancello.
+
 ## Design System
 
 Il Registro (seed key 9055bf41) — security engraving, seals, the register of signed decisions, with the house layer (per-room crests and inks). Everything is recorded in `DESIGN.md` + `.impeccable/design.json`; the direction contract is an HTML comment in `app/layout.tsx`. Room primitives live in `components/Registro.tsx`. Never reintroduce: rounded corners (except seals/sockets), drop shadows, gradients (except sealed wax), pill badges.
@@ -96,7 +104,7 @@ npm run retire:mirrors  # Retire mirror DBs (guarded: --apply --views-live + par
 - The 11 legacy pages still read the doomed Notion mirror DBs (retirement gated on parity + views-live).
 - No proprietary cache tier yet (SEMrush/GA4 metrics still ad hoc).
 - Atrium reporting lines exist only for rooms with HTTP endpoints; Ambrogio and Helm report "nessun riporto".
-- Family C is half-built: Il Carico ingests footage to the server (`/carico`), the worker that consumes the inbox manifests is still to come. The Notion→Sanity native-state migration remains a deliberate Phase-2 leftover.
+- Family C is built end to end on the server (ingest + worker), but the worker's first pass is deliberately shallow: it splits, probes, posters and transcribes. Titti's transcript-similarity pairing of two separately recorded rolls, and Greta's actual edit, still run on the Mac. The Notion→Sanity native-state migration remains a deliberate Phase-2 leftover.
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
