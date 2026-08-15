@@ -20,7 +20,16 @@ export default auth((req) => {
         // Same contract for the Cancello state read: the route accepts the
         // service token (read-only) and otherwise enforces the session
         // itself — the redirect would break the media-sync job.
-        pathname === "/api/review-dashboard/state"
+        pathname === "/api/review-dashboard/state" ||
+        // Il Carico's two listing endpoints do their own auth (session OR
+        // service token) so the worker and ernesto can poll the inbox and
+        // the worker's output headlessly. The exemption is per path, not
+        // per method, so POST /api/media/uploads passes through here too —
+        // it is guarded by requireWriter() in the route, which answers 401
+        // rather than redirecting. Chunk deposit (…/uploads/<id>) is not
+        // exempted at all.
+        pathname === "/api/media/uploads" ||
+        pathname === "/api/media/jobs"
     ) {
         return NextResponse.next();
     }
