@@ -68,8 +68,21 @@ backoff): a clip that dies halfway up on 4G resumes rather than restarts.
 
 ### Server setup (once)
 
+Automated: run the **Carico setup (VPS)** workflow (Actions → Run workflow)
+with `mode: inspect` to see the server as it is, then `mode: apply`. It goes
+over the same SSH channel as the deploy, so no key is needed locally. The
+whole procedure is `tools/vps/carico-setup.sh` — idempotent, safe to re-run,
+and runnable by hand if you prefer:
+
 ```bash
-ssh -i ~/.ssh/ionos_ggo_xl root@85.215.37.39
+scp -i ~/.ssh/ionos_ggo_xl tools/vps/carico-setup.sh root@85.215.37.39:/root/
+ssh -i ~/.ssh/ionos_ggo_xl root@85.215.37.39 '/root/carico-setup.sh inspect'
+ssh -i ~/.ssh/ionos_ggo_xl root@85.215.37.39 '/root/carico-setup.sh apply'
+```
+
+What `apply` does, should you want to do it yourself instead:
+
+```bash
 mkdir -p /srv/ggo-media/{inbox,staging}
 chown -R jj:jj /srv/ggo-media
 ```
@@ -81,8 +94,9 @@ COCKPIT_MEDIA_ROOT=/srv/ggo-media
 ```
 
 nginx buffers request bodies by default and caps them at 1 MB, which would
-reject every chunk. In `/etc/nginx/conf.d/ggo-content-manager.conf`, inside
-the `server` block:
+reject every chunk. The script writes an additive drop-in,
+`/etc/nginx/conf.d/00-carico-upload.conf`, rather than editing the existing
+server block — nothing to corrupt, and undoing it is deleting one file:
 
 ```nginx
 client_max_body_size 32m;      # one chunk (16 MiB ceiling) plus headroom
@@ -90,7 +104,10 @@ client_body_timeout  300s;     # a slow 4G chunk is not a dead client
 proxy_request_buffering off;   # stream chunks through instead of spooling
 ```
 
-Then `nginx -t && systemctl reload nginx` and restart the app unit.
+`conf.d` is included inside `http{}`, so these are defaults for every vhost
+on the box; a server block that sets its own `client_max_body_size` would
+still win. The script runs `nginx -t` and reverts the drop-in if nginx
+refuses it, so a bad config never survives to a reload.
 
 ### Layout and the handoff contract
 
