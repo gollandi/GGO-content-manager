@@ -112,6 +112,11 @@ Sanity or Notion, and the three publish gates are untouched.
 
 Retention is not automated yet — prune `inbox/` once outputs are approved.
 
+**Keep the media root outside `/srv/ggo-content-manager`.** The deploy
+rsyncs with `--delete`, so footage stored inside the app directory would be
+erased by the next push to main. `/srv/ggo-media` is a sibling path for
+exactly that reason.
+
 ## What stays on the Mac
 
 - The local resident service (LaunchAgent on `localhost:3010`) continues
