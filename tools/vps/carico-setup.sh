@@ -23,6 +23,7 @@ ENV_FILE="${ENV_FILE:-/etc/ggo-content-manager.env}"
 SERVICE="${SERVICE:-ggo-content-manager}"
 SITE_CONF="${SITE_CONF:-/etc/nginx/conf.d/ggo-content-manager.conf}"
 APP_URL="${APP_URL:-http://127.0.0.1:3010}"
+SITE_HOST="${SITE_HOST:-cockpit.ggo-suite.co.uk}"
 
 mode="${1:-inspect}"
 
@@ -154,6 +155,25 @@ verify() {
     rule "/carico is served"
     curl -s -o /dev/null -w "carico → %{http_code} (307 to /login = auth gate holding)\n" \
         "$APP_URL/carico"
+
+    # The one directive that matters, proved rather than reasoned about.
+    # This goes THROUGH nginx (--resolve, not $APP_URL, which would bypass
+    # it): a 2 MB body would come back 413 against the stock 1 MB cap.
+    rule "nginx passes a chunk-sized body"
+    local big code2
+    big=$(mktemp)
+    head -c 2000000 /dev/zero | tr "\0" "x" >"$big"
+    code2=$(curl -sk -o /dev/null -w "%{http_code}" \
+        --resolve "$SITE_HOST:443:127.0.0.1" \
+        -X POST -H "Content-Type: application/octet-stream" \
+        --data-binary "@$big" \
+        "https://$SITE_HOST/api/media/uploads") || code2=000
+    rm -f "$big"
+    if [ "$code2" = "413" ]; then
+        echo "413 — nginx is still capping the body; the drop-in is not in effect" >&2
+        exit 1
+    fi
+    echo "2 MB body → HTTP $code2 (anything but 413 means nginx let it through)"
 }
 
 case "$mode" in
