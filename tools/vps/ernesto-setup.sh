@@ -34,7 +34,7 @@ PREFIX="${PREFIX:-ggo-ernesto}"
 # Only jobs whose inputs and outputs are Notion/Sanity/HTTP belong here.
 # Anything that reads the Mac's filesystem, drives the `claude` CLI, or
 # needs ffmpeg on local footage stays on the Mac — see docs/DEPLOY-REMOTE.md.
-JOBS_FILE="${JOBS_FILE:-$APP_DIR/tools/vps-jobs.txt}"
+JOBS_FILE="${JOBS_FILE:-/etc/ggo-ernesto-jobs.txt}"
 
 mode="${1:-inspect}"
 
@@ -82,13 +82,47 @@ apply() {
     if [ ! -f "$ENV_FILE" ]; then
         # A template with names only. JJ fills the values with NEW tokens.
         cat > "$ENV_FILE" <<'ENVEOF'
-# ernesto-agents-house on the VPS — fill with NEW tokens, not the Mac's.
+# ernesto-agents-house on the VPS.
+#
+# Fill these with NEW credentials, not the Mac's: two sets means either can
+# be revoked without taking the other down. Names only here — nothing was
+# copied from the Mac.
+#
+# Wave 1 needs the token plus the database ids the night jobs touch. The
+# scripts fail loudly and immediately on a missing id (schema guard), so an
+# omission shows up on the first run, not silently at 2am.
+
 NOTION_TOKEN=
-SANITY_PROJECT_ID=
-SANITY_API_VERSION=
-GGOMED_SITE_URL=
+
+# Every wave-1 job logs its run here. Without it they still work — the log
+# row is skipped silently — but then a failed night run leaves no trace.
+NOTION_AGENTS_ACTIVITY_LOG_DB=
+
+NOTION_CONTENT_ASSET_DB=
+NOTION_CONTENT_NEEDS_DB=
+NOTION_CONTENT_CALENDAR_DB=
+NOTION_MEDIA_ASSETS_DB=
+NOTION_TOPIC_POOL_DB=
+NOTION_ERNESTO_DESK_DB=
+NOTION_PERFORMANCE_SNAPSHOT_DB=
+NOTION_NATASCIA_WEEKLY_REPORTS_DB=
+
+# weekly-schema-check verifies every database, so it wants the rest too.
+NOTION_NEWSLETTER_ITEMS_DB=
+NOTION_PIF_TICK_COMPLIANCE_DB=
+NOTION_PUBLISH_QUEUE_DB=
+NOTION_AMBROGIO_PROPOSALS_DB=
+
+# The cockpit's named views, already live on this machine.
 COCKPIT_VIEWS_URL=https://cockpit.ggo-suite.co.uk
 COCKPIT_SERVICE_TOKEN=
+
+# Wave 2 only — leave empty until the matching job is uncommented.
+# SANITY_PROJECT_ID=
+# SANITY_DATASET=
+# SANITY_WRITE_TOKEN=
+# GGOMED_SITE_URL=
+# GGOMED_PUBLISH_BEARER=
 ENVEOF
         chmod 600 "$ENV_FILE"
         chown root:root "$ENV_FILE"

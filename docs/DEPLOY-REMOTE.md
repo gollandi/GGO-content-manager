@@ -178,6 +178,75 @@ rsyncs with `--delete`, so footage stored inside the app directory would be
 erased by the next push to main. `/srv/ggo-media` is a sibling path for
 exactly that reason.
 
+## ernesto's scheduled jobs on the server
+
+The night runs were failing because the Mac's connection goes soft after
+dark. Il Carico took the Mac out of the ingest path; this takes it out of
+the batch path — for the jobs whose whole world is Notion or HTTP.
+
+Deployed to `/srv/ggo-ernesto` by rsync from the Mac (the repo is private
+and the VPS holds no GitHub credentials), dependencies via pnpm:
+
+```bash
+cd ~/Developer/GitHub/ernesto-agents-house
+rsync -az --exclude .git --exclude node_modules --exclude .env \
+  --exclude secrets --exclude outputs --exclude snapshots \
+  -e "ssh -i ~/.ssh/ionos_ggo_xl" ./ root@85.215.37.39:/srv/ggo-ernesto/
+```
+
+**`.env` and `secrets/` are excluded on purpose.** The server's credentials
+are created on the server, in `/etc/ggo-ernesto.env` (root, 0600), with new
+tokens — so either set can be revoked without taking the other down.
+
+Provision with `tools/vps/ernesto-setup.sh inspect|apply|enable`; which jobs
+move is `tools/vps/ernesto-jobs.txt`, copied to `/etc/ggo-ernesto-jobs.txt`.
+
+### Wave 1 — moved
+
+`nightly-review-due` (02:00), `evolution-review` (05:45),
+`morning-sitemap-fetch` (06:00), `morning-orphan-check` (06:30),
+`video-pressure` (06:55), `ingester-health-check` (07:47),
+`weekly-natascia-summary` (Mon 08:00), `weekly-schema-check` (Sun 22:47).
+
+Times are the launchd times unchanged — the VPS clock is already
+Europe/London, so an hour still means what it meant.
+
+### Staying on the Mac, and why
+
+Not scheduling preferences, facts about what the jobs do:
+
+| job | why it cannot move |
+|---|---|
+| `ernesto-headless`, `consiglio-headless`, `ettore-maintainer` | spawn the `claude` CLI and run skills from `~/.claude`; Ernesto also drives ffmpeg over footage in `~/GGOMed/pipeline` |
+| `ambrogio-cartografina` | it *is* a scan of the Mac — `launchctl`, `~/.claude/skills`, the local git clones, the PIF Tick ecosystem JSON |
+| `weekly-media-gc` | deletes footage under `~/GGOMed/pipeline/output` |
+
+`daily-throughput-ledger` is moveable but writes its ledger inside the
+checkout, so running it here would split the ledger across two machines —
+left on the Mac until that state lives somewhere that is not the repo.
+
+### Enabling: the one dangerous step
+
+**A job enabled here while launchd still runs it on the Mac writes to
+Notion twice.** So `apply` installs the units *disabled*, and enabling one
+is paired with unloading its Mac counterpart in the same sitting:
+
+```bash
+# 1. on the Mac — stop it there first
+launchctl bootout gui/$UID/co.uk.ggomed.agents-house.nightly-review-due
+launchctl disable gui/$UID/co.uk.ggomed.agents-house.nightly-review-due
+
+# 2. on the server — start it here
+ssh -i ~/.ssh/ionos_ggo_xl root@85.215.37.39 \
+  'systemctl enable --now ggo-ernesto-nightly-review-due.timer'
+
+# 3. prove it ran, the next morning
+ssh -i ~/.ssh/ionos_ggo_xl root@85.215.37.39 \
+  'journalctl -u ggo-ernesto-nightly-review-due -n 40 --no-pager'
+```
+
+Cross-check the 🤖 Agents Activity Log in Notion: one row per run, not two.
+
 ## What stays on the Mac
 
 - The local resident service (LaunchAgent on `localhost:3010`) continues
