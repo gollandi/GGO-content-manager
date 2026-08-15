@@ -363,6 +363,7 @@ export type RoomId =
   | "portineria"
   | "helm"
   | "ernesto"
+  | "carico"
   | "soffitta"
   | "ambrogio"
   | "archivio"
@@ -378,6 +379,8 @@ export const ROOM_INK: Record<RoomId, { accent: string; bright: string }> = {
   portineria: { accent: "var(--stamp)", bright: "var(--stamp-bright)" },
   helm: { accent: "var(--plate-fg-soft)", bright: "var(--plate-fg)" },
   ernesto: { accent: "var(--sepia)", bright: "var(--sepia-bright)" },
+  /* Il Carico feeds Ernesto, so it carries his ink. */
+  carico: { accent: "var(--sepia)", bright: "var(--sepia-bright)" },
   soffitta: { accent: "var(--stamp)", bright: "var(--stamp-bright)" },
   ambrogio: { accent: "var(--engraving)", bright: "var(--engraving-bright)" },
   archivio: { accent: "var(--plate-fg-soft)", bright: "var(--plate-fg)" }
@@ -391,6 +394,15 @@ const CREST_PATHS: Record<RoomId, ReactNode> = {
       <path d="M8 20V6M12 20V4M16 20V6" />
       <path d="M6 11h12" />
       <circle cx="12" cy="14" r="1.6" />
+    </>
+  ),
+  /* The crate on the receiving bench, taking in what comes down to it. */
+  carico: (
+    <>
+      <path d="M4 12v7c0 .6.4 1 1 1h14c.6 0 1-.4 1-1v-7" />
+      <path d="M4 12h16" />
+      <path d="M12 3v7" />
+      <path d="M9 7l3 3 3-3" />
     </>
   ),
   /* The editorial desk calendar, one leaf lifted. */

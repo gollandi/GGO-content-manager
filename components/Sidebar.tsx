@@ -30,6 +30,7 @@ const ROOMS: NavEntry[] = [
   { href: "/portineria", label: "La Portineria", room: "portineria" },
   { href: "/helm-pathways", label: "Helm Pathways", room: "helm" },
   { href: "/casa-di-ernesto", label: "La Casa di Ernesto", room: "ernesto" },
+  { href: "/carico", label: "Il Carico", room: "carico" },
   { href: "/soffitta", label: "La Soffitta", room: "soffitta" },
   { href: "/ambrogio", label: "Lo Studio di Ambrogio", room: "ambrogio" }
 ];

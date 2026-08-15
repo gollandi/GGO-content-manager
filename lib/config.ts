@@ -120,6 +120,21 @@ export const runnerConfig = {
 } as const;
 
 /**
+ * Il Carico — the media inbox on the server (Family C ingest half).
+ *
+ * Footage lands here straight from JJ's phone, so the Mac is out of the
+ * path. The root is env-driven: `/srv/ggo-media` on the VPS, a repo-local
+ * scratch directory in dev so a developer never writes to /srv by accident.
+ */
+export const mediaConfig = {
+    root: process.env.COCKPIT_MEDIA_ROOT || `${process.cwd()}/.media`,
+    /** Per-file ceiling. Phone clips are large; the VPS has 479 GB. */
+    maxBytes: Number(process.env.COCKPIT_MEDIA_MAX_BYTES || 2 * 1024 * 1024 * 1024),
+    /** Chunk ceiling — the client picks the size, this bounds it. */
+    maxChunkBytes: Number(process.env.COCKPIT_MEDIA_MAX_CHUNK_BYTES || 16 * 1024 * 1024),
+} as const;
+
+/**
  * GGOMed Sanity WRITE access — Family A only (copywriter → drafts).
  * Held server-side, injected into the runner, never in skill bundles
  * (spec §0.0 decision 4). The write client refuses non-drafts ids.

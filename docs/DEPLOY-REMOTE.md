@@ -60,12 +60,66 @@ COCKPIT_SERVICE_TOKEN=<same value as on the server>
 Check with `node operations/pif-tick-lookup.js <content-asset-id>` — it
 should log "PIF TICK status (cockpit view)".
 
+## Il Carico — media inbox on the server
+
+`/carico` accepts footage straight from JJ's phone, so the Mac is out of the
+ingest path. Uploads are chunked and resumable (5 MiB parts, retried with
+backoff): a clip that dies halfway up on 4G resumes rather than restarts.
+
+### Server setup (once)
+
+```bash
+ssh -i ~/.ssh/ionos_ggo_xl root@85.215.37.39
+mkdir -p /srv/ggo-media/{inbox,staging}
+chown -R jj:jj /srv/ggo-media
+```
+
+Add to `/etc/ggo-content-manager.env`:
+
+```
+COCKPIT_MEDIA_ROOT=/srv/ggo-media
+```
+
+nginx buffers request bodies by default and caps them at 1 MB, which would
+reject every chunk. In `/etc/nginx/conf.d/ggo-content-manager.conf`, inside
+the `server` block:
+
+```nginx
+client_max_body_size 32m;      # one chunk (16 MiB ceiling) plus headroom
+client_body_timeout  300s;     # a slow 4G chunk is not a dead client
+proxy_request_buffering off;   # stream chunks through instead of spooling
+```
+
+Then `nginx -t && systemctl reload nginx` and restart the app unit.
+
+### Layout and the handoff contract
+
+```
+/srv/ggo-media/staging/<id>/     chunks in flight (reclaimed on completion)
+/srv/ggo-media/inbox/<id>.<ext>  the assembled media
+/srv/ggo-media/inbox/<id>.json   the manifest
+```
+
+**The worker watches `inbox/*.json`, never the media glob.** The manifest is
+written by rename only after the media file is complete, so its existence is
+the guarantee that the file beside it is whole — which is what removes the
+race where a watcher grabs a half-written video.
+
+The manifest carries `storedAs`, `kind` (`dual-roll` | `talking-head` |
+`b-roll` | `voce` | `altro` — routes the job to Titti or Greta), `note`,
+`operator`, and byte counts. Ingest only: nothing in this path writes to
+Sanity or Notion, and the three publish gates are untouched.
+
+Retention is not automated yet — prune `inbox/` once outputs are approved.
+
 ## What stays on the Mac
 
 - The local resident service (LaunchAgent on `localhost:3010`) continues
   to run in parallel.
-- The video worker (Greta/Titti): footage + ffmpeg live on the Mac. The
-  server will queue jobs (Family C, still to build).
+- The video worker (Greta/Titti): ffmpeg still runs on the Mac. Footage no
+  longer has to — Il Carico lands it in `/srv/ggo-media/inbox` on the
+  server; the worker that consumes those manifests is the remaining half of
+  Family C.
 - Ernesto's skills stay in `~/.claude` on the Mac.
 
 ## Mirror retirement (Phase 2 tail)

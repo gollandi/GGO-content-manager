@@ -6,3 +6,5 @@ node_modules/
 .runs/
 reports/
 .officina/
+# Il Carico — local media inbox in dev (the VPS uses /srv/ggo-media)
+.media/
