@@ -40,6 +40,7 @@ Named GROQ views are exposed twice: as a library (`lib/views`) and over HTTP (`/
 | `app/api/` | notion/*, views/*, ernesto/* (runner), review-dashboard/* (gate), retro, cache |
 | `lib/views/` | Named GROQ view registry (editorial-content, asset-identity, pif-ggomed, pif-compass) |
 | `lib/notion/` | Notion integration; `lib/notion/editorial.ts` for workflow DBs |
+| `lib/media/` | Il Carico — the server media inbox (chunked resumable upload, manifest handoff to the video worker) |
 | `lib/auth/` | next-auth config, roles, API guard |
 | `components/` | Shell (AppShell, Sidebar) + `Registro.tsx` (design primitives: Guilloche, Socket, Tally, RoomCrest…) |
 | `tools/parity/`, `tools/migration/` | Parity harness and mirror retirement (`npm run parity`, `retire:mirrors`) |
@@ -63,6 +64,19 @@ default, override with `COCKPIT_CITOFONO_MODEL`). Transcripts live in the
 client session only. Voices never publish, never touch Sanity, never
 change workflow state.
 
+## Il Carico (media ingest)
+
+`/carico` takes footage straight from JJ's phone onto the VPS, keeping the
+Mac's connection out of the ingest path. Chunked and resumable (5 MiB parts,
+backoff retries) because phone clips on 4G do not survive a single POST.
+Files land in `COCKPIT_MEDIA_ROOT` (`/srv/ggo-media` on the VPS): the media
+is assembled into `inbox/<id>.<ext>`, then the manifest `inbox/<id>.json` is
+published by rename. **The worker watches the manifests, never the media
+glob** — a manifest exists only once its file is whole. Ingest only: no
+Sanity or Notion writes, no publish gate touched. nginx needs
+`client_max_body_size` and `proxy_request_buffering off` (see
+`docs/DEPLOY-REMOTE.md`).
+
 ## Design System
 
 Il Registro (seed key 9055bf41) — security engraving, seals, the register of signed decisions, with the house layer (per-room crests and inks). Everything is recorded in `DESIGN.md` + `.impeccable/design.json`; the direction contract is an HTML comment in `app/layout.tsx`. Room primitives live in `components/Registro.tsx`. Never reintroduce: rounded corners (except seals/sockets), drop shadows, gradients (except sealed wax), pill badges.
@@ -82,7 +96,7 @@ npm run retire:mirrors  # Retire mirror DBs (guarded: --apply --views-live + par
 - The 11 legacy pages still read the doomed Notion mirror DBs (retirement gated on parity + views-live).
 - No proprietary cache tier yet (SEMrush/GA4 metrics still ad hoc).
 - Atrium reporting lines exist only for rooms with HTTP endpoints; Ambrogio and Helm report "nessun riporto".
-- Family C (video worker) and the Notion→Sanity native-state migration are deliberate Phase-2 leftovers.
+- Family C is half-built: Il Carico ingests footage to the server (`/carico`), the worker that consumes the inbox manifests is still to come. The Notion→Sanity native-state migration remains a deliberate Phase-2 leftover.
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
