@@ -47,7 +47,7 @@ Named GROQ views are exposed twice: as a library (`lib/views`) and over HTTP (`/
 
 ## Deployment
 
-- **Resident service:** LaunchAgent `uk.co.ggomed.content-manager.web` runs `next start -p 3010` (KeepAlive). Canonical URL: `http://localhost:3010`. After code changes: `npm run build` then `launchctl kickstart -k gui/$UID/uk.co.ggomed.content-manager.web` — otherwise the service keeps serving the old build. Optional auto-update: LaunchAgent `uk.co.ggomed.content-manager.update` (template + install one-liner in `tools/mac/update-resident.sh`) polls `origin/main` every 15 min and does pull → build → kickstart when it moved.
+- **Resident service:** LaunchAgent `uk.co.ggomed.content-manager.web` runs `next start -p 3010` (KeepAlive). Canonical URL: `http://localhost:3010`. After code changes: `npm run build` then `launchctl kickstart -k gui/$UID/uk.co.ggomed.content-manager.web` — otherwise the service keeps serving the old build. Optional auto-update: LaunchAgent `uk.co.ggomed.content-manager.update` (template + install one-liner in `tools/mac/update-resident.sh`) checks `origin/main` twice a day (08:30/20:30 + at login) and does pull → build → kickstart when it moved; on-demand: `launchctl kickstart gui/$UID/uk.co.ggomed.content-manager.update`.
 - Port 3000 belongs to Edelia; do not take it.
 - **VPS (production):** `https://cockpit.ggo-suite.co.uk` — IONOS server `85.215.37.39` (AlmaLinux 9), app in `/srv/ggo-content-manager` (copied files, not a git clone), systemd unit `ggo-content-manager.service` on port 3010 behind nginx + Let's Encrypt. Runbook: `docs/DEPLOY-REMOTE.md`.
 

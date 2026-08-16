@@ -2,8 +2,12 @@
 # Auto-update for the resident service on the Mac — the pull-based mirror of
 # the VPS's push deploy (GitHub cannot reach the Mac, so the Mac polls).
 #
-# Run by the LaunchAgent uk.co.ggomed.content-manager.update every 15 min:
-# if origin/main moved, pull → npm ci → build → kickstart the web service.
+# Run by the LaunchAgent uk.co.ggomed.content-manager.update twice a day
+# (08:30 and 20:30, plus at login): if origin/main moved, pull → npm ci →
+# build → kickstart the web service.
+#
+# Manual trigger, any time (also fine to ask a local Claude session to run it):
+#   launchctl kickstart gui/$UID/uk.co.ggomed.content-manager.update
 # Silent no-op when there is nothing new. Aborts (loudly, in the log) when
 # the working tree is dirty rather than stomping on local work.
 #

@@ -11,8 +11,24 @@
         <string>/bin/bash</string>
         <string>__REPO__/tools/mac/update-resident.sh</string>
     </array>
-    <key>StartInterval</key>
-    <integer>900</integer>
+    <!-- Twice a day matches how often main actually moves. For an
+         on-demand update between the two slots:
+           launchctl kickstart gui/$UID/uk.co.ggomed.content-manager.update -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Hour</key>
+            <integer>8</integer>
+            <key>Minute</key>
+            <integer>30</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>20</integer>
+            <key>Minute</key>
+            <integer>30</integer>
+        </dict>
+    </array>
     <key>RunAtLoad</key>
     <true/>
     <key>StandardOutPath</key>
