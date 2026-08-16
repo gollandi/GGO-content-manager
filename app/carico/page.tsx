@@ -155,9 +155,19 @@ export default function CaricoPage() {
     useEffect(() => {
         void loadInbox();
         // The worker runs on its own timer; poll so a deposit stops reading
-        // "in lavorazione" without JJ having to reload the room.
-        const tick = setInterval(() => void loadInbox(), 60_000);
-        return () => clearInterval(tick);
+        // "in lavorazione" without JJ having to reload the room. A hidden tab
+        // skips the tick and catches up the moment it comes back.
+        const tick = setInterval(() => {
+            if (!document.hidden) void loadInbox();
+        }, 60_000);
+        const onVisible = () => {
+            if (!document.hidden) void loadInbox();
+        };
+        document.addEventListener("visibilitychange", onVisible);
+        return () => {
+            clearInterval(tick);
+            document.removeEventListener("visibilitychange", onVisible);
+        };
     }, [loadInbox]);
 
     function reset() {

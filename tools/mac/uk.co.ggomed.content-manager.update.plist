@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Template: replace __REPO__ with the repo's absolute path (the install
+     one-liner in tools/mac/update-resident.sh does this with sed). -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>uk.co.ggomed.content-manager.update</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__REPO__/tools/mac/update-resident.sh</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>900</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/ggo-cockpit-update.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/ggo-cockpit-update.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
