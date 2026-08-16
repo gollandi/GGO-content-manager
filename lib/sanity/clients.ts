@@ -25,7 +25,9 @@ export const ggomedClient: SanityClient = createClient({
     dataset: sanityGgomedConfig.dataset,
     apiVersion: sanityGgomedConfig.apiVersion,
     token: sanityGgomedConfig.viewerToken,
-    useCdn: false, // live reads — the cockpit must never show a stale mirror
+    // CDN edge reads: the views layer already caches for 5 minutes, so the
+    // CDN's short cache adds no staleness the cockpit hasn't accepted.
+    useCdn: true,
     perspective: "published",
 });
 
@@ -48,6 +50,6 @@ export const compassPifClient: SanityClient = createClient({
     dataset: sanityCompassConfig.dataset,
     apiVersion: sanityCompassConfig.apiVersion,
     token: sanityCompassConfig.viewerToken,
-    useCdn: false,
+    useCdn: true,
     perspective: "published",
 });

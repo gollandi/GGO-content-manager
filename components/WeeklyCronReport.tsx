@@ -140,11 +140,19 @@ export default function WeeklyCronReport() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/ernesto/operations/daily-report", { cache: "no-store" });
+      // Two passes: first the raw register without prose (fast — no LLM
+      // calls), then the chronicler's accounts fill in when they arrive.
+      const response = await fetch("/api/ernesto/operations/daily-report?prose=0", { cache: "no-store" });
       const body = (await response.json()) as DailyReportData;
       if (!response.ok) throw new Error(body.error ?? "Il giornale di bordo non risponde.");
       setData(body);
       setError(null);
+      setLoading(false);
+      try {
+        const full = await fetch("/api/ernesto/operations/daily-report", { cache: "no-store" });
+        const fullBody = (await full.json()) as DailyReportData;
+        if (full.ok) setData(fullBody);
+      } catch { /* the prose is enrichment — the register is already shown */ }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Il giornale di bordo non risponde.");
     } finally {
@@ -266,7 +274,7 @@ export default function WeeklyCronReport() {
                   <p className="max-w-3xl text-[13px] italic text-plate-foreground-soft">
                     {day.proseError
                       ? "Il cronista non ha risposto — sotto trovi comunque le run in chiaro."
-                      : "Resoconto non disponibile."}
+                      : "Il cronista sta scrivendo il resoconto…"}
                   </p>
                 )}
 

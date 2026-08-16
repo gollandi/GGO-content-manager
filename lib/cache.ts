@@ -12,6 +12,7 @@ interface CacheEntry<T> {
 }
 
 const store = new Map<string, CacheEntry<unknown>>();
+const inflight = new Map<string, Promise<unknown>>();
 
 const DEFAULT_TTL_MS = 60 * 60 * 1000; // 1 hour
 const STALE_TTL_MS = 24 * 60 * 60 * 1000; // serve stale up to 24 hours
@@ -43,10 +44,20 @@ export async function cached<T>(
         return entry.data;
     }
 
-    // Miss or expired beyond stale window — fetch synchronously
-    const data = await fetcher();
-    store.set(key, { data, timestamp: Date.now(), refreshing: false });
-    return data;
+    // Miss or expired beyond stale window — fetch synchronously, but share a
+    // single in-flight fetch across concurrent callers (no thundering herd).
+    const pending = inflight.get(key) as Promise<T> | undefined;
+    if (pending) return pending;
+    const promise = fetcher()
+        .then((data) => {
+            store.set(key, { data, timestamp: Date.now(), refreshing: false });
+            return data;
+        })
+        .finally(() => {
+            inflight.delete(key);
+        });
+    inflight.set(key, promise);
+    return promise;
 }
 
 /**

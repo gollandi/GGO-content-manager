@@ -87,7 +87,20 @@ export default function Sidebar() {
 
   // The one number worth carrying in the margin of every page: how much of
   // the house is standing still, waiting for a decision only JJ can make.
+  // The count tolerates minutes of staleness, so hard reloads within the
+  // TTL reuse the last value instead of waking the whole Notion crawl.
   useEffect(() => {
+    const TTL_MS = 5 * 60 * 1000;
+    try {
+      const raw = sessionStorage.getItem("cancello-pending");
+      if (raw) {
+        const saved = JSON.parse(raw) as { count: number; at: number };
+        if (Date.now() - saved.at < TTL_MS) {
+          setPending(saved.count);
+          return;
+        }
+      }
+    } catch { /* storage unavailable — fall through to the fetch */ }
     let cancelled = false;
     fetch("/api/review-dashboard/state", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
@@ -98,7 +111,7 @@ export default function Sidebar() {
         const calendar = Array.isArray(data.calendar) ? data.calendar : [];
         const website = Array.isArray(data.website) ? data.website : [];
         const wallIds = new Set(wall.map((row: { rowId: string }) => row.rowId));
-        setPending(
+        const count =
           wall.length +
             calendar.filter((row: { status: string }) => row.status === "Review").length +
             desk.filter(
@@ -108,8 +121,11 @@ export default function Sidebar() {
             website.filter(
               (row: { patch: unknown; patchState?: string }) =>
                 row.patch && row.patchState !== "awaiting-publish"
-            ).length
-        );
+            ).length;
+        setPending(count);
+        try {
+          sessionStorage.setItem("cancello-pending", JSON.stringify({ count, at: Date.now() }));
+        } catch { /* storage unavailable — the count still rendered */ }
       })
       .catch(() => {
         /* The margin degrades to no count; the gate is still reachable. */
