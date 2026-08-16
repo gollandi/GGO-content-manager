@@ -118,6 +118,26 @@ async function pageBodyText(pageId: string): Promise<string> {
     return lines.join("\n");
 }
 
+/**
+ * Map with bounded concurrency — enough parallelism to collapse the
+ * per-row Notion round-trips, low enough to stay within Notion's ~3 req/s
+ * comfort zone once the SDK's own throttling is accounted for.
+ */
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    let next = 0;
+    const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (next < items.length) {
+            const i = next++;
+            results[i] = await fn(items[i]);
+        }
+    });
+    await Promise.all(workers);
+    return results;
+}
+
+const NOTION_CONCURRENCY = 4;
+
 const orStatus = (states: string[]) => ({
     or: states.map((s) => ({ property: "Status", select: { equals: s } })),
 });
@@ -128,15 +148,13 @@ const MEDIA_URL = (p: string) => `/media?path=${encodeURIComponent(p)}`;
 const VIDEO_URL = (p: string) => `/video?path=${encodeURIComponent(p)}`;
 
 async function fileLocationsOf(assetIds: string[]): Promise<string[]> {
-    const locations: string[] = [];
-    for (const id of assetIds) {
+    const locations = await mapLimit(assetIds, NOTION_CONCURRENCY, async (id) => {
         try {
             const page = (await notion.pages.retrieve({ page_id: id })) as PageObjectResponse;
-            const loc = propText(page.properties, "File Location");
-            if (loc) locations.push(loc);
-        } catch { /* a missing asset yields no media — not fatal */ }
-    }
-    return locations;
+            return propText(page.properties, "File Location");
+        } catch { return null; /* a missing asset yields no media — not fatal */ }
+    });
+    return locations.filter((loc): loc is string => Boolean(loc));
 }
 
 async function resolveRowMedia(props: Props): Promise<MediaRef[]> {
@@ -178,8 +196,7 @@ async function loadDeskRows(): Promise<DeskRow[]> {
         orStatus(OPEN_DESK_STATES),
         [{ property: "Priority", direction: "ascending" }]
     );
-    const out: DeskRow[] = [];
-    for (const row of rows) {
+    return mapLimit(rows, NOTION_CONCURRENCY, async (row) => {
         let bodyText = "";
         try { bodyText = await pageBodyText(row.id); } catch { /* body is enrichment */ }
 
@@ -204,7 +221,7 @@ async function loadDeskRows(): Promise<DeskRow[]> {
             });
         }
 
-        out.push({
+        return {
             rowId: row.id,
             url: row.url,
             title: propText(row.properties, "Item") || "(untitled)",
@@ -215,9 +232,8 @@ async function loadDeskRows(): Promise<DeskRow[]> {
             correction: propText(row.properties, "Correction") || "",
             body: bodyText.slice(0, 700),
             videos,
-        });
-    }
-    return out;
+        };
+    });
 }
 
 /** Only rows that still wait on JJ: Pending, playable, gate-bound or fresh. */
@@ -232,10 +248,9 @@ export function wallFromDeskRows(deskRows: DeskRow[], freshDays = FRESH_DAYS): D
 
 async function loadCalendarRows(): Promise<CalendarRow[]> {
     const rows = await queryAll(notionConfig.dbs.contentCalendar(), orStatus(ACTIVE_CALENDAR_STATES));
-    const calendar: CalendarRow[] = [];
-    for (const row of rows) {
+    return mapLimit(rows, NOTION_CONCURRENCY, async (row) => {
         const status = propText(row.properties, "Status");
-        calendar.push({
+        return {
             rowId: row.id,
             title: propText(row.properties, "Topic Title") || "(untitled)",
             contentType: propText(row.properties, "Content Type"),
@@ -254,9 +269,8 @@ async function loadCalendarRows(): Promise<CalendarRow[]> {
             // for every Draft row was most of the old load time.
             media: status === "Review" ? await resolveRowMedia(row.properties) : [],
             url: row.url,
-        });
-    }
-    return calendar;
+        };
+    });
 }
 
 async function loadWebsiteReview(warnings: string[]): Promise<WebsiteArticle[]> {
@@ -268,24 +282,27 @@ async function loadWebsiteReview(warnings: string[]): Promise<WebsiteArticle[]> 
         return [];
     }
     const rows = await queryAll(dbId, orStatus(WEBSITE_REVIEW_STATES));
-    const articles: WebsiteArticle[] = [];
-    for (const row of rows) {
-        const proposals: WebsiteArticle["proposals"] = [];
-        for (const relId of relationIds(row.properties, "Content Needs")) {
-            try {
-                const need = (await notion.pages.retrieve({ page_id: relId })) as PageObjectResponse;
-                const actionStatus = propText(need.properties, "Action Status");
-                if (actionStatus === "Done") continue;
-                proposals.push({
-                    need: propText(need.properties, "Need") || "(untitled)",
-                    details: (propText(need.properties, "Details") || "").slice(0, 500),
-                    actionStatus,
-                    url: need.url,
-                });
-            } catch { /* a missing need yields no proposal */ }
-        }
+    const articles: WebsiteArticle[] = await mapLimit(rows, NOTION_CONCURRENCY, async (row) => {
+        const fetched = await mapLimit(
+            relationIds(row.properties, "Content Needs"),
+            NOTION_CONCURRENCY,
+            async (relId): Promise<WebsiteArticle["proposals"][number] | null> => {
+                try {
+                    const need = (await notion.pages.retrieve({ page_id: relId })) as PageObjectResponse;
+                    const actionStatus = propText(need.properties, "Action Status");
+                    if (actionStatus === "Done") return null;
+                    return {
+                        need: propText(need.properties, "Need") || "(untitled)",
+                        details: (propText(need.properties, "Details") || "").slice(0, 500),
+                        actionStatus,
+                        url: need.url,
+                    };
+                } catch { return null; /* a missing need yields no proposal */ }
+            }
+        );
+        const proposals = fetched.filter((p): p is WebsiteArticle["proposals"][number] => p !== null);
         const patch = findPatchForAsset(row.id);
-        articles.push({
+        return {
             rowId: row.id,
             title: propText(row.properties, "Title") || "(untitled)",
             status: propText(row.properties, "Status"),
@@ -304,8 +321,8 @@ async function loadWebsiteReview(warnings: string[]): Promise<WebsiteArticle[]> 
                 sanityDocId: patch.sanityDocId,
                 batch: patch.batch,
             } : null,
-        });
-    }
+        };
+    });
 
     // A card must stop asking for a decision once Sanity says the work is
     // done: draft carrying the patch → awaiting-publish; published carrying
@@ -341,6 +358,7 @@ async function loadWebsiteReview(warnings: string[]): Promise<WebsiteArticle[]> 
 
 const CACHE_TTL_MS = Number(process.env.REVIEW_DASHBOARD_CACHE_MS) || 5 * 60 * 1000;
 let stateCache: { data: Omit<CancelloState, "cached">; at: number } | null = null;
+let stateInflight: Promise<CancelloState> | null = null;
 
 export function invalidateCancelloCache(): void { stateCache = null; }
 
@@ -348,10 +366,21 @@ export async function loadCancelloState({ refresh = false } = {}): Promise<Cance
     if (!refresh && stateCache && Date.now() - stateCache.at < CACHE_TTL_MS) {
         return { ...stateCache.data, cached: true };
     }
+    // Concurrent callers (sidebar + page on the same navigation) share one
+    // crawl instead of each starting their own.
+    if (!refresh && stateInflight) return stateInflight;
+    const promise = buildCancelloState().finally(() => { stateInflight = null; });
+    if (!refresh) stateInflight = promise;
+    return promise;
+}
+
+async function buildCancelloState(): Promise<CancelloState> {
     const warnings: string[] = [];
-    const desk = await loadDeskRows();
-    const calendar = await loadCalendarRows();
-    const website = await loadWebsiteReview(warnings);
+    const [desk, calendar, website] = await Promise.all([
+        loadDeskRows(),
+        loadCalendarRows(),
+        loadWebsiteReview(warnings),
+    ]);
     const data = {
         wall: wallFromDeskRows(desk),
         desk,

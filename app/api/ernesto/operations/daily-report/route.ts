@@ -174,31 +174,36 @@ export async function GET(req: NextRequest) {
 
     const skipProse = req.nextUrl.searchParams.get("prose") === "0";
     const anthropic = new Anthropic();
-    const days: DayReport[] = [];
-    for (const [date, runs] of [...byDay.entries()].sort(([a], [b]) => b.localeCompare(a))) {
-        runs.sort((a, b) => (b.startedAt ?? "").localeCompare(a.startedAt ?? ""));
-        let prose: string | null = null;
-        let proseError: string | null = null;
-        if (!skipProse) {
-            try {
-                prose = await summariseDay(anthropic, date, runs);
-            } catch (err) {
-                proseError = err instanceof Error ? err.message : String(err);
-            }
-        }
-        days.push({
-            date,
-            prose,
-            proseError,
-            runs,
-            counts: {
-                total: runs.length,
-                ok: runs.filter((r) => OK.has(r.status ?? "")).length,
-                attention: runs.filter((r) => ATTENTION.has(r.status ?? "")).length,
-                rowsWritten: runs.reduce((n, r) => n + (r.rowsWritten ?? 0), 0),
-            },
-        });
-    }
+    // One Claude call per day, in parallel — seven sequential calls used to
+    // hold this response for the sum of their latencies.
+    const days: DayReport[] = await Promise.all(
+        [...byDay.entries()]
+            .sort(([a], [b]) => b.localeCompare(a))
+            .map(async ([date, runs]) => {
+                runs.sort((a, b) => (b.startedAt ?? "").localeCompare(a.startedAt ?? ""));
+                let prose: string | null = null;
+                let proseError: string | null = null;
+                if (!skipProse) {
+                    try {
+                        prose = await summariseDay(anthropic, date, runs);
+                    } catch (err) {
+                        proseError = err instanceof Error ? err.message : String(err);
+                    }
+                }
+                return {
+                    date,
+                    prose,
+                    proseError,
+                    runs,
+                    counts: {
+                        total: runs.length,
+                        ok: runs.filter((r) => OK.has(r.status ?? "")).length,
+                        attention: runs.filter((r) => ATTENTION.has(r.status ?? "")).length,
+                        rowsWritten: runs.reduce((n, r) => n + (r.rowsWritten ?? 0), 0),
+                    },
+                };
+            })
+    );
 
     return NextResponse.json({ days, generatedAt: new Date().toISOString() });
 }
