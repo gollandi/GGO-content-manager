@@ -2,6 +2,7 @@ import {
     getAmbrogioAudits,
     getAmbrogioProposals,
     getAgentsActivityLog,
+    getContentQualityAudits,
 } from "../../lib/notion/editorial";
 import { settle } from "../../lib/settle";
 import StatusBadge from "../../components/StatusBadge";
@@ -16,6 +17,10 @@ import { RoomCrest } from "../../components/Registro";
  * Independence by construction: the ambrogio-il-maggiordomo SKILL is the
  * sole writer of the two Ambrogio DBs. This page — and this whole app —
  * holds no write path to them (asserted by __tests__/ambrogio-no-write).
+ *
+ * Sibilla's register sits in the same tower for the same reason. Ambrogio
+ * audits the system; she audits what the system has already published. Both
+ * are read here and written nowhere (asserted by __tests__/sibilla-no-write).
  */
 export const dynamic = "force-dynamic";
 
@@ -32,10 +37,11 @@ const runTone = (s: string | null) =>
     : "secondary";
 
 export default async function AmbrogioPage() {
-    const [audits, proposals, log] = await Promise.all([
+    const [audits, proposals, log, quality] = await Promise.all([
         settle(getAmbrogioAudits),
         settle(getAmbrogioProposals),
         settle(getAgentsActivityLog),
+        settle(getContentQualityAudits),
     ]);
 
     const logRows = (log.data ?? [])
@@ -43,6 +49,11 @@ export default async function AmbrogioPage() {
         .slice(0, 50);
     const failures = logRows.filter((r) => r.status === "Failed").length;
     const pendingProposals = (proposals.data ?? []).filter((p) => p.decision === "Pending").length;
+
+    const qualityRuns = (quality.data ?? [])
+        .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""))
+        .slice(0, 12);
+    const lastQualityRun = qualityRuns[0];
 
     return (
         <AppShell>
@@ -55,12 +66,13 @@ export default async function AmbrogioPage() {
                 </p>
             </header>
 
-            {(audits.error || proposals.error || log.error) && (
+            {(audits.error || proposals.error || log.error || quality.error) && (
                 <div className="mb-6 p-4  border border-sepia text-sm text-sepia">
                     {audits.error && <p><strong>Audits:</strong> {audits.error}</p>}
                     {proposals.error && <p><strong>Proposals:</strong> {proposals.error}</p>}
                     {log.error && <p><strong>Activity Log:</strong> {log.error}</p>}
-                    <p className="mt-1 text-xs">Set the Ambrogio / Activity Log DB ids in .env.local (see .env.example).</p>
+                    {quality.error && <p><strong>Content Quality Audits:</strong> {quality.error}</p>}
+                    <p className="mt-1 text-xs">Set the Ambrogio / Activity Log / Content Quality DB ids in .env.local (see .env.example).</p>
                 </div>
             )}
 
@@ -70,6 +82,7 @@ export default async function AmbrogioPage() {
                     { label: "Proposals", value: proposals.data?.length ?? "—" },
                     { label: "Pending decisions", value: pendingProposals },
                     { label: "Failures (last 50 runs)", value: failures },
+                    { label: "Sibilla FAIL (last run)", value: lastQualityRun?.fail ?? "—" },
                 ].map((s) => (
                     <div key={s.label} className="flex items-baseline gap-2">
                         <div className="tabular font-serif text-[26px] font-bold text-plate-foreground-strong">{s.value}</div>
@@ -121,6 +134,47 @@ export default async function AmbrogioPage() {
                     </ul>
                 </section>
             </div>
+
+            <section className="paper mb-6 border border-paper-edge overflow-x-auto text-paper-foreground">
+                <h2 className="text-base font-bold px-5 pt-5 pb-1">Sibilla — what is already live</h2>
+                <p className="px-5 pb-2 text-xs text-paper-foreground-soft">
+                    Post-publication verdicts on ggomed.co.uk. A ledger, not a gate: AMBER
+                    has already become a Content Need, FAIL an Urgent question on the Desk.
+                    Nothing here unpublishes a page — that stays JJ&rsquo;s.
+                </p>
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="border-b-[3px] border-double border-paper-edge text-left">
+                            <th className="px-4 py-2.5 font-semibold">Run</th>
+                            <th className="px-4 py-2.5 font-semibold">Phase</th>
+                            <th className="px-4 py-2.5 font-semibold text-right">Sampled</th>
+                            <th className="px-4 py-2.5 font-semibold text-right">PASS</th>
+                            <th className="px-4 py-2.5 font-semibold text-right">AMBER</th>
+                            <th className="px-4 py-2.5 font-semibold text-right">FAIL</th>
+                            <th className="px-4 py-2.5 font-semibold">Cohorts</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {qualityRuns.map((r) => (
+                            <tr key={r.id} className="border-b border-paper-edge hover:bg-[var(--engraving-wash)]">
+                                <td className="px-4 py-2.5">
+                                    <div className="font-medium">{r.date ?? "—"}</div>
+                                    {r.escalations && <div className="text-xs text-paper-foreground-soft line-clamp-1">escalated to the Desk</div>}
+                                </td>
+                                <td className="px-4 py-2.5 text-paper-foreground-soft">{r.phase ?? "—"}</td>
+                                <td className="px-4 py-2.5 text-right text-paper-foreground-soft">{r.sampleSize ?? "—"}</td>
+                                <td className="px-4 py-2.5 text-right text-paper-foreground-soft">{r.pass ?? "—"}</td>
+                                <td className="px-4 py-2.5 text-right text-paper-foreground-soft">{r.amber ?? "—"}</td>
+                                <td className={`px-4 py-2.5 text-right ${r.fail ? "text-seal font-semibold" : "text-paper-foreground-soft"}`}>{r.fail ?? "—"}</td>
+                                <td className="px-4 py-2.5 text-xs text-paper-foreground-soft">{r.cohortBreakdown || "—"}</td>
+                            </tr>
+                        ))}
+                        {qualityRuns.length === 0 && !quality.error && (
+                            <tr><td colSpan={7} className="px-4 py-10 text-center text-paper-foreground-soft">Sibilla has not yet spoken.</td></tr>
+                        )}
+                    </tbody>
+                </table>
+            </section>
 
             <section className="paper border border-paper-edge overflow-x-auto text-paper-foreground">
                 <h2 className="text-base font-bold px-5 pt-5 pb-2">Agents Activity Log — last 50 runs</h2>

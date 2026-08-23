@@ -70,6 +70,12 @@ export const notionConfig = {
         //    construction; asserted by ambrogio-no-write test) ───────────
         ambrogioAudits: lazyDb("NOTION_AMBROGIO_AUDITS_DB"),
         ambrogioProposals: lazyDb("NOTION_AMBROGIO_PROPOSALS_DB"),
+
+        // ── Sibilla (READ-ONLY here for the same reason as Ambrogio: the
+        //    sibilla-la-veggente skill is the sole writer of her register,
+        //    and a post-publication verdict the cockpit could edit would be
+        //    worth nothing. Asserted by the sibilla-no-write test.) ───────
+        contentQualityAudits: lazyDb("NOTION_CONTENT_QUALITY_AUDITS_DB"),
     },
 } as const;
 

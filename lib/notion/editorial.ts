@@ -171,6 +171,35 @@ export interface PerformanceSnapshotRow {
     assetIds: string[];
 }
 
+/**
+ * One Sibilla post-publication run (🩺 Content Quality Audits).
+ *
+ * Property names are taken from the sole writer —
+ * ernesto-agents-house `operations/content-quality-audit-writer.js` — not
+ * guessed, so this mapper is exact rather than schema-tolerant.
+ *
+ * The counts are the whole point of surfacing her here: PASS/AMBER/FAIL is
+ * the register of what the house has already shipped. AMBER already routes
+ * itself into Content Needs and FAIL onto the Desk, so this view is a
+ * ledger, never a gate — nothing here is actionable in the Shell.
+ */
+export interface ContentQualityAuditRow {
+    id: string;
+    audit: string;
+    date: string | null;
+    phase: string | null; // Strict | Farmacovigilanza
+    sampleSize: number | null;
+    cohortBreakdown: string;
+    pass: number | null;
+    amber: number | null;
+    fail: number | null;
+    /** `file://` path on whichever machine ran the audit — the full report
+     *  lives outside Notion, so this rarely resolves from the cockpit. */
+    reportUrl: string | null;
+    /** Desk row ids raised by this run (FAIL, and the phase transition). */
+    escalations: string;
+}
+
 /** Audits DB has no verified property catalogue — mapped schema-tolerantly. */
 export interface AmbrogioAuditRow {
     id: string;
@@ -311,6 +340,20 @@ const mapAmbrogioProposal = (p: PageObjectResponse): AmbrogioProposalRow => ({
     decidedAt: x.date(x.prop(p.properties, "Decided At")),
 });
 
+const mapContentQualityAudit = (p: PageObjectResponse): ContentQualityAuditRow => ({
+    id: p.id,
+    audit: x.anyTitle(p.properties),
+    date: x.date(x.prop(p.properties, "Date")),
+    phase: x.select(x.prop(p.properties, "Phase")),
+    sampleSize: x.number(x.prop(p.properties, "Sample Size")),
+    cohortBreakdown: x.richText(x.prop(p.properties, "Cohort Breakdown")),
+    pass: x.number(x.prop(p.properties, "PASS")),
+    amber: x.number(x.prop(p.properties, "AMBER")),
+    fail: x.number(x.prop(p.properties, "FAIL")),
+    reportUrl: x.url(x.prop(p.properties, "Report URL")),
+    escalations: x.richText(x.prop(p.properties, "Escalations")),
+});
+
 /** Schema-tolerant: extract every scalar without assuming property names. */
 const mapAmbrogioAudit = (p: PageObjectResponse): AmbrogioAuditRow => {
     const fields: Record<string, string> = {};
@@ -358,3 +401,4 @@ export const getAgentsActivityLog = service("activity-log", notionConfig.dbs.age
 export const getPerformanceSnapshot = service("performance-snapshot", notionConfig.dbs.performanceSnapshot, mapPerformanceSnapshot);
 export const getAmbrogioProposals = service("ambrogio-proposals", notionConfig.dbs.ambrogioProposals, mapAmbrogioProposal);
 export const getAmbrogioAudits = service("ambrogio-audits", notionConfig.dbs.ambrogioAudits, mapAmbrogioAudit);
+export const getContentQualityAudits = service("content-quality-audits", notionConfig.dbs.contentQualityAudits, mapContentQualityAudit);

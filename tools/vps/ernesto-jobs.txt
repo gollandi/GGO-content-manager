@@ -63,3 +63,9 @@ weekly-schema-check|Sun *-*-* 22:47:00|cron/weekly-schema-check.js
 #       clones, and the PIF Tick ecosystem JSON.
 #   weekly-media-gc
 #       deletes footage under ~/GGOMed/pipeline/output.
+#   sibilla-la-veggente (scheduled task, Wed 07:00)
+#       her judgement step is an LLM pass — the `claude` CLI, which the VPS
+#       does not have, and a Sanity MCP session that is interactively
+#       authenticated on the Mac. Same shape as Ambrogio's Auditor. She is
+#       also a morning job, not a night one, so the flaky-after-dark problem
+#       this whole migration exists to solve never applied to her.

@@ -220,6 +220,7 @@ Not scheduling preferences, facts about what the jobs do:
 | `ernesto-headless`, `consiglio-headless`, `ettore-maintainer` | spawn the `claude` CLI and run skills from `~/.claude`; Ernesto also drives ffmpeg over footage in `~/GGOMed/pipeline` |
 | `ambrogio-cartografina` | it *is* a scan of the Mac — `launchctl`, `~/.claude/skills`, the local git clones, the PIF Tick ecosystem JSON |
 | `weekly-media-gc` | deletes footage under `~/GGOMed/pipeline/output` |
+| `sibilla-la-veggente` (Wed 07:00) | her verdict is an LLM pass: the `claude` CLI (absent on the VPS) plus a Sanity MCP session authenticated interactively on the Mac. She is a morning job besides, so the after-dark failure this migration fixes never touched her |
 
 `daily-throughput-ledger` is moveable but writes its ledger inside the
 checkout, so running it here would split the ledger across two machines —

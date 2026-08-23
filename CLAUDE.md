@@ -30,6 +30,7 @@ Named GROQ views are exposed twice: as a library (`lib/views`) and over HTTP (`/
 - Generative skills write **drafts only** to `gxyjgvr0`; `m05ykm6e` is never written.
 - The three publish gates (site publish, social approval, newsletter send) are JJ-only.
 - Ambrogio's Notion DBs have **no write path** in this app (asserted by `__tests__/ambrogio-no-write`).
+- Sibilla's 🩺 Content Quality Audits register is read the same way and written nowhere (asserted by `__tests__/sibilla-no-write`). Her FAIL is a flare, never an action: no page is ever unpublished from here.
 - Oxblood (`--seal`) in the UI is reserved for the act of sealing and for what awaits JJ.
 
 ## Key Directories
