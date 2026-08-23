@@ -61,10 +61,29 @@ function fingerprint(runs: RunRow[]): string {
 // requests within the resident service's lifetime, which is all it needs.
 const proseCache = new Map<string, { hash: string; prose: string }>();
 
-async function summariseDay(anthropic: Anthropic, date: string, runs: RunRow[]): Promise<string> {
+/**
+ * Heartbeats are not events. clip-ingest alone writes ~48 "nothing to
+ * ingest" rows a day; fed to the prose they drown the three lines that
+ * matter (brief, produce, review). They stay in the counts, they leave the
+ * narrative.
+ */
+const HEARTBEAT_JOBS = new Set(["clip-ingest", "media-gc", "media-sync"]);
+const HEARTBEAT_RE = /nothing to ingest|nothing to do|no files|0 file\(s\)/i;
+
+function isHeartbeat(r: RunRow): boolean {
+    return (
+        HEARTBEAT_JOBS.has(r.job ?? "") &&
+        OK.has(r.status ?? "") &&
+        HEARTBEAT_RE.test(r.summary || "")
+    );
+}
+
+async function summariseDay(anthropic: Anthropic, date: string, allRuns: RunRow[]): Promise<string> {
+    const runs = allRuns.filter((r) => !isHeartbeat(r));
     const cached = proseCache.get(date);
     const hash = fingerprint(runs);
     if (cached && cached.hash === hash) return cached.prose;
+    if (runs.length === 0) return "Solo heartbeat: nessun evento da raccontare.";
 
     const compact = runs.map((r) => ({
         job: r.job || r.run,

@@ -21,7 +21,7 @@ All OBSERVED on 2026-08-23 unless marked.
 |---|---|---|
 | F1 | **Production has been at zero since 2026-08-07.** Every `ernesto-headless-produce` slot ends "0 work orders claimed" because the headless `claude -p` session cannot see the Higgsfield, Sanity, Canva and osascript MCP tools (ToolSearch finds nothing). `claude mcp list` shows them "Connected" as claude.ai connectors, which do not load outside an interactive session (INFERRED). | `~/Library/Logs/ernesto-agents-house/ernesto-headless-produce.log`, transcripts `ernesto-produce-2026-08-2*.log`; Desk row `3c1d2f3d-906b-8135-…` open for a month asking exactly this |
 | F2 | **The morning brief is never shown in the cockpit.** `operations/morning-brief.js` rewrites the Notion page `NOTION_ERNESTO_BRIEF_PAGE_ID`; no route or page in the Shell reads it. The only "brief" in the Shell is `/api/ernesto/operations/daily-report` (Claude prose over the 7-day Activity Log). | grep of `app/ lib/ components/` — zero hits for `BRIEF_PAGE` |
-| F3 | **Il Cancello hides most of the Desk.** `wallFromDeskRows` keeps only Pending rows with a locally-resolvable video. Desk today: 114 Pending (51 question, 34 recommendation, 15 publish-approval, 12 plan-proposal, 2 clip-script), 36 Approved never claimed (oldest 2026-06-12), 5 In production stuck since June/July. At most the 15 publish-approvals can appear. | `lib/cancello/state.ts:241`; Notion SQL on `collection://8f4b3eca-0043-4bf8-9dde-ce18a95b9ad6` |
+| F3 | **The Desk queue is shown truncated and unordered.** La Casa di Ernesto already lists open Desk rows (`ErnestoOperationsBoard`, three families) but capped at 6 per family ("e altre N…"), in Notion's arbitrary order, without age, and its "Decidi" link leads to Il Cancello — whose wall keeps only Pending rows with a locally-resolvable video (`wallFromDeskRows`). Desk today: 114 Pending (51 question, 34 recommendation, 15 publish-approval, 12 plan-proposal, 2 clip-script), 36 Approved never claimed (oldest 2026-06-12), 5 In production stuck since June/July. Only the 15 publish-approvals can ever reach the Cancello. *(Corrected 2026-08-23 during Phase 1: the first draft said the Desk was invisible.)* | `components/ErnestoOperationsBoard.tsx`, `lib/cancello/state.ts:241`; Notion SQL on `collection://8f4b3eca-0043-4bf8-9dde-ce18a95b9ad6` |
 | F4 | **Performance Snapshot stuck at week 2026-08-10.** The 2026-08-16 23:00 `weekly-performance-snapshot` failed on all 5 sources: `api.notion.com` resolved to `192.168.1.250:443` (LAN IP) → ECONNREFUSED. Network errors 13–18 Aug (61/45/17/25/23 per day), clean since 19 Aug. No retry/catch-up; `snapshot-revision` (Thu) repaired Search Console only. `ingester-health-check` still reports "fresh (13d)". | `weekly-performance-snapshot.log`, `snapshot-revision.log`, Activity Log rows |
 | F5 | **Stale signals in the Activity Log.** `publish-reconciliation`: 14 calendar rows "published" with no evidence (ghosts). `social-approved-publish`: 11 approved, 0 published daily (9 alreadyHandled, 3 deferredForScatter). `throughput-ledger`: output 0, streak 3 days. `page-story`: pagesSeen 0. `clip-ingest` writes 48 "nothing to ingest" rows/day (≈2000 rows/30d). | Activity Log rows 2026-08-20…23 |
 | F6 | **Mac 3010 redirects login to the VPS.** `lib/auth/config.ts:51-61` forces `AUTH_URL` to `https://cockpit.ggo-suite.co.uk` in production when the env value is missing or localhost. The web LaunchAgent sets only `PATH` and `PORT`. | `curl -I http://localhost:3010/api/health` → 307 to the VPS login |
@@ -41,12 +41,12 @@ Goal: a clean, deployable `main` and an auto-updating Mac service, so every
 later phase reaches the resident build without manual steps.
 
 Steps
-- [ ] In the **main checkout** (`/Users/jj-macstudio/Developer/GitHub/GGO-content-manager`): move the 7 uncommitted Sibilla files to a branch (`git stash` → `git switch -c feat/sibilla-readonly` → `git stash pop` → commit) or commit them directly if JJ confirms they are finished. Do **not** leave them dangling on `main`.
-- [ ] Install the update agent: follow the template/one-liner in `tools/mac/update-resident.sh`; confirm with `launchctl list | grep content-manager.update`.
-- [ ] Decide (JJ): **is the VPS the only operator surface?**
+- [x] In the **main checkout** (`/Users/jj-macstudio/Developer/GitHub/GGO-content-manager`): move the 7 uncommitted Sibilla files to a branch (`git stash` → `git switch -c feat/sibilla-readonly` → `git stash pop` → commit) or commit them directly if JJ confirms they are finished. Do **not** leave them dangling on `main`.
+- [x] Install the update agent: follow the template/one-liner in `tools/mac/update-resident.sh`; confirm with `launchctl list | grep content-manager.update`. *(Done 2026-08-23 11:34; first run exit 0, silent no-op because main was already current.)*
+- [ ] Decide (JJ): **is the VPS the only operator surface?** *(Assumed "yes" for Phase 1; `.env` files untouched — JJ sets `AUTH_URL` on the VPS if confirming.)*
   - Yes → set `AUTH_URL=https://cockpit.ggo-suite.co.uk` explicitly in the VPS `.env.local`, document in `docs/DEPLOY-REMOTE.md` that the Mac 3010 is a runner/mirror only. Nothing else changes.
   - No → in `lib/auth/config.ts` stop overriding localhost: keep the production fallback only when `AUTH_URL` is *absent*, never when it is an explicit localhost value; then set `AUTH_URL=http://localhost:3010` in the Mac plist `EnvironmentVariables`.
-- [ ] Sync: `git fetch && git log --oneline HEAD..origin/main` on the working branch before any edit (global rule).
+- [x] Sync: `git fetch && git log --oneline HEAD..origin/main` on the working branch before any edit (global rule).
 
 Verify
 - `git status` clean on `main`; update agent listed; `curl -I http://localhost:3010/api/health` behaves per the decision above.
@@ -61,29 +61,31 @@ Goal: the operator sees the morning brief, the full Desk queue and three
 freshness indicators inside the Shell. Nothing here writes to Notion or
 Sanity; no gate is touched.
 
-### 1.1 Full Desk wall in La Casa di Ernesto
-- [ ] `lib/notion/editorial.ts`: add `listDeskRows()` (paginated `databases.query` on `notionConfig.dbs.ernestoDesk()`, filter Status ∈ {Pending, Approved, In production}, sort by created ascending) mapping Item, Type, Status, Priority, Due, createdTime, Correction, Calendar Row ids, Media Assets ids. Run `impact` on `editorial.ts` exports touched before editing (GitNexus rule).
-- [ ] New route `app/api/ernesto/desk/route.ts` (`requireAuth`, `dynamic = "force-dynamic"`, GET only). Response: rows + aggregates `{pendingByType, approvedUnclaimed (age > 14d), inProductionStale (age > 21d)}`.
-- [ ] New component `components/DeskWall.tsx` (Registro primitives; no rounded corners/shadows/gradients/pills). Groups: *Da decidere* (Pending by type, oldest first, age in days), *Approvate mai reclamate*, *In produzione ferme*. Each row links to its Notion page. Oxblood only on publish-approvals awaiting JJ.
-- [ ] Mount it in `app/casa-di-ernesto/page.tsx` above the run composer; keep the Cancello unchanged (the wall is "what awaits JJ", the Cancello is "what JJ seals").
-- [ ] Test: `__tests__/desk-readonly.test.ts` asserting the route module exports only `GET` and `lib/notion/desk-write.ts` is not imported by it.
+### 1.1 Full Desk wall in La Casa di Ernesto — DONE 2026-08-23 (revised scope)
+The wall already existed in `ErnestoOperationsBoard`; it was improved rather than duplicated.
+- [x] `DeskRow.createdAt` (page `created_time`) added in `lib/notion/editorial.ts` (additive; callers: editorial page, `/api/ernesto/operations`, citofono).
+- [x] Board: open rows sorted by priority band then oldest first; age shown ("da N gg"); per-family "Mostra tutte (N)" toggle instead of a hard cap; "Decidi" → Il Cancello only for `publish-approval` (every other decision is taken on the Notion row via "Apri").
+- [x] Stall strip above the families: Pending count + oldest age; Approved unclaimed > 14 d; In production stale > 21 d (oxblood when > 0).
 
-### 1.2 Morning brief in the Shell
-- [ ] Add `NOTION_ERNESTO_BRIEF_PAGE_ID` to `.env.example`, `lib/config.ts` (lazy, read-only), both `.env.local` files (Mac + VPS — JJ pastes the id; the Shell never reads `.env` files itself).
-- [ ] `lib/notion/brief.ts`: `readMorningBrief()` → block children of the page rendered to Markdown (headings, bullets, paragraphs; ignore unknown blocks), plus `last_edited_time`.
-- [ ] Route `app/api/ernesto/brief/route.ts` (GET, auth, 5-minute in-memory cache keyed by `last_edited_time`).
-- [ ] Render with `MarkdownBlock` at the top of La Casa di Ernesto with "Brief delle HH:MM — {date}"; show an explicit amber line if the page is older than 26 h.
+### 1.2 Morning brief in the Shell — DONE 2026-08-23 (env id still to be set by JJ)
+- [x] `NOTION_ERNESTO_BRIEF_PAGE_ID` in `.env.example` and `lib/config.ts` (`notionConfig.pages.ernestoBrief()`, optional → room degrades silently).
+- [ ] **JJ:** paste the page id into both `.env.local` (Mac + VPS). Until then the card does not render.
+- [x] `lib/notion/brief.ts` — blocks → Markdown + `last_edited_time`, 5-minute cache, read-only.
+- [x] `app/api/ernesto/brief/route.ts` (GET, auth).
+- [x] `components/MorningBrief.tsx` mounted at the top of La Casa di Ernesto; amber line when older than 26 h.
 
 ### 1.3 Daily-report signal/noise
-- [ ] In `app/api/ernesto/operations/daily-report/route.ts`, before `summariseDay`, drop rows whose `job ∈ {clip-ingest, media-gc}` **and** Status = Success **and** summary matches /nothing to ingest|no files/ — keep them in `counts`, exclude from the prose input. Fingerprint must ignore them too so the prose cache stays stable.
+- [x] In `app/api/ernesto/operations/daily-report/route.ts`, before `summariseDay`, drop rows whose `job ∈ {clip-ingest, media-gc}` **and** Status = Success **and** summary matches /nothing to ingest|no files/ — keep them in `counts`, exclude from the prose input. Fingerprint must ignore them too so the prose cache stays stable.
 
-### 1.4 Freshness indicators in Portineria
-- [ ] Extend the Portineria reporting lines with three sockets: *Ultima settimana Performance Snapshot* (max week in the snapshot DB; amber > 8 d, red > 15 d), *Ultimo produce con output > 0* (from Activity Log `ernesto-headless-produce` Summary not matching "0 work orders"/"0 unità"; amber > 3 d, red > 7 d), *Coda Desk* (Pending count + oldest age; amber > 30, red > 60).
+### 1.4 Freshness indicators in Portineria — DONE 2026-08-23
+- [x] `app/api/ernesto/pulse/route.ts` (GET, auth) — last productive produce slot + zero-output streak, Desk pending/oldest/approved-unclaimed, latest snapshot week; built on the cached editorial services.
+- [x] `components/HousePulse.tsx` ("Polso della casa") mounted above the Portineria summary grid; thresholds: produce amber 3 d / oxblood 7 d, snapshot 8 / 15 d, Desk pending 30 / 60.
+- [x] `__tests__/ernesto-read-models.test.ts` — brief/pulse routes GET-only and free of Notion write calls.
 
 Verify
-- `npm run test` green (incl. `ambrogio-no-write`, new desk test). `npm run build`.
-- Deploy VPS per `docs/DEPLOY-REMOTE.md` (rsync, build, restart); kickstart the Mac service.
-- Logged in on the VPS: La Casa di Ernesto shows today's brief and ≈114 pending rows; Portineria shows the three sockets with the expected colours (snapshot red until Phase 3 runs).
+- [x] `npm run test` green (17 files, 100 tests incl. `ambrogio-no-write`, `ernesto-read-models`); `tsc --noEmit` clean; `npm run build` OK (2026-08-23).
+- [ ] Deploy VPS per `docs/DEPLOY-REMOTE.md` (rsync, build, restart); the Mac updates itself via the new agent once merged to `main`.
+- [ ] Logged in on the VPS (JJ): La Casa di Ernesto shows the brief card (after the env id is set) and the stall strip with ≈114 pending rows, oldest first; Portineria shows the three pulse sockets (snapshot oxblood until Phase 3 runs).
 
 Rollback: revert the commit; routes are additive.
 
@@ -170,3 +172,4 @@ Verify
 
 ## Log
 - 2026-08-23 — health check done, plan written. No code changed.
+- 2026-08-23 — Phase 0 done (Sibilla parked on `feat/sibilla-readonly`, update agent installed, AUTH_URL decision left to JJ). Phase 1 implemented on `claude/content-manager-stallo-check-3ab67c`; F3 corrected; awaiting merge + VPS deploy + JJ's on-surface check.

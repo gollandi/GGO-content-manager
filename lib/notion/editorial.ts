@@ -70,6 +70,7 @@ export interface DeskRow {
     due: string | null;
     creditsEstimate: number | null;
     decidedAt: string | null;
+    createdAt: string; // page created_time — the age of a decision still waiting
     url: string;
 }
 
@@ -218,6 +219,7 @@ const mapDesk = (p: PageObjectResponse): DeskRow => ({
     due: x.date(x.prop(p.properties, "Due")),
     creditsEstimate: x.number(x.prop(p.properties, "Credits Estimate")),
     decidedAt: x.date(x.prop(p.properties, "Decided At")),
+    createdAt: p.created_time,
     url: p.url,
 });
 

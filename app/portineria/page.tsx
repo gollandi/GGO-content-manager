@@ -3,6 +3,7 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import AppShell from "../../components/AppShell";
+import HousePulse from "../../components/HousePulse";
 
 // recharts (with its D3 deps) is a large bundle — load it only when the
 // charts actually render, off the route's critical path.
@@ -200,6 +201,8 @@ export default function PortineriaPage() {
                     </div>
                     <div className={styles.headerStamp}>Read signal · write work</div>
                 </header>
+
+                <HousePulse />
 
                 <div className={styles.summaryGrid}>
                     <div className={styles.summaryCard}>
