@@ -96,21 +96,22 @@ Rollback: revert the commit; routes are additive.
 Goal: the 13:00 `produce` slot claims work again. Root cause F1.
 
 ### 2A (preferred) — CLI-scoped MCP servers
-- [ ] JJ, in an **interactive** `claude` session started from `~/Developer/GitHub/ernesto-agents-house`: `claude mcp add --transport http --scope user higgsfield https://mcp.higgsfield.ai/mcp` (same for `sanity https://mcp.sanity.io`, `canva https://mcp.canva.com/mcp`), complete each OAuth once. **UNVERIFIED** that user-scope HTTP servers load in `claude -p`; the probe below settles it.
+- [x] Servers registered at user scope 2026-08-24 (`claude mcp add --transport http --scope user` for higgsfield/sanity/canva); `claude mcp list` shows all three as "Needs authentication".
+- [ ] **JJ, interactive step:** open `claude` in `~/Developer/GitHub/ernesto-agents-house`, run `/mcp`, complete the OAuth for **higgsfield**, **sanity** and **canva** once each. **UNVERIFIED** that user-scope HTTP servers then load in `claude -p`; the probe below settles it.
 - [ ] Probe (JJ runs it; the auto-mode classifier blocks Claude from spawning `claude -p`):
   ```bash
   cd ~/Developer/GitHub/ernesto-agents-house && claude -p 'Use ToolSearch with query "higgsfield" then "sanity" then "canva"; reply only with a JSON object of tool names found per query.' --output-format text --permission-mode bypassPermissions
   ```
   Expected: non-empty arrays for all three. If empty → 2B.
-- [ ] If the probe passes: no cron change needed. Close Desk row `3c1d2f3d-906b-8135-…` with the decision text.
+- [ ] If the probe passes: no cron change needed. Close Desk row `3c1d2f3d-906b-8135-…` with the decision text (the new tools nag row auto-closes on the first healthy probe).
 
 ### 2B (fallback) — deterministic Sanity, interactive Higgsfield/Canva
 - [ ] `ernesto-agents-house/operations/sanity-draft-writer.js` using `@sanity/client` + `SANITY_GGOMED_WRITE_TOKEN` (drafts only, `gxyjgvr0` only — never `m05ykm6e`; mirror the existing `notion-to-sanity-sync` guard). Expose it to the produce skill as a documented tool; produce slot then handles page patches, captions, Desk work orders that need no generative media.
 - [ ] Generative reels (Ginevra) and Canva statics stay on an interactive slot JJ opens (document in `ernesto-the-pimp` SKILL.md "headless limits").
 
-### 2C (both branches) — fail loudly next time
-- [ ] `cron/ernesto-headless.js` preflight: add `EXPECTED_MCP_TOOLS` (env, comma list) and a cheap probe; on miss write Activity Log `Partial` with `Error Message: "MCP tools missing: …"` and surface it in the brief's first line. Today the gap stayed silent (Status Success) for 16 days.
-- [ ] `daily-report`: treat `Partial` with that message as attention (already does via `ATTENTION` set — confirm).
+### 2C (both branches) — fail loudly next time — DONE 2026-08-24
+- [x] `cron/ernesto-headless.js`: `preflightTools()` — per-slot expected tools (produce: higgsfield/sanity/canva; review: higgsfield; brief: none; `ERNESTO_EXPECTED_MCP_TOOLS` override), haiku ToolSearch probe, one deduped Urgent Desk row + macOS notification on miss, run recorded **Partial** (`errors = missing.length`), missing tools stitched into the slot prompt, auto-close on the first healthy probe. A failed probe never masks a different fault. Commit `646d6f8` in ernesto-agents-house; 1095 tests green.
+- [x] `daily-report`: `Partial` is already in the `ATTENTION` set — confirmed.
 
 Verify
 - Next day's produce Activity Log row: Summary with ≥1 claimed work order; `throughput-ledger` output > 0; Portineria socket *Ultimo produce* green.
@@ -173,3 +174,4 @@ Verify
 ## Log
 - 2026-08-23 — health check done, plan written. No code changed.
 - 2026-08-23 — Phase 0 done (Sibilla parked on `feat/sibilla-readonly`, update agent installed, AUTH_URL decision left to JJ). Phase 1 implemented on `claude/content-manager-stallo-check-3ab67c`; F3 corrected; awaiting merge + VPS deploy + JJ's on-surface check.
+- 2026-08-24 — Phase 1 merged (#18) and deployed: VPS rebuilt/restarted (build Z2LhQJ56…, smoke checks green), Mac auto-updated; `NOTION_ERNESTO_BRIEF_PAGE_ID` set on both machines. Phase 2: 2C shipped in ernesto-agents-house (`646d6f8`); 2A servers registered at CLI user scope, awaiting JJ's one-off `/mcp` OAuth for higgsfield/sanity/canva, then the probe; 2B only if the probe fails.
