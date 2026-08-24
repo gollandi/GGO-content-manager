@@ -40,8 +40,24 @@ interface DeskItem {
   status: string | null;
   priority: string | null;
   due: string | null;
+  createdAt?: string;
   url?: string;
 }
+
+/** Age in whole days, or null when the row carries no timestamp. */
+function ageDays(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const t = new Date(value).getTime();
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, Math.floor((Date.now() - t) / 86_400_000));
+}
+
+const PRIORITY_RANK: Record<string, number> = { Urgent: 0, Normal: 1, Low: 2 };
+
+/** Thresholds after which a row is no longer "in motion" but stuck. */
+const APPROVED_STALE_DAYS = 14;
+const IN_PRODUCTION_STALE_DAYS = 21;
+
 
 /**
  * The Desk holds very different natures of row — an agent's doubt is not a
@@ -174,13 +190,35 @@ export default function ErnestoOperationsBoard() {
       .filter((entry) => entry.startedAt && new Date(entry.startedAt).getTime() >= cutoff)
       .sort((a, b) => (b.startedAt ?? "").localeCompare(a.startedAt ?? ""));
   }, [data]);
+  // Oldest decision first within a priority band: the queue reads as a
+  // register of what has waited longest, not as Notion's arbitrary order.
   const openDesk = useMemo(
     () =>
-      (data?.desk ?? []).filter((item) =>
-        ["Pending", "Approved", "In production"].includes(item.status ?? "")
-      ),
+      (data?.desk ?? [])
+        .filter((item) => ["Pending", "Approved", "In production"].includes(item.status ?? ""))
+        .sort((a, b) => {
+          const pa = PRIORITY_RANK[a.priority ?? "Normal"] ?? 1;
+          const pb = PRIORITY_RANK[b.priority ?? "Normal"] ?? 1;
+          if (pa !== pb) return pa - pb;
+          return (a.createdAt ?? "").localeCompare(b.createdAt ?? "");
+        }),
     [data]
   );
+  const deskStall = useMemo(() => {
+    const pending = openDesk.filter((i) => i.status === "Pending");
+    const pendingAges = pending.map((i) => ageDays(i.createdAt) ?? 0);
+    return {
+      pending: pending.length,
+      pendingOldest: pendingAges.length ? Math.max(...pendingAges) : 0,
+      approvedStale: openDesk.filter(
+        (i) => i.status === "Approved" && (ageDays(i.createdAt) ?? 0) > APPROVED_STALE_DAYS
+      ).length,
+      inProductionStale: openDesk.filter(
+        (i) => i.status === "In production" && (ageDays(i.createdAt) ?? 0) > IN_PRODUCTION_STALE_DAYS
+      ).length,
+    };
+  }, [openDesk]);
+  const [expandedFamilies, setExpandedFamilies] = useState<Record<string, boolean>>({});
   const visibleAssets = useMemo(() => {
     const query = assetFilter.trim().toLowerCase();
     if (!query) return data?.media ?? [];
@@ -549,6 +587,22 @@ export default function ErnestoOperationsBoard() {
             Apri Il Cancello
           </Link>
         </div>
+        {/* The stall in numbers: what waits on JJ, what JJ approved and nobody
+            claimed, what was claimed and never finished. */}
+        {!loading && openDesk.length > 0 && (
+          <div className="mb-4 grid grid-cols-3 gap-3 border-y border-paper-edge py-2 font-condensed text-[11px] uppercase tracking-[0.1em] text-paper-foreground-soft max-md:grid-cols-1">
+            <div>
+              <span className="text-paper-foreground">{deskStall.pending}</span> in attesa di decisione
+              {deskStall.pendingOldest > 0 && <> · la più vecchia da {deskStall.pendingOldest} gg</>}
+            </div>
+            <div className={deskStall.approvedStale > 0 ? "text-seal" : undefined}>
+              <span className="text-paper-foreground">{deskStall.approvedStale}</span> approvate e mai reclamate (&gt;{APPROVED_STALE_DAYS} gg)
+            </div>
+            <div className={deskStall.inProductionStale > 0 ? "text-seal" : undefined}>
+              <span className="text-paper-foreground">{deskStall.inProductionStale}</span> in produzione ferme (&gt;{IN_PRODUCTION_STALE_DAYS} gg)
+            </div>
+          </div>
+        )}
         {/* One ledger per nature: doubts, proposals and production never mixed. */}
         <div className="grid grid-cols-3 gap-4 max-lg:grid-cols-1">
           {DESK_FAMILIES.map((family) => {
@@ -557,13 +611,15 @@ export default function ErnestoOperationsBoard() {
               ? openDesk.filter((item) => !DESK_FAMILIES.some((f) => f.types.includes(item.type ?? "")))
               : [];
             const visible = [...rows, ...others];
+            const expanded = Boolean(expandedFamilies[family.key]);
+            const shown = expanded ? visible : visible.slice(0, 6);
             return (
               <div key={family.key} className="min-w-0">
                 <div className="column-label column-label-paper mb-2 border-b border-paper-edge pb-1.5">
                   {family.label} · {visible.length}
                 </div>
                 <div className="space-y-2">
-                  {visible.slice(0, 6).map((item) => (
+                  {shown.map((item) => (
                     <div key={item.id} className="border border-paper-edge p-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 text-sm font-semibold">{item.item}</div>
@@ -574,6 +630,7 @@ export default function ErnestoOperationsBoard() {
                           {DESK_TYPE_LABEL[item.type ?? ""] ?? item.type ?? "altro"}
                         </span>
                         {item.priority && <span>{item.priority}</span>}
+                        {ageDays(item.createdAt) !== null && <span>da {ageDays(item.createdAt)} gg</span>}
                         {item.due && <span>entro {item.due.slice(0, 10)}</span>}
                         {/* The card's own actions — no trip to the top of the page. */}
                         <span className="ml-auto flex gap-2">
@@ -582,7 +639,9 @@ export default function ErnestoOperationsBoard() {
                               Apri
                             </a>
                           )}
-                          {item.status === "Pending" && (
+                          {/* Only publish-approvals reach the Cancello wall;
+                              every other decision is taken on the Notion row. */}
+                          {item.status === "Pending" && item.type === "publish-approval" && (
                             <Link href="/review" className="font-semibold text-engraving-ink hover:underline">
                               Decidi
                             </Link>
@@ -592,7 +651,13 @@ export default function ErnestoOperationsBoard() {
                     </div>
                   ))}
                   {visible.length > 6 && (
-                    <p className="text-[11px] text-paper-foreground-soft">e altre {visible.length - 6}…</p>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedFamilies((prev) => ({ ...prev, [family.key]: !expanded }))}
+                      className="text-[11px] font-semibold text-engraving-ink hover:underline"
+                    >
+                      {expanded ? "Mostra solo le prime 6" : `Mostra tutte (${visible.length})`}
+                    </button>
                   )}
                   {!loading && visible.length === 0 && (
                     <p className="border border-dashed border-paper-edge px-3 py-4 text-center text-xs text-paper-foreground-soft">

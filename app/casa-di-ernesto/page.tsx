@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import AppShell from "../../components/AppShell";
 import ErnestoOperationsBoard from "../../components/ErnestoOperationsBoard";
 import MarkdownBlock from "../../components/MarkdownBlock";
+import MorningBrief from "../../components/MorningBrief";
 import StatusBadge from "../../components/StatusBadge";
 import type { Proposal, RunEvent } from "../../lib/runner/types";
 
@@ -273,6 +274,8 @@ export default function CasaDiErnestoPage() {
                             Brief → ricerca → <strong>proposta</strong> → tua approvazione → bozze → critici → Cancello.
                         </p>
                     </header>
+
+                    <MorningBrief />
 
                     <ErnestoOperationsBoard />
 

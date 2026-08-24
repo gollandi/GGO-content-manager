@@ -71,6 +71,14 @@ export const notionConfig = {
         ambrogioAudits: lazyDb("NOTION_AMBROGIO_AUDITS_DB"),
         ambrogioProposals: lazyDb("NOTION_AMBROGIO_PROPOSALS_DB"),
     },
+
+    /** Single Notion pages the Shell reads (never writes). Optional: a room
+     *  degrades to "not configured" instead of failing when the id is absent. */
+    pages: {
+        // The page ernesto-agents-house's morning-brief rewrites every day
+        // at 07:00 (same env name as ernesto's .env.example).
+        ernestoBrief: (): string | null => process.env.NOTION_ERNESTO_BRIEF_PAGE_ID || null,
+    },
 } as const;
 
 /** GGOMed marketing-site Sanity project (content + PIF assessment). */
