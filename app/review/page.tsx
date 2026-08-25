@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import AppShell from "../../components/AppShell";
 import MarkdownBlock from "../../components/MarkdownBlock";
 import { Guilloche, Socket, Mark, AgeBar, type MarkTone } from "../../components/Registro";
 
@@ -646,7 +645,7 @@ export default function ReviewPage() {
     /* ── Render ───────────────────────────────────────────────────────────── */
 
     return (
-        <AppShell>
+        <>
             {/* The spread is the viewport: each leaf scrolls by itself, the acts
                 never leave the eye. */}
             <div className="relative flex h-[100dvh] flex-col overflow-hidden">
@@ -915,6 +914,6 @@ export default function ReviewPage() {
                     </div>
                 )}
             </div>
-        </AppShell>
+        </>
     );
 }

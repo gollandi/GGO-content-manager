@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import AppShell from "../../components/AppShell";
 import * as Icons from "../../components/Icons";
 import SearchBar from "../../components/SearchBar";
 import FilterBar from "../../components/FilterBar";
@@ -72,7 +71,7 @@ export default function YoutubePage() {
   });
 
   return (
-    <AppShell>
+    <>
       <div className="p-8 max-lg:p-4">
         <header className="page-header">
           <div>
@@ -187,6 +186,6 @@ export default function YoutubePage() {
           </div>
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, Fragment } from "react";
-import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import * as Icons from "../../components/Icons";
 import { SchemaValidationItem } from "../../lib/notion/types";
@@ -98,7 +97,7 @@ export default function SchemaValidationPage() {
   };
 
   return (
-    <AppShell>
+    <>
       <div className={styles.page}>
         {/* Header */}
         <header className="page-header">
@@ -346,6 +345,6 @@ export default function SchemaValidationPage() {
           </DataTable>
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }

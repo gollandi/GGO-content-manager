@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import AppShell from "../../components/AppShell";
 import Citofono from "../../components/Citofono";
 import { RoomCrest } from "../../components/Registro";
 import MarkdownBlock from "../../components/MarkdownBlock";
@@ -105,7 +104,7 @@ export default function SoffittaPage() {
     }
 
     return (
-        <AppShell>
+        <>
             <div className="room-soffitta p-8 max-lg:p-4 max-w-4xl">
                 <header className="mb-6 border-b border-plate-rule pb-4">
                     <h1 className="document-title mt-1.5 flex items-center gap-3 text-[30px] text-plate-foreground-strong max-sm:text-[24px]"><RoomCrest room="soffitta" size={26} className="opacity-80" />La Soffitta</h1>
@@ -166,6 +165,6 @@ export default function SoffittaPage() {
                 )}
             </div>
             <Citofono voice="ettore" />
-        </AppShell>
+        </>
     );
 }

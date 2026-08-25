@@ -1,4 +1,3 @@
-import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import {
   IconBell,
@@ -23,7 +22,7 @@ const navItems = [
 
 export default function SettingsPage() {
   return (
-    <AppShell>
+    <>
       <div className={styles.page}>
         <div className="border border-sepia px-4 py-3 mb-6 text-sm text-sepia-bright">
           This page is in development. Data shown is placeholder only.
@@ -97,6 +96,6 @@ export default function SettingsPage() {
           </div>
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }

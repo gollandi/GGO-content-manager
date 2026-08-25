@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import * as Icons from "../../components/Icons";
 
@@ -52,7 +51,7 @@ export default function AssistantPage() {
   };
 
   return (
-    <AppShell>
+    <>
       <div className={styles.page}>
         <header className="page-header">
           <div>
@@ -186,6 +185,6 @@ export default function AssistantPage() {
           )}
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }

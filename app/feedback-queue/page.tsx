@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import { IconBell, IconPlus, IconSearch } from "../../components/Icons";
 import { FeedbackItem, FeedbackType, FeedbackActionStatus, ContentItem } from "../../lib/notion/types";
@@ -128,7 +127,7 @@ export default function FeedbackQueuePage() {
   };
 
   return (
-    <AppShell>
+    <>
       <div className={styles.page}>
         <header className="page-header">
           <div>
@@ -373,7 +372,7 @@ export default function FeedbackQueuePage() {
           </div>
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }
 

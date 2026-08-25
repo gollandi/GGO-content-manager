@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Archivo, Archivo_Narrow, Bodoni_Moda } from "next/font/google";
 import "./globals.css";
 import Providers from "../components/Providers";
+import ShellGate from "../components/ShellGate";
 
 const archivo = Archivo({
   subsets: ["latin"],
@@ -62,7 +63,9 @@ export default function RootLayout({
     >
       <body className="font-sans bg-plate text-plate-foreground antialiased">
         <div hidden dangerouslySetInnerHTML={{ __html: DIRECTION_CONTRACT }} />
-        <Providers>{children}</Providers>
+        <Providers>
+          <ShellGate>{children}</ShellGate>
+        </Providers>
       </body>
     </html>
   );
