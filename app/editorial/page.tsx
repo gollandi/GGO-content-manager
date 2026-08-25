@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getEditorialContent } from "../../lib/views";
+import { getEditorialContent, getDraftDelta } from "../../lib/views";
 import {
     getContentCalendar,
     getTopicPool,
@@ -60,7 +60,7 @@ export default async function EditorialPage({
     const { q: rawQ = "", due = "" } = await searchParams;
     const q = rawQ.toLowerCase();
 
-    const [site, calendar, topics, desk, queue, newsletter, needs] =
+    const [site, calendar, topics, desk, queue, newsletter, needs, dariaDrafts] =
         await Promise.all([
             settle(getEditorialContent),
             settle(getContentCalendar),
@@ -69,6 +69,7 @@ export default async function EditorialPage({
             settle(getPublishQueue),
             settle(getNewsletterItems),
             settle(getContentNeeds),
+            settle(getDraftDelta),
         ]);
 
     // Prepared patches on the house's disk, keyed by Sanity doc id: the table
@@ -133,6 +134,12 @@ export default async function EditorialPage({
                         <span className="column-label">{s.label}</span>
                     </div>
                 ))}
+                <Link href="/editorial/daria" className="group flex items-baseline gap-2" title="Il lavoro di Daria, pre/post a confronto">
+                    <span className="tabular font-serif text-[24px] font-bold text-stamp">
+                        {dariaDrafts.data?.length ?? 0}
+                    </span>
+                    <span className="column-label group-hover:text-engraving-bright">Daria pre/post →</span>
+                </Link>
             </div>
 
             {/* Cross-source filter */}
