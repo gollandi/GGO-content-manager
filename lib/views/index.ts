@@ -12,7 +12,7 @@
  * Two clients, two projects, no cross-project join (spec §4.1) — the PIF
  * union happens app-side in lib/pif/normalise.ts.
  */
-import { ggomedClient, compassPifClient } from "../sanity/clients";
+import { ggomedClient, ggomedRawClient, compassPifClient } from "../sanity/clients";
 import { sanityCompassConfig } from "../config";
 import { cached } from "../cache";
 import type {
@@ -20,6 +20,7 @@ import type {
     AssetIdentityRow,
     PifGgomedRow,
     PifCompassRow,
+    DraftDeltaRow,
 } from "./types";
 
 /** GROQ template tag (identity — for editor syntax highlighting only). */
@@ -123,6 +124,17 @@ export const pifCompassQuery = groq`
         | order(signedAt desc)[0] { signedAt, certifierName }
 }`;
 
+/**
+ * Pending drafts (Daria's work) paired with their published counterparts —
+ * whole documents, raw perspective, no CDN. The field-level delta is
+ * computed app-side (lib/delta), so no projection to maintain here.
+ */
+export const draftDeltaQuery = groq`
+*[_id in path("drafts.**") && _type in ${GGOMED_PIF_TYPES}] | order(_updatedAt desc) {
+    ...,
+    "publishedDoc": *[_id == string::split(^._id, "drafts.")[1]][0]
+}`;
+
 // ── Fetchers (cached: live GROQ behind a short in-process TTL) ──────────────
 
 const VIEW_TTL_MS = 5 * 60 * 1000; // 5 min — live-ish without hammering Sanity
@@ -162,6 +174,17 @@ export function getPifCompass(): Promise<PifCompassRow[]> {
     );
 }
 
+/** A review surface goes stale faster than the observatory views. */
+const DRAFT_DELTA_TTL_MS = 60 * 1000;
+
+export function getDraftDelta(): Promise<DraftDeltaRow[]> {
+    return cached(
+        "view:draft-delta",
+        () => ggomedRawClient.fetch<DraftDeltaRow[]>(draftDeltaQuery),
+        DRAFT_DELTA_TTL_MS
+    );
+}
+
 /**
  * The registry the HTTP API serves. Names are the public contract —
  * skills will call /api/views/<name> in Phase 3. Add views here, nowhere else.
@@ -171,6 +194,7 @@ export const VIEW_REGISTRY = {
     "asset-identity": getAssetIdentity,
     "pif-ggomed": getPifGgomed,
     "pif-compass": getPifCompass,
+    "draft-delta": getDraftDelta,
 } as const;
 
 export type ViewName = keyof typeof VIEW_REGISTRY;
