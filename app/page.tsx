@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import AppShell from "../components/AppShell";
 import Citofono from "../components/Citofono";
 import WeeklyCronReport from "../components/WeeklyCronReport";
 import { Guilloche, Socket, Tally, AgeBar, RoomCrest, ROOM_INK, type RoomId } from "../components/Registro";
@@ -482,7 +481,7 @@ export default function AtrioPage() {
   const wanting = ROOMS.filter((r) => r.state === "attention");
 
   return (
-    <AppShell>
+    <>
       <div className="relative min-h-screen overflow-hidden">
         <Guilloche
           size={1100}
@@ -547,6 +546,6 @@ export default function AtrioPage() {
         </footer>
       </div>
         <Citofono voice="portineria" />
-        </AppShell>
+        </>
   );
 }

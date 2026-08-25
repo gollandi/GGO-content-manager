@@ -2,7 +2,6 @@ import Link from "next/link";
 import { getPifGgomed, getPifCompass } from "../../lib/views";
 import { normaliseGgomed, normaliseCompass, type PifRow } from "../../lib/pif/normalise";
 import { settle } from "../../lib/settle";
-import AppShell from "../../components/AppShell";
 import { Guilloche, Socket, Mark } from "../../components/Registro";
 
 /**
@@ -84,7 +83,7 @@ export default async function PifTickPage({
     const filterHref = (s: string, st: string) => `/pif-tick?source=${s}&state=${st}`;
 
     return (
-        <AppShell>
+        <>
             <div className="relative min-h-screen overflow-hidden">
                 <Guilloche
                     size={860}
@@ -207,6 +206,6 @@ export default async function PifTickPage({
                     </p>
                 </div>
             </div>
-        </AppShell>
+        </>
     );
 }

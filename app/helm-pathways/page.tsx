@@ -1,5 +1,4 @@
 import Link from "next/link";
-import AppShell from "../../components/AppShell";
 import StatusBadge from "../../components/StatusBadge";
 import { getPifCompass } from "../../lib/views";
 import { normaliseCompass } from "../../lib/pif/normalise";
@@ -57,7 +56,7 @@ export default async function HelmPathwaysPage({
   });
 
   return (
-    <AppShell>
+    <>
       <div className="p-8 max-lg:p-4">
         <header className="mb-6 border-b border-plate-rule pb-4">
           <h1 className="document-title mt-1.5 text-[30px] text-plate-foreground-strong max-sm:text-[24px]">The Helm Pathways</h1>
@@ -150,6 +149,6 @@ export default async function HelmPathwaysPage({
           flag-for-review, review is not lapsed, and all four applicable PIF checks are ticked.
         </p>
       </div>
-    </AppShell>
+    </>
   );
 }

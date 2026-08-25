@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import AppShell from "../../components/AppShell";
 import { Document, RegisterHeading, RoomCrest } from "../../components/Registro";
 
 /**
@@ -280,7 +279,7 @@ export default function CaricoPage() {
     const busy = phase === "uploading" || phase === "assembling";
 
     return (
-        <AppShell>
+        <>
             <div className="mx-auto w-full max-w-3xl px-6 py-8 max-sm:px-4 max-sm:py-6">
                 <header className="mb-7 border-b border-plate-rule pb-4">
                     <p className="column-label flex items-center gap-2">
@@ -476,6 +475,6 @@ export default function CaricoPage() {
                     )}
                 </section>
             </div>
-        </AppShell>
+        </>
     );
 }

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import AppShell from "../../components/AppShell";
 import ErnestoOperationsBoard from "../../components/ErnestoOperationsBoard";
 import MarkdownBlock from "../../components/MarkdownBlock";
 import MorningBrief from "../../components/MorningBrief";
@@ -232,7 +231,7 @@ export default function CasaDiErnestoPage() {
     const showApprove = !!meta?.proposal && !meta?.proposalApproved && meta?.status === "awaiting-jj" && !streaming;
 
     return (
-        <AppShell>
+        <>
             <div className="room-ernesto p-6 max-lg:p-3 grid grid-cols-[280px_1fr] max-lg:grid-cols-1 gap-6">
                 {/* ── Run history (persistent until archived) ── */}
                 <aside>
@@ -517,6 +516,6 @@ export default function CasaDiErnestoPage() {
                     )}
                 </main>
             </div>
-        </AppShell>
+        </>
     );
 }

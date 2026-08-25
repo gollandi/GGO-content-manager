@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
-import AppShell from "../../components/AppShell";
 import HousePulse from "../../components/HousePulse";
 
 // recharts (with its D3 deps) is a large bundle — load it only when the
@@ -185,7 +184,7 @@ export default function PortineriaPage() {
     }
 
     return (
-        <AppShell>
+        <>
             <div className={styles.page}>
                 <header className={styles.header}>
                     <div>
@@ -365,6 +364,6 @@ export default function PortineriaPage() {
                     </div>
                 </section>
             </div>
-        </AppShell>
+        </>
     );
 }

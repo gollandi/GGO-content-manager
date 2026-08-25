@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import * as Icons from "../../components/Icons";
 import { ContentItem } from "../../lib/notion/types";
@@ -26,7 +25,7 @@ export default function ContentExplorerPage() {
 
 
   return (
-    <AppShell>
+    <>
       <div className={styles.page}>
         <header className="page-header">
           <div>
@@ -95,6 +94,6 @@ export default function ContentExplorerPage() {
           </DataTable>
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }

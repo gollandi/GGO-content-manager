@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import { IconBell, IconPlus, IconFilter } from "../../components/Icons";
 import {
@@ -131,7 +130,7 @@ export default function ContentRequestsPage() {
   };
 
   return (
-    <AppShell>
+    <>
       <div className={styles.page}>
         <header className="page-header">
           <div>
@@ -318,7 +317,7 @@ export default function ContentRequestsPage() {
           ))}
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }
 

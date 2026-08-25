@@ -10,7 +10,6 @@ import {
 } from "../../lib/notion/editorial";
 import { settle, type Settled } from "../../lib/settle";
 import StatusBadge, { getStatusTone } from "../../components/StatusBadge";
-import AppShell from "../../components/AppShell";
 import ArticleActions from "../../components/ArticleActions";
 import { loadPatches } from "../../lib/cancello/patches";
 import Citofono from "../../components/Citofono";
@@ -108,7 +107,7 @@ export default async function EditorialPage({
     };
 
     return (
-        <AppShell>
+        <>
         <div className="p-8 max-lg:p-4">
             <header className="mb-6 border-b border-plate-rule pb-4">
                 <p className="column-label">Editorial · la scrivania</p>
@@ -329,6 +328,6 @@ export default async function EditorialPage({
             </div>
         </div>
             <Citofono voice="edmondo" />
-        </AppShell>
+        </>
     );
 }

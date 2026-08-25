@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import { IconBell, IconCheck, IconAlertCircle } from "../../components/Icons";
 import { AnnualReviewLogItem, PifCriterion, PifCycle } from "../../lib/notion/types";
@@ -151,7 +150,7 @@ export default function AnnualReviewPage() {
   const editingEntry = entries.find((e) => e.id === editingId);
 
   return (
-    <AppShell>
+    <>
       <div className={styles.page}>
         <header className="page-header">
           <div>
@@ -458,7 +457,7 @@ export default function AnnualReviewPage() {
           )}
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }
 

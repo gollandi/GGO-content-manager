@@ -5,7 +5,6 @@ import {
 } from "../../lib/notion/editorial";
 import { settle } from "../../lib/settle";
 import StatusBadge from "../../components/StatusBadge";
-import AppShell from "../../components/AppShell";
 import Citofono from "../../components/Citofono";
 import { RoomCrest } from "../../components/Registro";
 
@@ -45,7 +44,7 @@ export default async function AmbrogioPage() {
     const pendingProposals = (proposals.data ?? []).filter((p) => p.decision === "Pending").length;
 
     return (
-        <AppShell>
+        <>
         <div className="p-8 max-lg:p-4">
             <header className="mb-6 border-b border-plate-rule pb-4">
                 <h1 className="document-title mt-1.5 flex items-center gap-3 text-[30px] text-plate-foreground-strong max-sm:text-[24px]"><RoomCrest room="ambrogio" size={26} className="opacity-80" />Lo Studio di Ambrogio</h1>
@@ -159,6 +158,6 @@ export default async function AmbrogioPage() {
             </section>
         </div>
             <Citofono voice="ambrogio" />
-        </AppShell>
+        </>
     );
 }
