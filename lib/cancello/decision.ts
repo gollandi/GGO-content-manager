@@ -22,17 +22,17 @@ import { findPatchForAsset } from "./patches";
 import { kickstartJob, runHouseScript } from "./house";
 import { invalidateCancelloCache } from "./state";
 
-export type Decision = "approve" | "modify" | "reject" | "done";
+export type Decision = "approve" | "modify" | "reject" | "done" | "delete";
 export type Target = "desk" | "calendar" | "website";
 
 // Verbatim from the house's core/publish-state.js — approve is publish.
 // `done` is JJ's broom: work already carried out elsewhere (a draft he
 // published in Studio, a request that lapsed) — the row closes and stops
-// haunting the register. Desk only; unproduced calendar work is
-// rescheduled, never archived.
+// haunting the register. `delete` is different: it archives the Notion page
+// itself after an explicit destructive confirmation in the UI.
 const STATUS_MAPS: Record<"desk" | "calendar", Partial<Record<Decision, string>>> = {
     desk: { approve: "Approved", reject: "Rejected", modify: "Pending", done: "Done" },
-    calendar: { approve: "Approved", modify: "Draft", reject: "Blocked" },
+    calendar: { approve: "Approved", modify: "Draft", reject: "Blocked", done: "Archived" },
 };
 const COMMENT_PROP: Record<"desk" | "calendar", string> = {
     desk: "Correction",
@@ -57,6 +57,22 @@ export interface DecisionResult {
 }
 
 const rich = (content: string) => ({ rich_text: [{ text: { content } }] });
+const normaliseNotionId = (id: string) => id.replace(/-/g, "");
+
+async function assertDeletablePage(rowId: string, target: "desk" | "calendar"): Promise<void> {
+    const page = await notion.pages.retrieve({ page_id: rowId }) as {
+        parent?: { type?: string; database_id?: string };
+    };
+    const expected = target === "desk"
+        ? notionConfig.dbs.ernestoDesk()
+        : notionConfig.dbs.contentCalendar();
+    if (
+        page.parent?.type !== "database_id" ||
+        normaliseNotionId(page.parent.database_id ?? "") !== normaliseNotionId(expected)
+    ) {
+        throw new Error(`refusing to delete ${rowId}: it is not a ${target} proposal`);
+    }
+}
 
 async function createDeskRow(input: {
     title: string; type: string; priority: string; body: string; status?: string;
@@ -91,6 +107,21 @@ export async function applyCancelloDecision(input: DecisionInput): Promise<Decis
 
         const map = STATUS_MAPS[target];
         if (!map) throw new Error(`unknown target: ${target}`);
+
+        if (decision === "delete") {
+            await assertDeletablePage(rowId, target);
+            const properties: Record<string, unknown> = {};
+            if (typeof comment === "string" && comment.trim()) {
+                properties[COMMENT_PROP[target]] = rich(comment.trim().slice(0, 1900));
+            }
+            await notion.pages.update({
+                page_id: rowId,
+                archived: true,
+                ...(Object.keys(properties).length > 0 ? { properties: properties as never } : {}),
+            });
+            return { rowId, status: "Deleted", archived: true };
+        }
+
         const status = map[decision];
         if (!status) throw new Error(`unknown decision: ${decision}`);
 

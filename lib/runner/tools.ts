@@ -47,7 +47,7 @@ export const FAMILY_B_TOOLS: Anthropic.Tool[] = [
     {
         name: "create_calendar_row",
         description:
-            "Create a NEW Content Calendar row for a post YOU are proposing (repurposing a page, a series, a seasonal idea). LOCKED until JJ approves the proposal — and the full caption+hashtags must have appeared in it. The row is created with Status=Draft ALWAYS (JJ schedules in Notion). Set sourceUrl to the ggomed.co.uk page the post is derived from — that is the PIF traceability link; check the source page's PIF state via read_view(\"pif-ggomed\") and apply the pif-tick-social rules from your skill when it is certified.",
+            "Create a NEW Content Calendar row for a post YOU are proposing (repurposing a page, a series, a seasonal idea). LOCKED until JJ approves the proposal — and the full caption+hashtags must have appeared in it. The row is created with Status=Draft ALWAYS (JJ schedules in Notion). Set sourceUrl to the ggomed.co.uk page the post is derived from — that is the PIF traceability link; check the source page's PIF state via read_view(\"pif-ggomed\") and apply the pif-tick-social rules from your skill when it is certified. HARD RULE: a Story for the same sourceUrl cannot be created within 30 days of an existing Story.",
         input_schema: {
             type: "object" as const,
             properties: {
@@ -405,6 +405,7 @@ export async function dispatchTool(
                 status: r.status,
                 date: r.date,
                 contentType: r.contentType,
+                sourceUrl: r.sourceUrl,
                 hasSanitySync: !!r.sanitySync,
             }));
             return { ok: true, content: clip(JSON.stringify(slim), 20000), summary: `${rows.length} calendar rows` };

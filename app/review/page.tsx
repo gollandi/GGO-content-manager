@@ -17,7 +17,7 @@ import { Guilloche, Socket, Mark, AgeBar, type MarkTone } from "../../components
  * acts pinned under the thumb. One hand, between clinics.
  */
 
-type Decision = "approve" | "modify" | "reject" | "done";
+type Decision = "approve" | "modify" | "reject" | "done" | "delete";
 type Target = "desk" | "calendar" | "website";
 
 interface VideoRef { url: string; name?: string; path?: string; ageDays?: number }
@@ -327,7 +327,12 @@ export default function ReviewPage() {
                 : "Scrivi cosa va cambiato: il timbro porta la nota a Ernesto.");
             return;
         }
-        if (decision === "reject" && !comment.trim() && !window.confirm("Annullare senza nota a Ernesto?")) return;
+        if (decision === "reject" && !comment.trim() && !window.confirm("Rifiutare senza motivo?")) return;
+        if (decision === "delete" && !window.confirm(
+            comment.trim()
+                ? "Eliminare questa proposta dal database? Il motivo scritto sarà conservato in Notion."
+                : "Eliminare questa proposta dal database senza indicare un motivo?"
+        )) return;
 
         setBusyKey(entry.key);
         setError(null);
@@ -353,7 +358,8 @@ export default function ReviewPage() {
                     ? (opts.publishNow ? "Sigillato — pubblicazione invocata" : "Sigillato")
                     : decision === "modify" ? "Timbrato e rimandato"
                     : decision === "done" ? "Archiviato — non tornerà a chiedere"
-                    : "Annullato"
+                    : decision === "delete" ? "Eliminato — non tornerà nel Cancello"
+                    : "Rifiutato"
             );
             setTimeout(() => setToast(null), 2600);
             setModifyOpen(false);
@@ -567,7 +573,9 @@ export default function ReviewPage() {
                                 </span>
                             ) : (
                                 <span className="font-condensed text-[12px] font-bold uppercase tracking-[0.14em] text-paper-foreground-soft line-through">
-                                    {act.decision === "done" ? "Archiviato" : "Annullato"}
+                                    {act.decision === "done" ? "Archiviato"
+                                        : act.decision === "delete" ? "Eliminato"
+                                        : "Rifiutato"}
                                 </span>
                             )}
                             <span className="ml-auto text-[11px] italic text-paper-foreground-soft">
@@ -618,10 +626,10 @@ export default function ReviewPage() {
                                 type="button"
                                 style={{ color: "var(--paper-fg-soft)", borderColor: "var(--paper-edge)" }}
                             >
-                                Annulla
+                                Rifiuta
                             </button>
                         )}
-                        {entry.target === "desk" && (
+                        {entry.target !== "website" && (
                             <button
                                 disabled={busy}
                                 onClick={() => void decide(entry, "done", note)}
@@ -631,6 +639,18 @@ export default function ReviewPage() {
                                 style={{ color: "var(--paper-fg-soft)", borderColor: "var(--paper-edge)" }}
                             >
                                 Già fatto — archivia
+                            </button>
+                        )}
+                        {entry.target !== "website" && (
+                            <button
+                                disabled={busy}
+                                onClick={() => void decide(entry, "delete", note)}
+                                className="act-void flex-1 min-w-[7rem]"
+                                type="button"
+                                title="Archivia la pagina in Notion e la rimuove definitivamente dal Cancello; il motivo è facoltativo"
+                                style={{ color: "var(--seal)", borderColor: "var(--seal)" }}
+                            >
+                                Elimina
                             </button>
                         )}
                     </div>

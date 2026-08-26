@@ -12,6 +12,7 @@ import path from "node:path";
 import { notion } from "../notion/client";
 import { notionConfig } from "../config";
 import { ggomedRawClient } from "../sanity/clients";
+import { selectCalendarRowsForGate } from "../notion/story-policy";
 import {
     extractVideoPaths, isPathWithinRoots, resolveLocalMediaPath, IMAGE_EXTS, VIDEO_EXTS,
 } from "./paths";
@@ -35,7 +36,7 @@ export interface CalendarRow {
     rowId: string; title: string; contentType: string | null; status: string | null;
     platforms: string | null; date: string | null; variant: string | null;
     caption: string; hashtags: string; notes: string; canva: string | null;
-    hasAssets: boolean; media: MediaRef[]; url: string;
+    hasAssets: boolean; media: MediaRef[]; url: string; sourceUrl: string | null; createdAt: string;
 }
 export interface WebsiteArticle {
     rowId: string; title: string; status: string | null; category: string | null;
@@ -261,6 +262,8 @@ async function loadCalendarRows(): Promise<CalendarRow[]> {
             caption: propText(row.properties, "Caption") || "",
             hashtags: propText(row.properties, "Hashtags") || "",
             notes: propText(row.properties, "Notes") || "",
+            sourceUrl: propText(row.properties, "Source URL"),
+            createdAt: row.created_time,
             canva: propText(row.properties, "Canva Link"),
             hasAssets:
                 relationIds(row.properties, "Media Assets").length > 0 ||
@@ -381,10 +384,16 @@ async function buildCancelloState(): Promise<CancelloState> {
         loadCalendarRows(),
         loadWebsiteReview(warnings),
     ]);
+    const selectedCalendar = selectCalendarRowsForGate(calendar);
+    if (selectedCalendar.suppressed > 0) {
+        warnings.push(
+            `${selectedCalendar.suppressed} Story duplicate nascoste dal Cancello: stessa Source URL entro 30 giorni.`
+        );
+    }
     const data = {
         wall: wallFromDeskRows(desk),
         desk,
-        calendar,
+        calendar: selectedCalendar.rows,
         website,
         generatedAt: new Date().toISOString(),
         warnings,
