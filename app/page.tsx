@@ -1,484 +1,328 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import Citofono from "../components/Citofono";
 import WeeklyCronReport from "../components/WeeklyCronReport";
-import { Guilloche, Socket, Tally, AgeBar, RoomCrest, ROOM_INK, type RoomId } from "../components/Registro";
-import { ContentItem, PifValidationItem } from "../lib/notion/types";
+import { Guilloche, AgeBar, RoomCrest, ROOM_INK, type RoomId } from "../components/Registro";
+import { getHouseState, type HouseState } from "../lib/house/state";
+
+export const dynamic = "force-dynamic";
 
 /**
- * L'ATRIO — the counterfoil wall.
+ * The Atrio — the first page, and the one that has to answer in five
+ * seconds: what waits for me, what broke overnight, where is the week.
  *
- * Every room of the house is a perforated stub torn from the same book.
- * Volume reads as tally marks. Decisions read as seal sockets: filled is
- * settled, empty is waiting for JJ. A room that needs him tears its own edge.
- *
- * Rooms with no reporting line say so. They are never given a number.
+ * Every number here comes from the house state (lib/house/state.ts), the
+ * same read model the Sidebar's margin count and Il Cancello's register are
+ * built from. The Atrio ranks; it never recomputes.
  */
 
-const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
+type Tone = "seal" | "sepia" | "quiet" | "mute";
 
-type StubState = "quiet" | "attention" | "mute";
-
-interface RoomStub {
+interface Tile {
   href: string;
-  name: string;
-  room: RoomId;
-  /** What the tally counts, in three words or fewer. */
-  unit: string;
-  /** The tally itself. Null when the room has no reporting line. */
-  volume: number | null;
-  /** Sockets: how many acts are settled, and how many still await a seal. */
-  sealed: number;
-  awaiting: number;
-  /** Days the oldest undecided item has been standing. */
-  oldestDays: number | null;
-  /** One line of plain fact under the rule. */
+  label: string;
+  value: string;
   note: string;
-  state: StubState;
-  /** Ernesto only: the light under the closed door while a run is working. */
-  doorLight?: boolean;
+  tone: Tone;
 }
 
-/** The torn edge of a stub pulled from its book. Drawn, not masked. */
-function TornEdge({ colour }: { colour: string }) {
-  const teeth = 26;
-  const points: string[] = ["0,10"];
-  for (let i = 0; i < teeth; i += 1) {
-    const x = (i / teeth) * 100;
-    const next = ((i + 1) / teeth) * 100;
-    points.push(`${x.toFixed(2)},${i % 2 === 0 ? 3 : 8}`);
-    points.push(`${((x + next) / 2).toFixed(2)},${i % 2 === 0 ? 7 : 1}`);
-  }
-  points.push("100,10", "100,12", "0,12");
-  return (
-    <svg
-      viewBox="0 0 100 12"
-      preserveAspectRatio="none"
-      className="absolute -top-[11px] left-0 h-3 w-full"
-      aria-hidden="true"
-    >
-      <polygon points={points.join(" ")} fill={colour} />
-    </svg>
-  );
+interface Call {
+  href: string;
+  room: RoomId;
+  title: string;
+  fact: string;
+  days?: number | null;
 }
 
-function Stub({ room }: { room: RoomStub }) {
-  const torn = room.state === "attention";
-  const mute = room.state === "mute";
-
-  const body = (
-    <>
-      {torn && <TornEdge colour="var(--stub-torn-paper, #f0dfd8)" />}
-
-      {/* Room name and its ex libris, struck like the heading of a counterfoil book. */}
-      <div className="flex items-start justify-between gap-2 px-4 pt-4">
-        <h3
-          className={[
-            "font-condensed text-[13px] font-bold uppercase leading-tight tracking-[0.14em]",
-            mute ? "text-plate-foreground-soft" : torn ? "text-seal-deep" : "text-paper-foreground"
-          ].join(" ")}
-        >
-          {room.name}
-        </h3>
-        <span style={mute ? undefined : { color: torn ? "var(--seal-deep)" : ROOM_INK[room.room].accent }}>
-          <RoomCrest room={room.room} size={20} className={mute ? "opacity-50" : "opacity-80"} />
-        </span>
-      </div>
-
-      <div
-        className={[
-          "mx-4 mt-2.5 border-t",
-          mute ? "border-plate-rule" : torn ? "border-seal/40" : "border-paper-edge"
-        ].join(" ")}
-      />
-
-      {/* The tally: volume you can read without reading a number. */}
-      <div className="flex flex-1 flex-col justify-center px-4 py-4">
-        {room.volume === null ? (
-          <p className="font-condensed text-[11px] uppercase leading-relaxed tracking-[0.12em] text-plate-foreground-soft">
-            Nessun riporto
-          </p>
-        ) : (
-          <>
-            <Tally
-              count={room.volume}
-              colour={torn ? "var(--seal-deep)" : "var(--engraving-ink)"}
-              label={`${room.volume} ${room.unit}`}
-            />
-            <p
-              className={[
-                "mt-2 font-condensed text-[10px] uppercase tracking-[0.16em]",
-                torn ? "text-seal-deep/80" : "text-paper-foreground-soft"
-              ].join(" ")}
-            >
-              {room.volume} {room.unit}
-            </p>
-          </>
-        )}
-
-        <p
-          className={[
-            "mt-3 text-[12px] leading-snug",
-            mute ? "text-plate-foreground-soft" : torn ? "text-seal-deep" : "text-paper-foreground-soft"
-          ].join(" ")}
-        >
-          {room.note}
-        </p>
-
-        {room.oldestDays !== null && room.oldestDays > 0 && (
-          <div className="mt-3 flex items-center gap-2">
-            <AgeBar days={room.oldestDays} />
-            <span className="serial text-seal-deep">
-              {room.oldestDays}d
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* The light under the door: on only while the girls are working. */}
-      {room.doorLight && (
-        <div
-          className="door-light mx-4"
-          role="img"
-          aria-label="Run in corso dietro la porta"
-          title="Run in corso dietro la porta"
-        />
-      )}
-
-      {/* The foot: one socket per act. Empty means it is waiting for you. */}
-      {!mute && (
-        <div
-          className={[
-            "flex items-center gap-1.5 border-t px-4 py-3",
-            torn ? "border-seal/40" : "border-paper-edge"
-          ].join(" ")}
-        >
-          {Array.from({ length: Math.min(room.awaiting, 5) }).map((_, i) => (
-            <Socket key={`a${i}`} sealed={false} size={18} title="Awaiting your seal" />
-          ))}
-          {Array.from({ length: Math.max(0, Math.min(5 - room.awaiting, room.sealed)) }).map((_, i) => (
-            <Socket key={`s${i}`} sealed size={18} title="Sealed" />
-          ))}
-          {room.awaiting > 5 && (
-            <span className="serial ml-1 text-seal-deep">+{room.awaiting - 5}</span>
-          )}
-        </div>
-      )}
-    </>
-  );
-
-  if (mute) {
-    return (
-      <Link href={room.href} className="stub stub-mute">
-        {body}
-      </Link>
-    );
-  }
-
-  return (
-    <Link href={room.href} className={torn ? "stub stub-torn" : "stub"}>
-      {body}
-    </Link>
-  );
+interface RoomLine {
+  href: string;
+  room: RoomId;
+  name: string;
+  fact: string;
+  tone: Tone;
 }
 
-/**
- * The facade: Casa GGOMed cut open, engraved in the hairline grammar.
- * Not decoration — each window is a real room, lit by its real state:
- * oxblood glow = the room wants JJ; amber = Ernesto's girls at work;
- * faint = quiet; outline only = no reporting line.
- */
-function Facade({ rooms }: { rooms: RoomStub[] }) {
-  const by = (href: string) => rooms.find((r) => r.href === href);
-  // Two floors of the cut-open house, in the order the rooms sit in it.
-  const upper = [by("/soffitta"), by("/ambrogio"), by("/helm-pathways"), by("/youtube")];
-  const lower = [by("/review"), by("/casa-di-ernesto"), by("/editorial"), by("/pif-tick")];
+const TILE_TONE: Record<Tone, string> = {
+  seal: "border-seal text-seal-deep",
+  sepia: "border-[var(--sepia)] text-[var(--sepia)]",
+  quiet: "border-plate-rule text-plate-foreground",
+  mute: "border-dashed border-plate-rule text-plate-foreground-soft",
+};
 
-  const windowFill = (room?: RoomStub) => {
-    if (!room || room.state === "mute") return "transparent";
-    if (room.state === "attention") return "var(--seal-bright)";
-    if (room.doorLight) return "var(--sepia-bright)";
-    return "var(--plate-raised)";
-  };
-
-  const lit = rooms.filter((r) => r.state === "attention").length;
-
-  return (
-    <svg
-      viewBox="0 0 176 96"
-      width={176}
-      height={96}
-      fill="none"
-      stroke="var(--plate-fg-soft)"
-      strokeWidth={1}
-      aria-label={
-        lit === 0
-          ? "Casa GGOMed: nessuna finestra accesa"
-          : `Casa GGOMed: ${lit === 1 ? "una finestra accesa" : `${lit} finestre accese`}`
-      }
-      role="img"
-      className="flex-none max-sm:hidden"
-    >
-      {/* Roofline and carcass */}
-      <path d="M8 34 L88 6 L168 34" />
-      <path d="M20 34 V90 H156 V34" />
-      <path d="M20 62 H156" />
-      {/* Chimney */}
-      <path d="M132 20 v-8 h8 v11" />
-      {/* Windows: upper floor */}
-      {upper.map((room, i) => (
-        <rect
-          key={`u${i}`}
-          x={30 + i * 33}
-          y={40}
-          width={20}
-          height={14}
-          fill={windowFill(room)}
-          fillOpacity={room?.state === "attention" ? 0.85 : room?.doorLight ? 0.8 : 1}
-          strokeDasharray={room?.state === "mute" ? "2 2" : undefined}
-        />
-      ))}
-      {/* Windows: ground floor */}
-      {lower.map((room, i) => (
-        <rect
-          key={`l${i}`}
-          x={30 + i * 33}
-          y={68}
-          width={20}
-          height={16}
-          fill={windowFill(room)}
-          fillOpacity={room?.state === "attention" ? 0.85 : room?.doorLight ? 0.8 : 1}
-          strokeDasharray={room?.state === "mute" ? "2 2" : undefined}
-        />
-      ))}
-      {/* The gate stands where the entry is */}
-      <path d="M30 84 v-12 M40 84 v-12 M35 84 v-14 M30 76 h10" strokeWidth={0.8} />
-    </svg>
-  );
+function fmtDate(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short" }).format(d);
 }
 
-export default function AtrioPage() {
-  const [content, setContent] = useState<ContentItem[] | null>(null);
-  const [compliance, setCompliance] = useState<PifValidationItem[] | null>(null);
-  const [review, setReview] = useState<Record<string, unknown> | null>(null);
-  const [runs, setRuns] = useState<unknown[] | null>(null);
-  const [retro, setRetro] = useState<Record<string, unknown> | null>(null);
-  const [loading, setLoading] = useState(true);
+function fmtWhen(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("it-IT", { weekday: "short", hour: "2-digit", minute: "2-digit" }).format(d);
+}
 
-  useEffect(() => {
-    let cancelled = false;
-    const grab = async (url: string) => {
-      try {
-        const res = await fetch(url, { cache: "no-store" });
-        return res.ok ? await res.json() : null;
-      } catch {
-        return null;
-      }
-    };
+function daysAgo(iso: string | null): number | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, Math.floor((Date.now() - t) / 86_400_000));
+}
 
-    Promise.all([
-      grab("/api/notion/content"),
-      grab("/api/notion/compliance"),
-      grab("/api/review-dashboard/state"),
-      grab("/api/ernesto/runs"),
-      grab("/api/retro")
-    ]).then(([c, p, r, e, s]) => {
-      if (cancelled) return;
-      if (Array.isArray(c)) setContent(c);
-      if (Array.isArray(p)) setCompliance(p);
-      if (r && typeof r === "object") setReview(r as Record<string, unknown>);
-      setRuns(Array.isArray(e) ? e : Array.isArray(e?.runs) ? e.runs : null);
-      if (s && typeof s === "object") setRetro(s as Record<string, unknown>);
-      setLoading(false);
-    });
+/* ── Deriving the page from the state ───────────────────────────────────── */
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  /* ── Derive each room's reporting line from what actually answered ────── */
-
-  const rows = (key: string): Record<string, unknown>[] => {
-    const value = review?.[key];
-    return Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
-  };
-
-  const wall = rows("wall");
-  const desk = rows("desk");
-  const calendar = rows("calendar");
-  const website = rows("website");
-  const wallIds = new Set(wall.map((r) => r.rowId));
-
-  const awaitingSeal =
-    wall.length +
-    calendar.filter((r) => r.status === "Review").length +
-    desk.filter((r) => r.status === "Pending" && !wallIds.has(r.rowId)).length +
-    website.filter((r) => r.patch && r.patchState !== "awaiting-publish").length;
-
-  const scheduled = calendar.filter((r) => r.status === "Scheduled").length;
-
-  const oldestWaitDays = (() => {
-    const dues = desk
-      .filter((r) => r.status === "Pending" && typeof r.due === "string")
-      .map((r) => new Date(r.due as string).getTime())
-      .filter((t) => Number.isFinite(t));
-    if (dues.length === 0) return null;
-    const days = Math.floor((Date.now() - Math.min(...dues)) / 86_400_000);
-    return days > 0 ? days : null;
-  })();
-
-  const isVideo = (item: ContentItem) =>
-    item.youtubeId.trim().length > 0 ||
-    item.platform.some((p) => p.toLowerCase().includes("youtube"));
-
-  const overdue = (content ?? []).filter((item) => {
-    if (item.status === "👁️ Review" || item.status === "⚠️ Needs Update") return true;
-    if (!item.lastReviewed) return true;
-    return new Date(item.lastReviewed).getTime() < Date.now() - SIX_MONTHS_MS;
-  });
-
-  const compliant = (compliance ?? []).filter((c) => c.status === "✅ YES").length;
-  const failing = (compliance ?? []).filter((c) => c.status === "❌ NO").length;
-
-  const failedRuns = (runs ?? []).filter(
-    (r) => typeof r === "object" && r !== null && (r as { status?: string }).status === "Failed"
-  ).length;
-
-  // The light under Ernesto's door: on only while the girls are working.
-  const activeRuns = (runs ?? []).filter((r) => {
-    const status = typeof r === "object" && r !== null ? (r as { status?: string }).status : undefined;
-    return status === "running" || status === "awaiting-jj";
-  }).length;
-
-  const proposals = Array.isArray(retro?.proposals) ? (retro.proposals as unknown[]).length : null;
-
-  const ROOMS: RoomStub[] = [
+function tiles(s: HouseState): Tile[] {
+  const a = s.awaiting;
+  const n = s.night;
+  const w = s.week;
+  const e = s.editorial;
+  const p = s.pif;
+  const produceDays = daysAgo(n?.lastProductiveAt ?? null);
+  return [
     {
       href: "/review",
-      name: "Il Cancello",
-      room: "cancello",
-      unit: "in attesa",
-      volume: review ? awaitingSeal : null,
-      sealed: scheduled,
-      awaiting: awaitingSeal,
-      oldestDays: oldestWaitDays,
-      note: !review
-        ? "La dashboard di review non risponde."
-        : awaitingSeal === 0
-          ? "Niente aspetta il tuo sigillo."
-          : "Al cancello: bozze, caption e patch ferme sul tuo giudizio.",
-      state: !review ? "mute" : awaitingSeal > 0 ? "attention" : "quiet"
+      label: "Al Cancello",
+      value: a ? String(a.total) : "—",
+      note: !a
+        ? "la dashboard non risponde"
+        : a.total === 0
+          ? "niente aspetta il tuo sigillo"
+          : [
+              a.social ? `${a.social} social` : null,
+              a.desk ? `${a.desk} desk` : null,
+              a.website ? `${a.website} sito` : null,
+              a.oldestDays ? `la più vecchia da ${a.oldestDays} gg` : null,
+            ]
+              .filter(Boolean)
+              .join(" · "),
+      tone: !a ? "mute" : a.total > 0 ? "seal" : "quiet",
     },
     {
-      href: "/editorial",
-      name: "Editorial",
-      room: "editorial",
-      unit: "asset vivi",
-      volume: content ? content.length : null,
-      sealed: content ? content.length - overdue.length : 0,
-      awaiting: overdue.length,
-      oldestDays: null,
-      note: !content
-        ? "Content Assets non risponde."
-        : overdue.length === 0
-          ? "Nessuna review scaduta."
-          : `${overdue.length} oltre i sei mesi o segnati da rivedere.`,
-      state: !content ? "mute" : overdue.length > 0 ? "attention" : "quiet"
-    },
-    {
-      href: "/pif-tick",
-      name: "PIF Tick",
-      room: "pif",
-      unit: "criteri",
-      volume: compliance ? compliance.length : null,
-      sealed: compliant,
-      awaiting: failing,
-      oldestDays: null,
-      note: !compliance
-        ? "Compliance non risponde."
-        : failing === 0
-          ? "Nessun criterio in fallimento."
-          : `${failing} criteri falliti.`,
-      state: !compliance ? "mute" : failing > 0 ? "attention" : "quiet"
-    },
-    {
-      href: "/youtube",
-      name: "YouTube",
-      room: "youtube",
-      unit: "video",
-      volume: content ? content.filter(isVideo).length : null,
-      sealed: content ? content.filter(isVideo).length : 0,
-      awaiting: 0,
-      oldestDays: null,
-      note: content ? "Asset video registrati." : "Content Assets non risponde.",
-      state: content ? "quiet" : "mute"
+      href: "#stanotte",
+      label: "Stanotte",
+      value: n ? String(n.attention) : "—",
+      note: !n
+        ? "il registro delle run non risponde"
+        : n.runs === 0
+          ? "nessuna run nelle ultime 24 ore"
+          : n.attention === 0
+            ? `${n.runs} run, tutte concluse bene`
+            : `da guardare su ${n.runs} run`,
+      tone: !n ? "mute" : n.attention > 0 ? "seal" : n.runs === 0 ? "sepia" : "quiet",
     },
     {
       href: "/casa-di-ernesto",
-      name: "La Casa di Ernesto",
-      room: "ernesto",
-      unit: "run",
-      volume: runs ? runs.length : null,
-      sealed: runs ? runs.length - failedRuns : 0,
-      awaiting: failedRuns,
-      oldestDays: null,
-      note: !runs
-        ? "Nessuna run leggibile."
-        : failedRuns > 0
-          ? `${failedRuns} run fallite dietro la porta.`
-          : activeRuns > 0
-            ? `La porta è chiusa: ${activeRuns === 1 ? "una run in corso" : `${activeRuns} run in corso`} dietro la porta.`
-            : "La porta è chiusa e la casa tace: nessuna run in corso.",
-      doorLight: activeRuns > 0,
-      state: !runs ? "mute" : failedRuns > 0 ? "attention" : "quiet"
+      label: "Ultima produzione",
+      value: !n ? "—" : produceDays === null ? "mai" : produceDays === 0 ? "oggi" : `${produceDays} gg`,
+      note: !n
+        ? "il registro delle run non risponde"
+        : n.zeroOutputStreak > 0
+          ? `${n.zeroOutputStreak} slot consecutivi a zero`
+          : "l'ultimo slot ha prodotto",
+      tone: !n ? "mute" : produceDays === null || produceDays >= 7 ? "seal" : produceDays >= 3 ? "sepia" : "quiet",
     },
     {
+      href: "/casa-di-ernesto",
+      label: "Questa settimana",
+      value: w ? (w.target ? `${w.published}/${w.target}` : String(w.published)) : "—",
+      note: !w
+        ? "il calendario non risponde"
+        : w.total === 0
+          ? `nessuna uscita in calendario dal ${fmtDate(w.weekOf)}`
+          : w.target
+            ? `pubblicate su obiettivo · ${w.total} in calendario`
+            : `pubblicate · ${w.total} in calendario · obiettivo non impostato`,
+      tone: !w ? "mute" : w.total === 0 ? "sepia" : "quiet",
+    },
+    {
+      href: "/editorial",
+      label: "Sito da rivedere",
+      value: e ? String(e.stale) : "—",
+      note: !e
+        ? "Sanity non risponde"
+        : e.stale === 0
+          ? `${e.live} pagine vive, nessuna oltre i sei mesi`
+          : `su ${e.live} pagine vive${e.oldestStaleDays ? ` · la più vecchia da ${e.oldestStaleDays} gg` : ""}`,
+      tone: !e ? "mute" : e.stale > 0 ? "sepia" : "quiet",
+    },
+    {
+      href: "/pif-tick",
+      label: "PIF Tick",
+      value: p ? String(p.unlit) : "—",
+      note: !p
+        ? "i criteri non rispondono"
+        : [
+            p.unlit === 0 ? "ogni badge sigillato" : "badge senza sigillo",
+            p.overdue ? `${p.overdue} review scadute` : null,
+            p.nextReviewDate
+              ? p.nextReviewInDays !== null && p.nextReviewInDays >= 0
+                ? `prossima review fra ${p.nextReviewInDays} gg`
+                : `review del ${fmtDate(p.nextReviewDate)} passata`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+      tone: !p ? "mute" : p.overdue > 0 ? "seal" : p.unlit > 0 ? "sepia" : "quiet",
+    },
+  ];
+}
+
+/** What wants JJ, ranked: decisions first, then breakage, then staleness. */
+function calls(s: HouseState): Call[] {
+  const out: Call[] = [];
+  const a = s.awaiting;
+  if (a && a.total > 0) {
+    out.push({
+      href: "/review",
+      room: "cancello",
+      title: `${a.total} ${a.total === 1 ? "atto aspetta" : "atti aspettano"} il tuo sigillo`,
+      fact: [a.social ? `${a.social} social` : null, a.desk ? `${a.desk} desk` : null, a.website ? `${a.website} patch sito` : null]
+        .filter(Boolean)
+        .join(" · "),
+      days: a.oldestDays,
+    });
+  }
+  if (a && a.impact > 0) {
+    out.push({
+      href: "/editorial#impact",
+      room: "editorial",
+      title: `${a.impact} ${a.impact === 1 ? "verdetto d'impatto dovuto" : "verdetti d'impatto dovuti"}`,
+      fact: "bisogni con data di review raggiunta e senza esito",
+    });
+  }
+  if (s.night && s.night.attention > 0) {
+    out.push({
+      href: "#stanotte",
+      room: "ernesto",
+      title: `${s.night.attention} run ${s.night.attention === 1 ? "da guardare" : "da guardare"} nelle ultime 24 ore`,
+      fact: s.night.failed.map((f) => f.job ?? "run").slice(0, 3).join(" · "),
+    });
+  }
+  if (s.runs.failed > 0) {
+    out.push({
+      href: "/casa-di-ernesto",
+      room: "ernesto",
+      title: `${s.runs.failed} run ${s.runs.failed === 1 ? "interattiva fallita" : "interattive fallite"}`,
+      fact: "dietro la porta della Casa di Ernesto",
+    });
+  }
+  if (s.pif && s.pif.overdue > 0) {
+    out.push({
+      href: "/pif-tick?source=all&state=overdue",
+      room: "pif",
+      title: `${s.pif.overdue} review PIF ${s.pif.overdue === 1 ? "scaduta" : "scadute"}`,
+      fact: "la data di prossima review è passata",
+    });
+  }
+  if (s.night && s.night.zeroOutputStreak >= 3) {
+    out.push({
+      href: "/casa-di-ernesto",
+      room: "ernesto",
+      title: `${s.night.zeroOutputStreak} slot di produzione consecutivi a zero`,
+      fact: "la casa gira ma non produce",
+      days: daysAgo(s.night.lastProductiveAt),
+    });
+  }
+  if (s.snapshot && s.snapshot.ageDays !== null && s.snapshot.ageDays >= 15) {
+    out.push({
+      href: "/portineria",
+      room: "portineria",
+      title: "Snapshot performance fermo",
+      fact: `l'ultima settimana letta è del ${fmtDate(s.snapshot.latestWeekOf)}`,
+      days: s.snapshot.ageDays,
+    });
+  }
+  return out;
+}
+
+function rooms(s: HouseState): RoomLine[] {
+  const a = s.awaiting;
+  const e = s.editorial;
+  const p = s.pif;
+  return [
+    {
+      href: "/review",
+      room: "cancello",
+      name: "Il Cancello",
+      fact: !a
+        ? "nessun riporto"
+        : a.total === 0
+          ? `niente in attesa · ${a.scheduled} programmati`
+          : `${a.total} in attesa · ${a.scheduled} programmati`,
+      tone: !a ? "mute" : a.total > 0 ? "seal" : "quiet",
+    },
+    {
+      href: "/editorial",
+      room: "editorial",
+      name: "Editorial",
+      fact: !e ? "nessun riporto" : `${e.live} pagine vive · ${e.stale} da rivedere · ${e.pifLit} con badge PIF`,
+      tone: !e ? "mute" : e.stale > 0 ? "sepia" : "quiet",
+    },
+    {
+      href: "/pif-tick",
+      room: "pif",
+      name: "PIF Tick",
+      fact: !p ? "nessun riporto" : `${p.lit} di ${p.rows} badge sigillati · ${p.overdue} scaduti`,
+      tone: !p ? "mute" : p.overdue > 0 ? "seal" : p.unlit > 0 ? "sepia" : "quiet",
+    },
+    {
+      href: "/casa-di-ernesto",
+      room: "ernesto",
+      name: "La Casa di Ernesto",
+      fact:
+        s.runs.active > 0
+          ? `${s.runs.active} run in corso dietro la porta`
+          : s.runs.failed > 0
+            ? `${s.runs.failed} run fallite`
+            : "la porta è chiusa, nessuna run in corso",
+      tone: s.runs.failed > 0 ? "seal" : "quiet",
+    },
+    {
+      href: "/portineria",
+      room: "portineria",
+      name: "La Portineria",
+      fact: !s.snapshot
+        ? "nessun riporto"
+        : s.snapshot.latestWeekOf
+          ? `snapshot della settimana del ${fmtDate(s.snapshot.latestWeekOf)}`
+          : "nessuna settimana letta",
+      tone: !s.snapshot ? "mute" : (s.snapshot.ageDays ?? 0) >= 15 ? "seal" : (s.snapshot.ageDays ?? 0) >= 8 ? "sepia" : "quiet",
+    },
+    { href: "/carico", room: "carico", name: "Il Carico", fact: "ingresso dei girati dal telefono", tone: "quiet" },
+    {
       href: "/soffitta",
-      name: "La Soffitta",
       room: "soffitta",
-      unit: "proposte",
-      volume: proposals,
-      sealed: 0,
-      awaiting: proposals ?? 0,
-      oldestDays: null,
-      note:
-        proposals === null
-          ? "Il retro non risponde."
-          : proposals === 0
-            ? "Nessuna proposta in giacenza."
-            : "Proposte in giacenza fra i bauli.",
-      state: proposals === null ? "mute" : "quiet"
+      name: "La Soffitta",
+      fact: s.retros === 0 ? "nessun retro archiviato" : `${s.retros} retro fra i bauli`,
+      tone: "quiet",
     },
     {
       href: "/ambrogio",
-      name: "Lo Studio di Ambrogio",
       room: "ambrogio",
-      unit: "",
-      volume: null,
-      sealed: 0,
-      awaiting: 0,
-      oldestDays: null,
-      note: "Lo studio non manda riporti in atrio: le relazioni si leggono dentro.",
-      state: "mute"
+      name: "Lo Studio di Ambrogio",
+      fact: "le relazioni si leggono dentro: lo studio non riporta in atrio",
+      tone: "mute",
     },
-    {
-      href: "/helm-pathways",
-      name: "Helm Pathways",
-      room: "helm",
-      unit: "",
-      volume: null,
-      sealed: 0,
-      awaiting: 0,
-      oldestDays: null,
-      note: "Server component: nessuna linea di riporto verso l'atrio.",
-      state: "mute"
-    }
   ];
+}
 
-  const wanting = ROOMS.filter((r) => r.state === "attention");
+/* ── Page ───────────────────────────────────────────────────────────────── */
+
+export default async function AtrioPage() {
+  const state = await getHouseState();
+  const strip = tiles(state);
+  const wanting = calls(state);
+  const lines = rooms(state);
+  const awaiting = state.awaiting?.total ?? null;
+
+  const headline =
+    awaiting === null
+      ? "Il registro non risponde"
+      : wanting.length === 0
+        ? "La casa è in ordine"
+        : awaiting > 0
+          ? `${awaiting} ${awaiting === 1 ? "atto aspetta" : "atti aspettano"} il tuo sigillo`
+          : `${wanting.length} ${wanting.length === 1 ? "cosa ti aspetta" : "cose ti aspettano"}`;
 
   return (
     <>
@@ -489,63 +333,160 @@ export default function AtrioPage() {
           opacity={0.2}
           className="pointer-events-none absolute -right-80 -top-72 h-[1100px] w-[1100px]"
         />
-        <Guilloche
-          size={820}
-          rings={3}
-          opacity={0.14}
-          className="pointer-events-none absolute -bottom-72 -left-72 h-[820px] w-[820px]"
-        />
 
-        {/* The masthead of the book. */}
+        {/* The masthead: one headline, one act. */}
         <header className="relative border-b border-plate-rule px-10 pb-5 pt-9 max-sm:px-4">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="column-label">Casa GGOMed · l’ingresso</p>
               <h1 className="document-title mt-2 text-[34px] text-plate-foreground-strong max-sm:text-[26px]">
-                {loading
-                  ? "Apro il registro…"
-                  : wanting.length === 0
-                    ? "La casa è in ordine"
-                    : wanting.length === 1
-                      ? "Una stanza ti aspetta"
-                      : `${wanting.length} stanze ti aspettano`}
+                {headline}
               </h1>
-            </div>
-            <div className="flex items-end gap-6">
-              <p className="max-w-[22rem] text-[13px] leading-relaxed text-plate-foreground-soft">
-                Ogni stanza è una matrice staccata dallo stesso libro. Le tacche contano
-                il volume, le sedi contano gli atti: piena è decisa, vuota aspetta te.
+              <p className="mt-2 text-[12px] text-plate-foreground-soft">
+                Letto alle {fmtWhen(state.generatedAt)}
+                {state.errors.length > 0 && (
+                  <span className="text-seal"> · {state.errors.length} {state.errors.length === 1 ? "fonte non risponde" : "fonti non rispondono"}</span>
+                )}
               </p>
-              <Facade rooms={ROOMS} />
             </div>
+            <Link href="/review" className={awaiting && awaiting > 0 ? "act-seal" : "act-quiet"}>
+              {awaiting && awaiting > 0 ? `Apri Il Cancello · ${awaiting}` : "Apri Il Cancello"}
+            </Link>
           </div>
         </header>
 
-        {/* The wall. */}
-        <div className="relative px-10 py-9 max-sm:px-4">
-          <div className="grid grid-cols-4 gap-x-5 gap-y-8 max-2xl:grid-cols-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
-            {ROOMS.map((room) => (
-              <Stub key={room.href} room={room} />
+        {/* The strip: six numbers, each a decision. */}
+        <section className="relative px-10 pt-6 max-sm:px-4" aria-label="Oggi">
+          <div className="grid grid-cols-6 gap-px border border-plate-rule bg-plate-rule max-2xl:grid-cols-3 max-md:grid-cols-2">
+            {strip.map((t) => (
+              <Link
+                key={t.label}
+                href={t.href}
+                className={`block border-t-2 bg-plate-raised px-4 py-4 transition-colors hover:bg-plate ${TILE_TONE[t.tone]}`}
+              >
+                <div className="column-label">{t.label}</div>
+                <div className="tabular mt-1 font-serif text-[30px] font-bold leading-none">{t.value}</div>
+                <div className="mt-2 text-[11px] leading-snug text-plate-foreground-soft">{t.note}</div>
+              </Link>
             ))}
           </div>
-        </div>
+        </section>
 
-        <WeeklyCronReport />
+        {/* What wants JJ, ranked. */}
+        <section className="relative px-10 pt-8 max-sm:px-4" aria-labelledby="atrio-calls">
+          <h2 id="atrio-calls" className="column-label">Ti aspettano</h2>
+          {wanting.length === 0 ? (
+            <p className="mt-3 border border-dashed border-plate-rule px-4 py-5 text-[13px] text-plate-foreground-soft">
+              Niente aspetta il tuo sigillo, nessuna run da guardare, nessuna review scaduta.
+            </p>
+          ) : (
+            <ol className="mt-3 border-t border-plate-rule">
+              {wanting.map((c, i) => (
+                <li key={`${c.href}-${i}`} className="border-b border-plate-rule">
+                  <Link
+                    href={c.href}
+                    className="group flex items-center gap-4 px-2 py-3 transition-colors hover:bg-plate-raised max-sm:gap-3"
+                  >
+                    <span className="serial w-6 flex-none text-plate-foreground-soft">{String(i + 1).padStart(2, "0")}</span>
+                    <span style={{ color: ROOM_INK[c.room].accent }}>
+                      <RoomCrest room={c.room} size={18} className="flex-none opacity-80" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px] font-semibold text-plate-foreground-strong group-hover:underline">
+                        {c.title}
+                      </span>
+                      {c.fact && <span className="block text-[12px] text-plate-foreground-soft">{c.fact}</span>}
+                    </span>
+                    {c.days !== undefined && c.days !== null && c.days > 0 && (
+                      <span className="flex flex-none items-center gap-2">
+                        <AgeBar days={c.days} />
+                        <span className="serial text-seal-deep">{c.days}d</span>
+                      </span>
+                    )}
+                    <span aria-hidden="true" className="flex-none text-plate-foreground-soft">→</span>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
 
-        {/* The engraved strip that closes the page. */}
-        <footer className="relative mt-6 border-t border-plate-rule px-10 py-6 max-sm:px-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <p className="column-label">
-              Vecchio archivio · undici superfici in pensionamento
+        {/* The rooms: one line each, one fact each. */}
+        <section className="relative px-10 pt-8 max-sm:px-4" aria-labelledby="atrio-rooms">
+          <h2 id="atrio-rooms" className="column-label">Le stanze</h2>
+          <ul className="mt-3 grid grid-cols-2 gap-x-8 border-t border-plate-rule max-lg:grid-cols-1">
+            {lines.map((r) => (
+              <li key={r.href} className="border-b border-plate-rule">
+                <Link
+                  href={r.href}
+                  className="group flex items-center gap-3 px-2 py-2.5 transition-colors hover:bg-plate-raised"
+                >
+                  <span style={{ color: r.tone === "mute" ? undefined : ROOM_INK[r.room].accent }}>
+                    <RoomCrest room={r.room} size={16} className={r.tone === "mute" ? "opacity-40" : "opacity-80"} />
+                  </span>
+                  <span className="w-[11rem] flex-none font-condensed text-[12px] font-bold uppercase tracking-[0.14em] text-plate-foreground max-sm:w-auto">
+                    {r.name}
+                  </span>
+                  <span
+                    className={[
+                      "min-w-0 flex-1 truncate text-[12px]",
+                      r.tone === "seal"
+                        ? "text-seal-deep"
+                        : r.tone === "sepia"
+                          ? "text-[var(--sepia)]"
+                          : "text-plate-foreground-soft",
+                    ].join(" ")}
+                  >
+                    {r.fact}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {/* Overnight: what broke, then the chronicler's week. */}
+        <section id="stanotte" className="relative px-10 pt-8 max-sm:px-4" aria-labelledby="atrio-night">
+          <h2 id="atrio-night" className="column-label">Stanotte</h2>
+          {!state.night ? (
+            <p className="mt-3 text-[13px] text-plate-foreground-soft">Il registro delle run non risponde.</p>
+          ) : state.night.failed.length === 0 ? (
+            <p className="mt-3 text-[13px] text-plate-foreground-soft">
+              {state.night.runs === 0
+                ? "Nessuna run nelle ultime 24 ore."
+                : `${state.night.runs} run nelle ultime 24 ore, nessuna da guardare.`}
             </p>
-            <p className="text-[12px] text-plate-foreground-soft">
-              Le matrici tratteggiate non hanno una linea di riporto: nessun numero è
-              stato inventato per riempirle.
-            </p>
-          </div>
+          ) : (
+            <ul className="mt-3 border-t border-seal/40">
+              {state.night.failed.map((f) => (
+                <li key={f.id} className="flex items-start gap-4 border-b border-seal/40 px-2 py-2.5">
+                  <span className="serial w-[5.5rem] flex-none text-plate-foreground-soft">{fmtWhen(f.startedAt)}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13px] font-semibold text-seal-deep">
+                      {f.job ?? "run"} · {f.status}
+                    </span>
+                    {f.summary && <span className="block text-[12px] text-plate-foreground-soft">{f.summary}</span>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <details className="mt-6 border-t border-plate-rule">
+            <summary className="column-label cursor-pointer py-3 hover:text-plate-foreground">
+              Giornale di bordo · ultimi 7 giorni
+            </summary>
+            <WeeklyCronReport />
+          </details>
+        </section>
+
+        <footer className="relative mt-10 border-t border-plate-rule px-10 py-6 max-sm:px-4">
+          <p className="text-[12px] text-plate-foreground-soft">
+            Ogni numero di questa pagina viene dallo stesso registro che alimenta Il Cancello. Nessun numero è
+            stato inventato per riempire una casella: una fonte muta scrive “nessun riporto”.
+          </p>
         </footer>
       </div>
-        <Citofono voice="portineria" />
-        </>
+      <Citofono voice="portineria" />
+    </>
   );
 }

@@ -12,7 +12,8 @@ import { join } from "node:path";
 const ROOT = join(__dirname, "..");
 const READ_MODELS = [
     "app/api/ernesto/brief/route.ts",
-    "app/api/ernesto/pulse/route.ts",
+    "app/api/house/state/route.ts",
+    "lib/house/state.ts",
     "lib/notion/brief.ts",
 ];
 const WRITE_TOKENS = [

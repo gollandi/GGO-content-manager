@@ -32,3 +32,34 @@ property · Ambrogio DBs mai scrivibili.
 Family C video worker · cache-tier proprietario (SEMrush/GA4/JSON-LD webhook)
 · Higgsfield MCP connector · migrazione Notion→Sanity stato nativo (Fase 2
 del piano originale, deliberata).
+
+## Ristrutturazione cockpit — 2026-09-02
+
+Analisi avversariale a cinque voci (UI/UX, developer, CCO, Edmondo,
+Ernesto): il difetto comune era lo stesso fatto ricalcolato in cinque posti
+con cinque filtri diversi (coda decisioni, run notturne, desk), l'Atrio
+decorativo e 19 voci di navigazione.
+
+- **`lib/house/state.ts` + `/api/house/state`** — un solo read model per
+  ogni numero "cosa aspetta JJ": `awaiting` (formula identica al Cancello),
+  `night` (24h, run da guardare, ultima produzione), `week` (calendario
+  della settimana per tipo; obiettivo da `COCKPIT_WEEKLY_TARGET`, mai
+  inventato), `editorial` (pagine vive/da rivedere, live GROQ), `pif`,
+  `runs`, `snapshot`. Test: `__tests__/house-state.test.ts`; guardia
+  read-only in `ernesto-read-models`.
+- **Atrio** — server component: titolo = decisione, striscia di sei numeri,
+  "Ti aspettano" ordinato (sigilli → run rotte → review scadute → stallo),
+  stanze a una riga, "Stanotte" con le run fallite e il Giornale ripiegato.
+  Via la facciata SVG, i tally doppi e le letture dallo specchio Notion.
+- **Sidebar** — 8 stanze + archivio ripiegato (11 pagine, YouTube inclusa);
+  contatore dal house state. Helm Pathways → redirect a
+  `/pif-tick?source=compass`.
+- **Casa di Ernesto** — via "Night shift" e la ri-resa della coda desk
+  (vivono in Atrio e Cancello); resta direttive + asset wall.
+- **Editorial** — solo diagnosi: sito live, topic pool, bisogni, impact
+  review, newsletter. Via le tabelle Calendar e Desk.
+- **Portineria** — HousePulse legge il house state, senza la coda decisioni.
+- `/api/ernesto/pulse` ritirato (sostituito dal house state).
+
+Non verificato a schermo in questa sessione (login richiesto sul servizio
+residente): build, typecheck, lint e test verdi.
