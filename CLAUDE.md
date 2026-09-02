@@ -36,9 +36,10 @@ Named GROQ views are exposed twice: as a library (`lib/views`) and over HTTP (`/
 
 | Path | Purpose |
 |------|---------|
-| `app/` | Pages: 8 cockpit rooms + 11 legacy mirror pages (retiring) + `review` (Il Cancello) |
+| `app/` | Pages: 8 cockpit rooms + 11 legacy mirror pages (folded into the sidebar's archive, retiring) + `review` (Il Cancello); `helm-pathways` redirects into PIF Tick's Compass filter |
 | `app/api/` | notion/*, views/*, ernesto/* (runner), review-dashboard/* (gate), retro, cache |
 | `lib/views/` | Named GROQ view registry (editorial-content, asset-identity, pif-ggomed, pif-compass) |
+| `lib/house/` | The house state: the ONE read model for every "what awaits JJ" number (`/api/house/state`); Sidebar, Atrio and HousePulse consume it, no room recomputes a queue |
 | `lib/notion/` | Notion integration; `lib/notion/editorial.ts` for workflow DBs |
 | `lib/media/` | Il Carico — the server media inbox (chunked resumable upload, manifest handoff to the video worker) |
 | `lib/auth/` | next-auth config, roles, API guard |
@@ -150,3 +151,5 @@ This project is indexed by GitNexus as **GGO-content-manager** (1983 symbols, 40
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+@AGENTS.md

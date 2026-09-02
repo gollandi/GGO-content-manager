@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { getEditorialContent, getDraftDelta } from "../../lib/views";
 import {
-    getContentCalendar,
     getTopicPool,
-    getErnestoDesk,
     getPublishQueue,
     getNewsletterItems,
     getContentNeeds,
@@ -60,12 +58,10 @@ export default async function EditorialPage({
     const { q: rawQ = "", due = "" } = await searchParams;
     const q = rawQ.toLowerCase();
 
-    const [site, calendar, topics, desk, queue, newsletter, needs, dariaDrafts] =
+    const [site, topics, queue, newsletter, needs, dariaDrafts] =
         await Promise.all([
             settle(getEditorialContent),
-            settle(getContentCalendar),
             settle(getTopicPool),
-            settle(getErnestoDesk),
             settle(getPublishQueue),
             settle(getNewsletterItems),
             settle(getContentNeeds),
@@ -83,9 +79,7 @@ export default async function EditorialPage({
         .filter((r) => matches(q, r.title, r.slug, r.category))
         .filter((r) => (due === "review" ? reviewDue(r.lastReviewed) === false && r.lastReviewed !== null : true));
 
-    const calRows = (calendar.data ?? []).filter((r) => matches(q, r.topicTitle, r.status, r.contentType));
     const topicRows = (topics.data ?? []).filter((r) => matches(q, r.title, r.cluster, r.status));
-    const deskRows = (desk.data ?? []).filter((r) => matches(q, r.item, r.type, r.status));
     const queueRows = (queue.data ?? []).filter((r) => matches(q, r.title, r.platform ?? undefined, r.format ?? undefined));
     const newsRows = (newsletter.data ?? []).filter((r) => matches(q, r.title, r.status));
     const needRows = (needs.data ?? []).filter((r) => matches(q, r.need, r.source, r.actionStatus));
@@ -101,9 +95,7 @@ export default async function EditorialPage({
     const counts = {
         site: site.data?.length ?? 0,
         pifLit: site.data?.filter((r) => r.showPifTick).length ?? 0,
-        deskPending: desk.data?.filter((r) => r.status === "Pending").length ?? 0,
         topicsNew: topics.data?.filter((r) => r.status === "New").length ?? 0,
-        calScheduled: calendar.data?.filter((r) => r.status === "Scheduled").length ?? 0,
         needsOpen: needs.data?.filter((r) => r.actionStatus !== "Done").length ?? 0,
     };
 
@@ -124,9 +116,7 @@ export default async function EditorialPage({
                 {[
                     { label: "Site pages", value: counts.site },
                     { label: "PIF badge lit", value: counts.pifLit },
-                    { label: "Desk pending", value: counts.deskPending },
                     { label: "Topics new", value: counts.topicsNew },
-                    { label: "Cal. scheduled", value: counts.calScheduled },
                     { label: "Needs open", value: counts.needsOpen },
                 ].map((s) => (
                     <div key={s.label} className="flex items-baseline gap-2">
@@ -201,20 +191,6 @@ export default async function EditorialPage({
             </Section>
 
             <div className="grid grid-cols-2 max-lg:grid-cols-1 gap-6">
-                <Section title="Content Calendar" note={`${calRows.length} rows`} error={calendar.error}>
-                    <ul className="divide-y divide-paper-edge">
-                        {calRows.slice(0, 25).map((r) => (
-                            <li key={r.id} className="py-2 flex items-center justify-between gap-3">
-                                <div>
-                                    <div className="text-sm font-medium">{r.topicTitle || "(untitled)"}</div>
-                                    <div className="text-xs text-paper-foreground-soft">{r.date ?? "no date"}{r.contentType ? ` · ${r.contentType}` : ""}{r.sanitySync ? " · synced" : ""}</div>
-                                </div>
-                                {r.status && <StatusBadge tone={getStatusTone(r.status)} label={r.status} />}
-                            </li>
-                        ))}
-                    </ul>
-                </Section>
-
                 <Section title="Topic Pool" note={`${topicRows.length} rows`} error={topics.error}>
                     <ul className="divide-y divide-paper-edge">
                         {topicRows.slice(0, 25).map((r) => {
@@ -244,25 +220,6 @@ export default async function EditorialPage({
                                 </li>
                             );
                         })}
-                    </ul>
-                </Section>
-
-                <Section title="Ernesto Desk" note={`${deskRows.length} rows · JJ decides in Notion`} error={desk.error}>
-                    <ul className="divide-y divide-paper-edge">
-                        {deskRows.slice(0, 25).map((r) => (
-                            <li key={r.id} className="py-2 flex items-center justify-between gap-3">
-                                <div>
-                                    <div className="text-sm font-medium">{r.item || "(untitled)"}</div>
-                                    <div className="text-xs text-paper-foreground-soft">{[r.type, r.priority, r.due].filter(Boolean).join(" · ") || "—"}</div>
-                                </div>
-                                {r.status && (
-                                    <StatusBadge
-                                        tone={r.status === "Pending" ? "warning" : r.status === "Done" ? "success" : "secondary"}
-                                        label={r.status}
-                                    />
-                                )}
-                            </li>
-                        ))}
                     </ul>
                 </Section>
 
