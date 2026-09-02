@@ -20,11 +20,17 @@ interface NavEntry {
   room: RoomId;
 }
 
+interface Counts {
+  editorial: number;
+  questions: number;
+}
+
 const ROOMS: NavEntry[] = [
   { href: "/", label: "Atrio", room: "atrio" },
+  { href: "/questioni", label: "Le Questioni", room: "questioni" },
+  { href: "/casa-di-ernesto", label: "Gli agenti", room: "ernesto" },
   { href: "/editorial", label: "Editorial", room: "editorial" },
   { href: "/pif-tick", label: "PIF Tick", room: "pif" },
-  { href: "/casa-di-ernesto", label: "La Casa di Ernesto", room: "ernesto" },
   { href: "/portineria", label: "La Portineria", room: "portineria" },
   { href: "/carico", label: "Il Carico", room: "carico" },
   { href: "/soffitta", label: "La Soffitta", room: "soffitta" },
@@ -52,11 +58,11 @@ const ROLE_LABELS: Record<string, string> = {
   viewer: "Viewer"
 };
 
-const PENDING_KEY = "house-awaiting";
+const PENDING_KEY = "house-awaiting-v2";
 const PENDING_TTL_MS = 5 * 60 * 1000;
 const ARCHIVE_KEY = "sidebar-archive-open";
 
-function NavRow({ entry, active }: { entry: NavEntry; active: boolean }) {
+function NavRow({ entry, active, count }: { entry: NavEntry; active: boolean; count?: number | null }) {
   return (
     <Link
       href={entry.href}
@@ -75,6 +81,9 @@ function NavRow({ entry, active }: { entry: NavEntry; active: boolean }) {
         className={["flex-none transition-colors", active ? "" : "opacity-70 group-hover:opacity-100"].join(" ")}
       />
       <span className="truncate">{entry.label}</span>
+      {typeof count === "number" && count > 0 && (
+        <span className="serial ml-auto flex-none text-plate-foreground-soft">{count}</span>
+      )}
     </Link>
   );
 }
@@ -82,7 +91,7 @@ function NavRow({ entry, active }: { entry: NavEntry; active: boolean }) {
 export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const [pending, setPending] = useState<number | null>(null);
+  const [pending, setPending] = useState<Counts | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
 
   const inArchive = ARCHIVE.some((entry) => pathname.startsWith(entry.href));
@@ -93,12 +102,14 @@ export default function Sidebar() {
   // show — cached a few minutes so reloads do not wake the Notion crawl.
   useEffect(() => {
     let cancelled = false;
-    const readSaved = (): number | null => {
+    const readSaved = (): Counts | null => {
       try {
         const raw = sessionStorage.getItem(PENDING_KEY);
         if (!raw) return null;
-        const saved = JSON.parse(raw) as { count: number; at: number };
-        return Date.now() - saved.at < PENDING_TTL_MS ? saved.count : null;
+        const saved = JSON.parse(raw) as { count: Counts; at: number };
+        return Date.now() - saved.at < PENDING_TTL_MS && saved.count && typeof saved.count.editorial === "number"
+          ? saved.count
+          : null;
       } catch {
         return null; /* storage unavailable — fall through to the fetch */
       }
@@ -114,9 +125,9 @@ export default function Sidebar() {
     }
     fetch("/api/house/state", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { awaiting?: { total?: number } | null } | null) => {
+      .then((data: { awaiting?: { total?: number; questions?: number } | null } | null) => {
         if (cancelled || !data?.awaiting || typeof data.awaiting.total !== "number") return;
-        const count = data.awaiting.total;
+        const count: Counts = { editorial: data.awaiting.total, questions: data.awaiting.questions ?? 0 };
         setPending(count);
         try {
           sessionStorage.setItem(PENDING_KEY, JSON.stringify({ count, at: Date.now() }));
@@ -191,10 +202,10 @@ export default function Sidebar() {
               </span>
               <span className="mt-0.5 block text-[11px] opacity-90">
                 {pending === null
-                  ? "Review & publish"
-                  : pending === 0
+                  ? "Le proposte editoriali"
+                  : pending.editorial === 0
                     ? "Niente aspetta il tuo sigillo"
-                    : `${pending} in attesa del tuo sigillo`}
+                    : `${pending.editorial} ${pending.editorial === 1 ? "proposta" : "proposte"} da sigillare`}
               </span>
             </span>
           </Link>
@@ -205,7 +216,12 @@ export default function Sidebar() {
             <h2 className="column-label mb-2 px-5 max-lg:mb-0 max-lg:px-3">Le stanze</h2>
             <div className="max-lg:flex max-lg:items-center">
               {ROOMS.map((entry) => (
-                <NavRow key={entry.href} entry={entry} active={isActive(entry.href)} />
+                <NavRow
+                  key={entry.href}
+                  entry={entry}
+                  active={isActive(entry.href)}
+                  count={entry.href === "/questioni" ? pending?.questions : undefined}
+                />
               ))}
             </div>
           </div>

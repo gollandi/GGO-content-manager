@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import MarkdownBlock from "../../components/MarkdownBlock";
+import { deskFamily } from "../../lib/house/families";
 import { Guilloche, Socket, Mark, AgeBar, type MarkTone } from "../../components/Registro";
 
 /**
@@ -238,8 +240,12 @@ export default function ReviewPage() {
             notionUrl: row.url,
             desk: row
         });
+        // Only the editorial family stands at this gate: what is to be
+        // published, cut or captioned. Questions, plans and recommendations
+        // are answered at Le Questioni, never sealed here.
+        const editorial = (row: DeskRow) => deskFamily(row.type) === "editorial";
         return [
-            ...state.wall.map(fromDesk),
+            ...state.wall.filter(editorial).map(fromDesk),
             ...state.calendar
                 .filter((row) => row.status === "Review")
                 .map((row): Entry => ({
@@ -255,10 +261,10 @@ export default function ReviewPage() {
                     calendar: row
                 })),
             ...state.desk
-                .filter((row) => row.status === "Pending" && !wallIds.has(row.rowId))
+                .filter((row) => row.status === "Pending" && !wallIds.has(row.rowId) && editorial(row))
                 .map(fromDesk),
             ...state.website
-                .filter((row) => row.patch)
+                .filter((row) => row.patch || row.proposals.length > 0)
                 .map((row): Entry => ({
                     key: `website:${row.rowId}`,
                     rowId: row.rowId,
@@ -268,7 +274,9 @@ export default function ReviewPage() {
                     // A draft already staged opens like any document — the change
                     // is read HERE, not on Notion; only the final publish lives
                     // in Sanity Studio.
-                    stateLabel: row.patchState === "awaiting-publish" ? "Bozza in Sanity — da pubblicare" : "Patch pronta",
+                    stateLabel: row.patch
+                        ? row.patchState === "awaiting-publish" ? "Bozza in Sanity — da pubblicare" : "Patch pronta"
+                        : `${row.proposals.length === 1 ? "Una proposta" : `${row.proposals.length} proposte`} · nessuna patch`,
                     dueDays: null,
                     hasMedia: false,
                     notionUrl: row.url,
@@ -290,14 +298,14 @@ export default function ReviewPage() {
                         .filter((r) => r.status === "In Production" || r.status === "Draft")
                         .map((r) => ({ key: `c:${r.rowId}`, title: r.title, state: r.status, url: r.url })),
                     ...state.desk
-                        .filter((r) => r.status === "In production")
+                        .filter((r) => r.status === "In production" && deskFamily(r.type) === "editorial")
                         .map((r) => ({ key: `d:${r.rowId}`, title: r.title, state: r.status, url: r.url }))
                 ]
             },
             {
                 label: "In coda — approvati, in attesa di uno slot",
                 rows: state.desk
-                    .filter((r) => r.status === "Approved")
+                    .filter((r) => r.status === "Approved" && deskFamily(r.type) === "editorial")
                     .map((r) => ({ key: `d:${r.rowId}`, title: r.title, state: "Approved", url: r.url }))
             },
             {
@@ -473,26 +481,34 @@ export default function ReviewPage() {
                                         <MarkdownBlock content={w.patch.rationale} className="mt-2 text-paper-foreground-soft" />
                                     )}
 
-                                    {/* What the draft actually does, change by change. */}
-                                    <div className="mt-3 space-y-2.5">
+                                    {/* What the draft actually does, change by change:
+                                        the text as it stands on the left, the correction
+                                        on the right, so the two are read against each other. */}
+                                    <div className="mt-3 space-y-3">
                                         {w.patch.operations.map((op, index) => (
                                             <div key={index} className="border-l-2 border-engraving pl-2.5">
-                                                <p className="font-condensed text-[10px] font-bold uppercase tracking-[0.12em] text-paper-foreground-soft">
+                                                <p className="font-condensed text-[10px] font-bold uppercase tracking-[0.12em] text-engraving-ink">
                                                     {index + 1} · {op.type === "replace-text" ? "Sostituisce"
                                                         : op.type === "insert-after" ? `Inserisce ${op.blocksCount} blocco/i dopo`
                                                         : op.type === "append" ? `Aggiunge ${op.blocksCount} blocco/i in coda`
                                                         : op.type}
                                                 </p>
-                                                {op.anchorText && (
-                                                    <p className="mt-1 text-paper-foreground-soft line-through decoration-[var(--stamp)]/60 whitespace-pre-wrap">
-                                                        {op.anchorText}
-                                                    </p>
-                                                )}
-                                                {(op.newText || op.blocksText) && (
-                                                    <p className="mt-1 text-paper-foreground whitespace-pre-wrap">
-                                                        {op.newText ?? op.blocksText}
-                                                    </p>
-                                                )}
+                                                <div className="mt-1.5 grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+                                                    <div className="min-w-0">
+                                                        <p className="font-condensed text-[9px] uppercase tracking-[0.14em] text-paper-foreground-soft">
+                                                            {op.type === "replace-text" ? "Testo attuale" : "Punto di ancoraggio"}
+                                                        </p>
+                                                        <p className={`mt-0.5 whitespace-pre-wrap ${op.type === "replace-text" ? "text-paper-foreground-soft line-through decoration-[var(--seal)]" : "text-paper-foreground-soft"}`}>
+                                                            {op.anchorText ?? "—"}
+                                                        </p>
+                                                    </div>
+                                                    <div className="min-w-0 border-l border-paper-edge pl-3 max-sm:border-l-0 max-sm:border-t max-sm:pl-0 max-sm:pt-2">
+                                                        <p className="font-condensed text-[9px] uppercase tracking-[0.14em] text-engraving-ink">Correzione</p>
+                                                        <p className="mt-0.5 whitespace-pre-wrap text-paper-foreground">
+                                                            {op.newText ?? op.blocksText ?? "—"}
+                                                        </p>
+                                                    </div>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -500,6 +516,10 @@ export default function ReviewPage() {
                             )}
                             {w.proposals.length > 0 && (
                                 <div className="mt-3 space-y-2">
+                                    <p className="font-condensed text-[10px] font-bold uppercase tracking-[0.14em] text-engraving-ink">
+                                        {w.proposals.length === 1 ? "Proposta sulla pagina" : "Proposte sulla pagina"}
+                                        {!w.patch && " · il sigillo commissiona la patch a Edmondo"}
+                                    </p>
                                     {w.proposals.map((proposal, index) => (
                                         <div key={`${proposal.need}-${index}`} className="border border-paper-edge px-3 py-2.5 text-[12px]">
                                             <p className="font-bold text-paper-foreground">{proposal.need}</p>
@@ -679,7 +699,7 @@ export default function ReviewPage() {
                 <header className="relative border-b border-plate-rule px-8 pb-4 pt-7 max-sm:px-4">
                     <div className="flex flex-wrap items-end justify-between gap-3">
                         <div>
-                            <p className="column-label">Il Cancello · l'unico varco</p>
+                            <p className="column-label">Il Cancello · le proposte editoriali</p>
                             <h1 className="document-title mt-1.5 text-[30px] text-plate-foreground-strong max-sm:text-[24px]">
                                 {state ? (pendingEntries.length === 0 ? "Niente aspetta il tuo sigillo" : pendingEntries.length === 1 ? "Un atto aspetta il tuo sigillo" : `${pendingEntries.length} atti aspettano il tuo sigillo`) : "Apro il registro…"}
                             </h1>
@@ -691,8 +711,8 @@ export default function ReviewPage() {
                                 const oldest = Math.max(0, ...pendingEntries.map((e) => e.dueDays ?? 0));
                                 const parts = [
                                     social > 0 && `${social === 1 ? "un atto" : `${social} atti`} dal calendario sociale`,
-                                    deskN > 0 && `${deskN === 1 ? "uno" : deskN} dalla scrivania di Ernesto`,
-                                    web > 0 && `${web === 1 ? "una patch" : `${web} patch`} dal sito`
+                                    deskN > 0 && `${deskN === 1 ? "uno" : deskN} da pubblicare o tagliare`,
+                                    web > 0 && `${web === 1 ? "una pagina" : `${web} pagine`} del sito con patch o proposte`
                                 ].filter(Boolean);
                                 return (
                                     <p className="mt-2 max-w-[34rem] text-[13px] italic leading-relaxed text-plate-foreground-soft">
@@ -706,9 +726,14 @@ export default function ReviewPage() {
                                 </p>
                             )}
                         </div>
-                        <button onClick={() => void load(true)} className="act-quiet" type="button">
-                            Rileggi da Notion
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <Link href="/questioni" className="text-[12px] text-plate-foreground-soft hover:text-plate-foreground hover:underline">
+                                Domande, piani e raccomandazioni → Le Questioni
+                            </Link>
+                            <button onClick={() => void load(true)} className="act-quiet" type="button">
+                                Rileggi da Notion
+                            </button>
+                        </div>
                     </div>
                 </header>
 
@@ -751,9 +776,9 @@ export default function ReviewPage() {
                                 </div>
                             ) : (
                                 ([
+                                    ["Desk", "Da pubblicare · clip e script"],
                                     ["Social", "Calendario sociale"],
-                                    ["Desk", "Scrivania di Ernesto"],
-                                    ["Website", "Sito"],
+                                    ["Website", "Sito · patch e proposte"],
                                 ] as const).map(([family, label]) => {
                                     const rows = entries.filter((e) => e.family === family);
                                     if (rows.length === 0) return null;

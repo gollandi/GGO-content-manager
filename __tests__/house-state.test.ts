@@ -38,11 +38,19 @@ const gate = (over: Partial<CancelloState>): CancelloState => ({
     ...over,
 });
 
-describe("computeAwaiting mirrors Il Cancello's entry list", () => {
-    it("counts wall + pending desk (not on the wall) + calendar Review + website patches", () => {
+describe("computeAwaiting splits the desk into editorial acts and questions", () => {
+    it("counts wall + pending editorial desk + calendar Review + website patches at the gate", () => {
         const state = gate({
-            wall: [desk({ rowId: "a" })],
-            desk: [desk({ rowId: "a" }), desk({ rowId: "b" }), desk({ rowId: "c", status: "Approved" })],
+            wall: [desk({ rowId: "a", type: "publish-approval" })],
+            desk: [
+                desk({ rowId: "a", type: "publish-approval" }),
+                desk({ rowId: "b", type: "clip-script" }),
+                desk({ rowId: "c", type: "publish-approval", status: "Approved" }),
+                desk({ rowId: "q1", type: "question" }),
+                desk({ rowId: "q2", type: "recommendation" }),
+                desk({ rowId: "q3", type: "recommendation" }),
+                desk({ rowId: "q4", type: "plan-proposal", status: "Done" }),
+            ],
             calendar: [cal({ rowId: "r1" }), cal({ rowId: "s1", status: "Scheduled" })],
             website: [
                 site({ rowId: "p", patch: { id: "p", title: null, rationale: null, sources: [], operations: [], sanityDocId: "x", batch: "b" } }),
@@ -55,18 +63,34 @@ describe("computeAwaiting mirrors Il Cancello's entry list", () => {
         expect(a.website).toBe(1);
         expect(a.total).toBe(4);
         expect(a.scheduled).toBe(1);
+        expect(a.questions).toBe(3);
+        expect(a.questionsByKind).toEqual({ question: 1, recommendation: 2 });
     });
 
-    it("reports the oldest overdue desk item in days and impact verdicts due", () => {
-        const state = gate({ desk: [desk({ rowId: "a", due: "2026-08-20" }), desk({ rowId: "b", due: "2026-09-10" })] });
+    it("treats an unknown desk type as a question, never as a publish act", () => {
+        const a = computeAwaiting(gate({ desk: [desk({ rowId: "z", type: "something-new" })] }), [], NOW);
+        expect(a.total).toBe(0);
+        expect(a.questions).toBe(1);
+    });
+
+    it("reports the oldest overdue item per family, open needs and impact verdicts due", () => {
+        const state = gate({
+            desk: [
+                desk({ rowId: "a", type: "question", due: "2026-08-20" }),
+                desk({ rowId: "b", type: "publish-approval", due: "2026-08-30" }),
+                desk({ rowId: "c", type: "question", due: "2026-09-10" }),
+            ],
+        });
         const needs: ContentNeedRow[] = [
             { id: "n", need: "x", source: null, actionStatus: "To do", details: "", contentAssetIds: [],
               successDefinition: "more clicks", impactReviewDate: "2026-09-01", impactOutcome: null, impactEvidence: "" },
-            { id: "m", need: "y", source: null, actionStatus: "To do", details: "", contentAssetIds: [],
+            { id: "m", need: "y", source: null, actionStatus: "Done", details: "", contentAssetIds: [],
               successDefinition: "", impactReviewDate: "2026-09-01", impactOutcome: null, impactEvidence: "" },
         ];
         const a = computeAwaiting(state, needs, NOW);
-        expect(a.oldestDays).toBe(13);
+        expect(a.oldestDays).toBe(3);
+        expect(a.questionsOldestDays).toBe(13);
+        expect(a.needsOpen).toBe(1);
         expect(a.impact).toBe(1);
     });
 });

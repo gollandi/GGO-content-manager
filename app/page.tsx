@@ -1,8 +1,8 @@
 import Link from "next/link";
 import Citofono from "../components/Citofono";
-import WeeklyCronReport from "../components/WeeklyCronReport";
 import { Guilloche, AgeBar, RoomCrest, ROOM_INK, type RoomId } from "../components/Registro";
 import { getHouseState, type HouseState } from "../lib/house/state";
+import { QUESTION_KINDS } from "../lib/house/families";
 
 export const dynamic = "force-dynamic";
 
@@ -98,28 +98,38 @@ function tiles(s: HouseState): Tile[] {
       tone: !a ? "mute" : a.total > 0 ? "seal" : "quiet",
     },
     {
-      href: "#stanotte",
-      label: "Stanotte",
+      href: "/questioni",
+      label: "Le Questioni",
+      value: a ? String(a.questions) : "—",
+      note: !a
+        ? "la scrivania non risponde"
+        : a.questions === 0
+          ? "nessuna domanda, piano o raccomandazione in sospeso"
+          : QUESTION_KINDS.filter((k) => a.questionsByKind[k.type])
+              .map((k) => `${a.questionsByKind[k.type]} ${k.label.toLowerCase()}`)
+              .join(" · "),
+      tone: !a ? "mute" : a.questions > 0 ? "sepia" : "quiet",
+    },
+    {
+      href: "/casa-di-ernesto#attivita",
+      label: "Gli agenti · 24 ore",
       value: n ? String(n.attention) : "—",
       note: !n
         ? "il registro delle run non risponde"
-        : n.runs === 0
-          ? "nessuna run nelle ultime 24 ore"
-          : n.attention === 0
-            ? `${n.runs} run, tutte concluse bene`
-            : `da guardare su ${n.runs} run`,
-      tone: !n ? "mute" : n.attention > 0 ? "seal" : n.runs === 0 ? "sepia" : "quiet",
-    },
-    {
-      href: "/casa-di-ernesto",
-      label: "Ultima produzione",
-      value: !n ? "—" : produceDays === null ? "mai" : produceDays === 0 ? "oggi" : `${produceDays} gg`,
-      note: !n
-        ? "il registro delle run non risponde"
-        : n.zeroOutputStreak > 0
-          ? `${n.zeroOutputStreak} slot consecutivi a zero`
-          : "l'ultimo slot ha prodotto",
-      tone: !n ? "mute" : produceDays === null || produceDays >= 7 ? "seal" : produceDays >= 3 ? "sepia" : "quiet",
+        : [
+            n.runs === 0 ? "nessuna run" : n.attention === 0 ? `${n.runs} run, tutte bene` : `da guardare su ${n.runs} run`,
+            produceDays === null ? "mai prodotto" : produceDays === 0 ? "prodotto oggi" : `ultima produzione ${produceDays} gg fa`,
+            n.zeroOutputStreak > 0 ? `${n.zeroOutputStreak} slot a zero` : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+      tone: !n
+        ? "mute"
+        : n.attention > 0 || produceDays === null || produceDays >= 7
+          ? "seal"
+          : n.runs === 0 || produceDays >= 3
+            ? "sepia"
+            : "quiet",
     },
     {
       href: "/casa-di-ernesto",
@@ -182,6 +192,17 @@ function calls(s: HouseState): Call[] {
       days: a.oldestDays,
     });
   }
+  if (a && a.questions > 0) {
+    out.push({
+      href: "/questioni",
+      room: "questioni",
+      title: `${a.questions} ${a.questions === 1 ? "questione aspetta" : "questioni aspettano"} una risposta`,
+      fact: QUESTION_KINDS.filter((k) => a.questionsByKind[k.type])
+        .map((k) => `${a.questionsByKind[k.type]} ${k.label.toLowerCase()}`)
+        .join(" · "),
+      days: a.questionsOldestDays,
+    });
+  }
   if (a && a.impact > 0) {
     out.push({
       href: "/editorial#impact",
@@ -192,9 +213,9 @@ function calls(s: HouseState): Call[] {
   }
   if (s.night && s.night.attention > 0) {
     out.push({
-      href: "#stanotte",
+      href: "/casa-di-ernesto#attivita",
       room: "ernesto",
-      title: `${s.night.attention} run ${s.night.attention === 1 ? "da guardare" : "da guardare"} nelle ultime 24 ore`,
+      title: `${s.night.attention} run da guardare nelle ultime 24 ore`,
       fact: s.night.failed.map((f) => f.job ?? "run").slice(0, 3).join(" · "),
     });
   }
@@ -252,6 +273,17 @@ function rooms(s: HouseState): RoomLine[] {
       tone: !a ? "mute" : a.total > 0 ? "seal" : "quiet",
     },
     {
+      href: "/questioni",
+      room: "questioni",
+      name: "Le Questioni",
+      fact: !a
+        ? "nessun riporto"
+        : a.questions === 0
+          ? "nessuna questione in sospeso"
+          : `${a.questions} in sospeso${s.ambrogioPending ? ` · ${s.ambrogioPending} proposte di Ambrogio nel suo studio` : ""}`,
+      tone: !a ? "mute" : a.questions > 0 ? "sepia" : "quiet",
+    },
+    {
       href: "/editorial",
       room: "editorial",
       name: "Editorial",
@@ -268,7 +300,7 @@ function rooms(s: HouseState): RoomLine[] {
     {
       href: "/casa-di-ernesto",
       room: "ernesto",
-      name: "La Casa di Ernesto",
+      name: "Gli agenti",
       fact:
         s.runs.active > 0
           ? `${s.runs.active} run in corso dietro la porta`
@@ -357,7 +389,7 @@ export default async function AtrioPage() {
 
         {/* The strip: six numbers, each a decision. */}
         <section className="relative px-10 pt-6 max-sm:px-4" aria-label="Oggi">
-          <div className="grid grid-cols-6 gap-px border border-plate-rule bg-plate-rule max-2xl:grid-cols-3 max-md:grid-cols-2">
+          <div className="grid grid-cols-7 gap-px border border-plate-rule bg-plate-rule max-2xl:grid-cols-4 max-md:grid-cols-2">
             {strip.map((t) => (
               <Link
                 key={t.label}
@@ -471,12 +503,13 @@ export default async function AtrioPage() {
               ))}
             </ul>
           )}
-          <details className="mt-6 border-t border-plate-rule">
-            <summary className="column-label cursor-pointer py-3 hover:text-plate-foreground">
-              Giornale di bordo · ultimi 7 giorni
-            </summary>
-            <WeeklyCronReport />
-          </details>
+          <p className="mt-4 text-[12px] text-plate-foreground-soft">
+            Tutto quello che gli agenti hanno fatto, giorno per giorno, si legge da{" "}
+            <Link href="/casa-di-ernesto#attivita" className="font-semibold text-engraving-ink hover:underline">
+              Gli agenti
+            </Link>
+            .
+          </p>
         </section>
 
         <footer className="relative mt-10 border-t border-plate-rule px-10 py-6 max-sm:px-4">

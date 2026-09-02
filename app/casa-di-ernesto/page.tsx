@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ErnestoOperationsBoard from "../../components/ErnestoOperationsBoard";
 import MarkdownBlock from "../../components/MarkdownBlock";
 import MorningBrief from "../../components/MorningBrief";
+import WeeklyCronReport from "../../components/WeeklyCronReport";
 import StatusBadge from "../../components/StatusBadge";
 import type { Proposal, RunEvent } from "../../lib/runner/types";
 
@@ -267,7 +268,8 @@ export default function CasaDiErnestoPage() {
                 {/* ── Active run ── */}
                 <main className="min-w-0">
                     <header className="mb-4">
-                        <h1 className="document-title mt-1.5 text-[30px] text-plate-foreground-strong max-sm:text-[24px]">La Casa di Ernesto</h1>
+                        <p className="column-label">La Casa di Ernesto · gli agenti</p>
+                        <h1 className="document-title mt-1.5 text-[30px] text-plate-foreground-strong max-sm:text-[24px]">Gli agenti</h1>
                         <p className="mt-2 max-w-[38rem] text-[13px] leading-relaxed text-plate-foreground-soft">
                             Operazioni, direttive e conversazioni: qui distribuisci il lavoro che Ernesto registra nelle sue fonti.
                             Brief → ricerca → <strong>proposta</strong> → tua approvazione → bozze → critici → Cancello.

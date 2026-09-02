@@ -63,3 +63,28 @@ decorativo e 19 voci di navigazione.
 
 Non verificato a schermo in questa sessione (login richiesto sul servizio
 residente): build, typecheck, lint e test verdi.
+
+## Tre superfici — 2026-09-02 (seconda passata)
+
+Misurato sul Desk vivo: 171 righe "Pending", di cui 93 raccomandazioni, 43
+domande, 14 piani, 18 approvazioni di pubblicazione, 3 script di clip. Il
+Cancello le mostrava tutte in un registro solo.
+
+- **`lib/house/families.ts`** — una sola dichiarazione: `publish-approval`,
+  `clip-script`, `long-video-proposal` sono editoriali; `question`,
+  `plan-proposal`, `budget-request`, `recommendation` (e ogni tipo ignoto)
+  sono questioni. Il house state conta le due famiglie separatamente.
+- **Il Cancello (`/review`)** — solo proposte editoriali: da pubblicare e
+  clip, calendario sociale, pagine del sito con patch **o proposte**
+  (prima le pagine con sole proposte restavano fuori). Le operazioni della
+  patch sono a fronte: testo attuale a sinistra, correzione a destra.
+- **Le Questioni (`/questioni`)** — nuova stanza: segnali tecnici (run da
+  guardare, run interattive fallite, slot a zero, review PIF scadute,
+  snapshot fermo, fonti mute) e la scrivania per tipo, con risposta e
+  decisione in riga sulla stessa rotta del Cancello (`target: "desk"`).
+  Le proposte di Ambrogio sono contate e rimandate al suo studio.
+- **Gli agenti (`/casa-di-ernesto`)** — il Giornale di bordo vive qui
+  (`#attivita`); l'Atrio tiene solo le run rotte delle 24 ore e la tabella
+  di Ambrogio è sostituita da un rimando.
+- Sidebar: Cancello (sigilli) · Le Questioni (con contatore) · Gli agenti ·
+  stanze. Atrio: sette numeri, la lista "Ti aspettano" include le questioni.
