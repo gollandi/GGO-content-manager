@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import MarkdownBlock from "../../components/MarkdownBlock";
+import AssetSheet from "../../components/cancello/AssetSheet";
 import { Guilloche, Mark, AgeBar } from "../../components/Registro";
 import { deskFamily, QUESTION_KINDS } from "../../lib/house/families";
 
@@ -103,6 +104,9 @@ function QuestionRow({
                     ) : (
                         <p className="text-[12px] italic text-paper-foreground-soft">Nessun testo nella pagina: si legge in Notion.</p>
                     )}
+                    {/* A question can carry a clip: it is read here, full width,
+                        exactly as at the gate — the answer depends on it. */}
+                    {row.videos.length > 0 && <AssetSheet videos={row.videos} />}
                     <a href={row.url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[12px] text-engraving-ink hover:underline">
                         Apri in Notion
                     </a>
