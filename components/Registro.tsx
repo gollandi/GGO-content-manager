@@ -357,6 +357,7 @@ export function RegisterHeading({
 
 export type RoomId =
   | "cancello"
+  | "questioni"
   | "editorial"
   | "youtube"
   | "pif"
@@ -373,6 +374,8 @@ export type RoomId =
 export const ROOM_INK: Record<RoomId, { accent: string; bright: string }> = {
   atrio: { accent: "var(--plate-fg)", bright: "var(--plate-fg-strong)" },
   cancello: { accent: "var(--seal)", bright: "var(--seal-bright)" },
+  /* Le Questioni: answered in ink, never sealed — the stamp's family. */
+  questioni: { accent: "var(--stamp)", bright: "var(--stamp-bright)" },
   editorial: { accent: "var(--engraving)", bright: "var(--engraving-bright)" },
   youtube: { accent: "var(--plate-fg-soft)", bright: "var(--plate-fg)" },
   pif: { accent: "var(--engraving-ink)", bright: "var(--engraving-bright)" },
@@ -394,6 +397,16 @@ const CREST_PATHS: Record<RoomId, ReactNode> = {
       <path d="M8 20V6M12 20V4M16 20V6" />
       <path d="M6 11h12" />
       <circle cx="12" cy="14" r="1.6" />
+    </>
+  ),
+  /* The desk bell and the open ledger: questions answered, not sealed. */
+  questioni: (
+    <>
+      <path d="M4 19h16" />
+      <path d="M6 19V9c0-1 1-2 2-2h8c1 0 2 1 2 2v10" />
+      <path d="M9 12h6M9 15h4" />
+      <path d="M12 7V4" />
+      <circle cx="12" cy="3.5" r="0.8" />
     </>
   ),
   /* The crate on the receiving bench, taking in what comes down to it. */

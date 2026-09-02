@@ -16,6 +16,7 @@ import {
     getContentCalendar,
     getContentNeeds,
     getPerformanceSnapshot,
+    getAmbrogioProposals,
     type ActivityLogRow,
     type CalendarRow,
     type ContentNeedRow,
@@ -27,21 +28,30 @@ import { listRuns } from "../runner/store";
 import { listRetros } from "../retro/run";
 import { settle } from "../settle";
 import { cached } from "../cache";
+import { deskFamily } from "./families";
 
 /* ── Shape ─────────────────────────────────────────────────────────────── */
 
 export interface Awaiting {
-    /** Acts standing at Il Cancello — the same formula the gate itself uses. */
+    /** Editorial acts at Il Cancello: publish approvals, clips, social in
+     *  Review, website patches — the gate's own entry list. */
     total: number;
     social: number;
+    /** Desk rows of the editorial family (publish-approval, clip-script…). */
     desk: number;
     website: number;
     /** Impact verdicts due (Content Needs with a review date reached). */
     impact: number;
-    /** Days the oldest pending desk item has been standing. */
+    /** Days the oldest overdue editorial desk item has been standing. */
     oldestDays: number | null;
     /** Calendar rows already sealed and scheduled towards publication. */
     scheduled: number;
+    /** Content Needs still "To do": proposals waiting to be triaged. */
+    needsOpen: number;
+    /** Le Questioni: desk rows of the question family, pending, by kind. */
+    questions: number;
+    questionsByKind: Record<string, number>;
+    questionsOldestDays: number | null;
 }
 
 export interface NightRun {
@@ -111,6 +121,8 @@ export interface HouseState {
     pif: Pif | null;
     runs: { active: number; failed: number };
     retros: number;
+    /** Ambrogio's proposals still undecided — decided in his study, never here. */
+    ambrogioPending: number | null;
     snapshot: { latestWeekOf: string | null; ageDays: number | null } | null;
     errors: string[];
 }
@@ -133,8 +145,12 @@ export function daysBetween(from: string | null, now: Date): number | null {
 /** Identical to the entry list Il Cancello renders — one formula, one place. */
 export function computeAwaiting(state: CancelloState, needs: ContentNeedRow[], now: Date): Awaiting {
     const wallIds = new Set(state.wall.map((r) => r.rowId));
-    const deskPending = state.desk.filter((r) => r.status === "Pending" && !wallIds.has(r.rowId));
-    const desk = state.wall.length + deskPending.length;
+    const pending = [
+        ...state.wall,
+        ...state.desk.filter((r) => r.status === "Pending" && !wallIds.has(r.rowId)),
+    ];
+    const editorialDesk = pending.filter((r) => deskFamily(r.type) === "editorial");
+    const questionDesk = pending.filter((r) => deskFamily(r.type) === "question");
     const social = state.calendar.filter((r) => r.status === "Review").length;
     const website = state.website.filter((r) => r.patch && r.patchState !== "awaiting-publish").length;
     const today = now.toISOString().slice(0, 10);
@@ -145,17 +161,24 @@ export function computeAwaiting(state: CancelloState, needs: ContentNeedRow[], n
             r.impactReviewDate <= today &&
             (!r.impactOutcome || r.impactOutcome === "Pending")
     ).length;
-    const ages = [...state.wall, ...deskPending]
-        .map((r) => daysBetween(r.due, now))
-        .filter((d): d is number => d !== null && d > 0);
+    const oldest = (rows: { due: string | null }[]): number | null => {
+        const ages = rows.map((r) => daysBetween(r.due, now)).filter((d): d is number => d !== null && d > 0);
+        return ages.length ? Math.max(...ages) : null;
+    };
+    const questionsByKind: Record<string, number> = {};
+    for (const r of questionDesk) questionsByKind[r.type] = (questionsByKind[r.type] ?? 0) + 1;
     return {
-        total: desk + social + website,
+        total: editorialDesk.length + social + website,
         social,
-        desk,
+        desk: editorialDesk.length,
         website,
         impact,
-        oldestDays: ages.length ? Math.max(...ages) : null,
+        oldestDays: oldest(editorialDesk),
         scheduled: state.calendar.filter((r) => r.status === "Scheduled").length,
+        needsOpen: needs.filter((r) => r.actionStatus === "To do").length,
+        questions: questionDesk.length,
+        questionsByKind,
+        questionsOldestDays: oldest(questionDesk),
     };
 }
 
@@ -272,7 +295,7 @@ function weeklyTarget(): number | null {
 }
 
 async function build(now: Date): Promise<HouseState> {
-    const [cancello, needs, activity, calendar, site, ggomed, compass, snapshot] = await Promise.all([
+    const [cancello, needs, activity, calendar, site, ggomed, compass, snapshot, ambrogio] = await Promise.all([
         settle(() => loadCancelloState()),
         settle(getContentNeeds),
         settle(getAgentsActivityLog),
@@ -281,6 +304,7 @@ async function build(now: Date): Promise<HouseState> {
         settle(getPifGgomed),
         settle(getPifCompass),
         settle(getPerformanceSnapshot),
+        settle(getAmbrogioProposals),
     ]);
     const pifRows: PifRow[] = [
         ...(ggomed.data ? normaliseGgomed(ggomed.data, now) : []),
@@ -307,8 +331,9 @@ async function build(now: Date): Promise<HouseState> {
         pif: ggomed.data || compass.data ? computePif(pifRows, now) : null,
         runs,
         retros,
+        ambrogioPending: ambrogio.data ? ambrogio.data.filter((r) => r.decision === "Pending").length : null,
         snapshot: snapshot.data ? { latestWeekOf, ageDays: daysBetween(latestWeekOf, now) } : null,
-        errors: [cancello, needs, activity, calendar, site, ggomed, compass, snapshot]
+        errors: [cancello, needs, activity, calendar, site, ggomed, compass, snapshot, ambrogio]
             .map((s) => s.error)
             .filter((e): e is string => !!e),
     };

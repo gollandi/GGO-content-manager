@@ -55,8 +55,9 @@ decisions." This is the synthesis and what was done about it.
 - **Week-vs-target**: the calendar is grouped by content type for the
   current week; the target is read from `COCKPIT_WEEKLY_TARGET` and shown
   as "obiettivo non impostato" when absent. No number was invented.
-- **Ambrogio's activity-log table** stays: his study is independent by
-  construction and was not touched.
+- **Ambrogio's registers** (audits, proposals) were not touched: his study
+  is independent by construction. Its copy of the activity log went in the
+  second pass, replaced by a link to the agents' room.
 - **The archive pages** are folded, not deleted: only Content Explorer and
   Validation Hub are gated by the parity harness; the other nine have no
   test. Deleting them needs a smoke test per route first.
@@ -70,3 +71,23 @@ Each reviewer worked read-only on the code, cited `file:line` evidence for
 every duplication claim, and wrote a bounded report. The reports agreed
 without coordination on findings 1–4; the CCO and the two orchestrators
 added 5–6 independently.
+
+## Second pass — three surfaces (2 September 2026)
+
+JJ, after the first pass: "there are still about 170 lines of mostly useless
+and duplicated stuff." Measured against the live Desk, the gate held 171
+pending rows: 93 recommendations, 43 questions, 14 plan proposals, 18
+publish approvals, 3 clip scripts. The editorial acts were 21; the other
+150 were organisational.
+
+The cockpit now has three operating surfaces, each owning one class of
+fact:
+
+| Surface | Owns | Never shows |
+|---|---|---|
+| Il Cancello (`/review`) | Editorial proposals: publish approvals, clips, social in Review, website patches and proposals, with corrections side by side and assets | Questions, plans, recommendations |
+| Le Questioni (`/questioni`) | Technical signals (broken runs, zero-output slots, PIF overdue, stale snapshot, mute sources) and the organisational desk by kind, answered in place | Anything that can be published |
+| Gli agenti (`/casa-di-ernesto`) | Everything the agents did: brief, journal, runs, directives, media | The decision queues |
+
+The split is declared once in `lib/house/families.ts`; an unknown Desk type
+is a question, never a publish act.

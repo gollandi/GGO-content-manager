@@ -36,10 +36,10 @@ Named GROQ views are exposed twice: as a library (`lib/views`) and over HTTP (`/
 
 | Path | Purpose |
 |------|---------|
-| `app/` | Pages: 8 cockpit rooms + 11 legacy mirror pages (folded into the sidebar's archive, retiring) + `review` (Il Cancello); `helm-pathways` redirects into PIF Tick's Compass filter |
+| `app/` | Three operating surfaces — `review` (Il Cancello: editorial proposals only), `questioni` (Le Questioni: technical and organisational desk rows + signals), `casa-di-ernesto` (Gli agenti: everything the agents do) — plus the rooms (Atrio, Editorial, PIF Tick, Portineria, Carico, Soffitta, Ambrogio) and 11 legacy mirror pages folded into the sidebar's archive; `helm-pathways` redirects into PIF Tick's Compass filter |
 | `app/api/` | notion/*, views/*, ernesto/* (runner), review-dashboard/* (gate), retro, cache |
 | `lib/views/` | Named GROQ view registry (editorial-content, asset-identity, pif-ggomed, pif-compass) |
-| `lib/house/` | The house state: the ONE read model for every "what awaits JJ" number (`/api/house/state`); Sidebar, Atrio and HousePulse consume it, no room recomputes a queue |
+| `lib/house/` | The house state: the ONE read model for every "what awaits JJ" number (`/api/house/state`); `families.ts` declares once which Desk types are editorial (Il Cancello) and which are questions (Le Questioni). Sidebar, Atrio, HousePulse and both registers consume it, no room recomputes a queue |
 | `lib/notion/` | Notion integration; `lib/notion/editorial.ts` for workflow DBs |
 | `lib/media/` | Il Carico — the server media inbox (chunked resumable upload, manifest handoff to the video worker) |
 | `lib/auth/` | next-auth config, roles, API guard |
