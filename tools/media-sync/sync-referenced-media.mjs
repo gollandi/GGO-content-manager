@@ -55,6 +55,12 @@ for (const row of [...(state.wall ?? []), ...(state.desk ?? [])]) {
         if (v.path) referenced.add(v.path);
         else if (v.url) { const p = pathParam(v.url); if (p) referenced.add(p); }
     }
+    // Stills, and the calendar row's own media, that a desk proposal points
+    // at: the gate reads them as `media`, so the VPS needs them too.
+    for (const m of row.media ?? []) {
+        const p = pathParam(m.url);
+        if (p) referenced.add(p);
+    }
 }
 for (const row of state.calendar ?? []) {
     for (const m of row.media ?? []) {
