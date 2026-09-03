@@ -37,8 +37,7 @@ export default function AssetSheet({ media, videos }: { media?: MediaRef[]; vide
                         alt={`Asset ${index + 1}`}
                         loading="lazy"
                         onClick={() => setZoomed(proxyUrl(m.url))}
-                        className="w-full cursor-zoom-in object-contain"
-                        style={{ maxHeight: "70vh" }}
+                        className="mx-auto block max-h-[70vh] max-w-full cursor-zoom-in object-contain"
                     />
                     <figcaption className="mt-1.5 flex items-center justify-between px-1">
                         <span className="column-label column-label-paper">Allegato {index + 1}</span>
@@ -55,8 +54,7 @@ export default function AssetSheet({ media, videos }: { media?: MediaRef[]; vide
                         preload="metadata"
                         playsInline
                         src={proxyUrl(v.url)}
-                        className="mx-auto w-full"
-                        style={{ maxHeight: "70vh" }}
+                        className="mx-auto block max-h-[70vh] max-w-full object-contain"
                     />
                     <figcaption className="mt-1.5 px-1">
                         <span className="column-label">Video {index + 1}</span>
