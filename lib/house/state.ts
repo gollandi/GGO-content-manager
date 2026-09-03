@@ -149,8 +149,9 @@ export function computeAwaiting(state: CancelloState, needs: ContentNeedRow[], n
         ...state.wall,
         ...state.desk.filter((r) => r.status === "Pending" && !wallIds.has(r.rowId)),
     ];
-    const editorialDesk = pending.filter((r) => deskFamily(r.type, r.videos.length > 0) === "editorial");
-    const questionDesk = pending.filter((r) => deskFamily(r.type, r.videos.length > 0) === "question");
+    const carries = (r: { videos: unknown[]; media?: unknown[] }) => r.videos.length > 0 || (r.media?.length ?? 0) > 0;
+    const editorialDesk = pending.filter((r) => deskFamily(r.type, carries(r)) === "editorial");
+    const questionDesk = pending.filter((r) => deskFamily(r.type, carries(r)) === "question");
     const social = state.calendar.filter((r) => r.status === "Review").length;
     const website = state.website.filter((r) => r.patch && r.patchState !== "awaiting-publish").length;
     const today = now.toISOString().slice(0, 10);

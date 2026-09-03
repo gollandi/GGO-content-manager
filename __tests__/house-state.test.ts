@@ -22,7 +22,7 @@ const NOW = new Date("2026-09-02T09:00:00Z");
 
 const desk = (over: Partial<DeskRow>): DeskRow => ({
     rowId: "d", url: "", title: "t", type: "question", status: "Pending", priority: "Normal",
-    due: null, correction: "", body: "", videos: [], ...over,
+    due: null, correction: "", body: "", videos: [], media: [], ...over,
 });
 const cal = (over: Partial<GateCalendarRow>): GateCalendarRow => ({
     rowId: "c", title: "t", contentType: "Reel", status: "Review", platforms: null, date: null, variant: null,

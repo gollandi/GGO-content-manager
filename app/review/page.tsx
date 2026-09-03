@@ -27,7 +27,8 @@ interface VideoRef { url: string; name?: string; path?: string; ageDays?: number
 interface MediaRef { kind: "image" | "video"; url: string }
 interface DeskRow {
     rowId: string; url: string; title: string; type: string; status: string;
-    priority: string; due: string | null; correction: string; body: string; videos: VideoRef[];
+    priority: string; due: string | null; correction: string; body: string;
+    videos: VideoRef[]; media: MediaRef[];
 }
 interface CalendarRow {
     rowId: string; title: string; contentType: string | null; status: string; platforms: string | null;
@@ -166,14 +167,15 @@ export default function ReviewPage() {
             title: row.title,
             stateLabel: row.priority ? `${row.priority} · ${row.type}` : row.type,
             dueDays: daysUntil(row.due),
-            hasMedia: row.videos.length > 0,
+            hasMedia: row.videos.length > 0 || (row.media?.length ?? 0) > 0,
             notionUrl: row.url,
             desk: row
         });
         // Only the editorial family stands at this gate: what is to be
         // published, cut or captioned. Questions, plans and recommendations
         // are answered at Le Questioni, never sealed here.
-        const editorial = (row: DeskRow) => deskFamily(row.type, row.videos.length > 0) === "editorial";
+        const carries = (row: DeskRow) => row.videos.length > 0 || (row.media?.length ?? 0) > 0;
+        const editorial = (row: DeskRow) => deskFamily(row.type, carries(row)) === "editorial";
         return [
             ...state.wall.filter(editorial).map(fromDesk),
             ...state.calendar
@@ -228,14 +230,14 @@ export default function ReviewPage() {
                         .filter((r) => r.status === "In Production" || r.status === "Draft")
                         .map((r) => ({ key: `c:${r.rowId}`, title: r.title, state: r.status, url: r.url })),
                     ...state.desk
-                        .filter((r) => r.status === "In production" && deskFamily(r.type, r.videos.length > 0) === "editorial")
+                        .filter((r) => r.status === "In production" && deskFamily(r.type, r.videos.length > 0 || (r.media?.length ?? 0) > 0) === "editorial")
                         .map((r) => ({ key: `d:${r.rowId}`, title: r.title, state: r.status, url: r.url }))
                 ]
             },
             {
                 label: "In coda — approvati, in attesa di uno slot",
                 rows: state.desk
-                    .filter((r) => r.status === "Approved" && deskFamily(r.type, r.videos.length > 0) === "editorial")
+                    .filter((r) => r.status === "Approved" && deskFamily(r.type, r.videos.length > 0 || (r.media?.length ?? 0) > 0) === "editorial")
                     .map((r) => ({ key: `d:${r.rowId}`, title: r.title, state: "Approved", url: r.url }))
             },
             {
@@ -381,7 +383,7 @@ export default function ReviewPage() {
                     {d && (
                         <>
                             {d.body && <MarkdownBlock content={d.body} className="text-[13px] leading-relaxed text-paper-foreground" />}
-                            <AssetSheet videos={d.videos} />
+                            <AssetSheet videos={d.videos} media={d.media} />
                             {d.correction && (
                                 <div className="mt-3 border border-stamp px-3 py-2 text-[12px] text-stamp whitespace-pre-wrap">
                                     {d.correction}

@@ -24,9 +24,11 @@ import { deskFamily, QUESTION_KINDS } from "../../lib/house/families";
 type Decision = "approve" | "modify" | "reject" | "done" | "delete";
 
 interface VideoRef { url: string; name: string; path: string; ageDays: number }
+interface MediaRef { kind: "image" | "video"; url: string }
 interface DeskRow {
     rowId: string; url: string; title: string; type: string; status: string | null;
-    priority: string; due: string | null; correction: string; body: string; videos: VideoRef[];
+    priority: string; due: string | null; correction: string; body: string;
+    videos: VideoRef[]; media?: MediaRef[];
 }
 interface ReviewState { desk: DeskRow[]; generatedAt: string; cached: boolean }
 
@@ -106,7 +108,7 @@ function QuestionRow({
                     )}
                     {/* A row with a clip is an editorial proposal and stands at the
                         gate; this is kept for the rare row that still carries one. */}
-                    {row.videos.length > 0 && <AssetSheet videos={row.videos} />}
+                    {(row.videos.length > 0 || (row.media?.length ?? 0) > 0) && <AssetSheet videos={row.videos} media={row.media} />}
                     <a href={row.url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[12px] text-engraving-ink hover:underline">
                         Apri in Notion
                     </a>
@@ -187,7 +189,7 @@ export default function QuestioniPage() {
 
     const groups = useMemo(() => {
         const pending = (state?.desk ?? []).filter(
-            (r) => r.status === "Pending" && deskFamily(r.type, r.videos.length > 0) === "question" && !gone[r.rowId]
+            (r) => r.status === "Pending" && deskFamily(r.type, r.videos.length > 0 || (r.media?.length ?? 0) > 0) === "question" && !gone[r.rowId]
         );
         const sortRows = (rows: DeskRow[]) =>
             [...rows].sort((a, b) => {

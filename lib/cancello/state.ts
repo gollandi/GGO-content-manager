@@ -30,7 +30,12 @@ export interface VideoRef { url: string; name: string; path: string; ageDays: nu
 export interface MediaRef { kind: "image" | "video"; url: string }
 export interface DeskRow {
     rowId: string; url: string; title: string; type: string; status: string | null;
-    priority: string; due: string | null; correction: string; body: string; videos: VideoRef[];
+    priority: string; due: string | null; correction: string; body: string;
+    /** Local clips (body + Media Assets): the wall's freshness reads their age. */
+    videos: VideoRef[];
+    /** Everything else the row points at: local stills, the Calendar Row's
+     *  own assets, and hosted copies when nothing local is on this machine. */
+    media: MediaRef[];
 }
 export interface CalendarRow {
     rowId: string; title: string; contentType: string | null; status: string | null;
@@ -189,6 +194,78 @@ async function resolveRowMedia(props: Props): Promise<MediaRef[]> {
     return media;
 }
 
+/** Desk types whose body is scanned for the calendar row it speaks of. */
+const EDITORIAL_LOOKUP_TYPES = new Set(["publish-approval", "clip-script", "long-video-proposal"]);
+
+/** Hosts whose media a desk row may embed when the local file is absent. */
+const HOSTED_MEDIA_HOSTS = ["cdn.sanity.io", "ggomed.co.uk"];
+const HOSTED_MEDIA_RE = /https:\/\/[^\s<>"')]+\.(?:mp4|mov|m4v|webm|jpg|jpeg|png|webp|gif)(?:\?[^\s<>"')]*)?/gi;
+const LOCAL_MEDIA_RE = /file:\/\/(\/[^\s<>"')]+\.(?:mp4|mov|m4v|webm|jpg|jpeg|png|webp|gif))/gi;
+
+/** Local stills referenced in `text` that exist on this machine. */
+function localImagesFromText(text: string): MediaRef[] {
+    const out: MediaRef[] = [];
+    for (const m of text.matchAll(LOCAL_MEDIA_RE)) {
+        let p = m[1];
+        try { p = decodeURIComponent(p); } catch { /* keep raw */ }
+        if (!IMAGE_EXTS.has(path.extname(p).toLowerCase())) continue;
+        const local = resolveLocalMediaPath(p);
+        if (!isPathWithinRoots(local) || !fs.existsSync(local)) continue;
+        out.push({ kind: "image", url: MEDIA_URL(p) });
+    }
+    return out;
+}
+
+/** Hosted copies (Sanity CDN, the site) named in `text` — the fallback when
+ *  the local file is not on this machine, as on the VPS. */
+function hostedMediaFromText(text: string): MediaRef[] {
+    const out: MediaRef[] = [];
+    for (const m of text.matchAll(HOSTED_MEDIA_RE)) {
+        try {
+            const u = new URL(m[0]);
+            if (!HOSTED_MEDIA_HOSTS.some((h) => u.hostname === h || u.hostname.endsWith("." + h))) continue;
+            const ext = path.extname(u.pathname).toLowerCase();
+            out.push({ kind: IMAGE_EXTS.has(ext) ? "image" : "video", url: u.toString() });
+        } catch { /* not a URL — skip */ }
+    }
+    return out;
+}
+
+const NOTION_ID_RE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
+const bareId = (id: string) => id.replace(/-/g, "").toLowerCase();
+const MAX_BODY_IDS = 4;
+
+/** The assets of the Calendar Rows a desk row points at (reel, cover, slides).
+ *  The girls name the calendar row two ways: the "Calendar Row" relation, or
+ *  its page id written in the body ("4 slides landed in Review on Content
+ *  Calendar row 3acd…"). Both are followed; only pages that live in the
+ *  Content Calendar count, and each page is fetched once per load. */
+async function calendarRowMedia(props: Props, bodyText: string, memo: Map<string, Promise<MediaRef[]>>): Promise<MediaRef[]> {
+    const calendarDb = bareId(notionConfig.dbs.contentCalendar());
+    const ids = new Set<string>(relationIds(props, "Calendar Row").map(bareId));
+    for (const m of bodyText.matchAll(NOTION_ID_RE)) {
+        if (ids.size >= MAX_BODY_IDS + relationIds(props, "Calendar Row").length) break;
+        ids.add(bareId(m[0]));
+    }
+    if (ids.size === 0) return [];
+    const fetchOne = (id: string): Promise<MediaRef[]> => {
+        const cached = memo.get(id);
+        if (cached) return cached;
+        const task = (async () => {
+            try {
+                const page = (await notion.pages.retrieve({ page_id: id })) as PageObjectResponse;
+                const parent = page.parent.type === "database_id" ? bareId(page.parent.database_id) : "";
+                if (parent !== calendarDb) return [];
+                return await resolveRowMedia(page.properties);
+            } catch { return []; }
+        })();
+        memo.set(id, task);
+        return task;
+    };
+    const nested = await mapLimit([...ids], NOTION_CONCURRENCY, fetchOne);
+    return nested.flat();
+}
+
 /* ── The three families ──────────────────────────────────────────────── */
 
 async function loadDeskRows(): Promise<DeskRow[]> {
@@ -197,14 +274,15 @@ async function loadDeskRows(): Promise<DeskRow[]> {
         orStatus(OPEN_DESK_STATES),
         [{ property: "Priority", direction: "ascending" }]
     );
+    // One fetch per calendar page across the whole desk, however many rows name it.
+    const calendarMemo = new Map<string, Promise<MediaRef[]>>();
     return mapLimit(rows, NOTION_CONCURRENCY, async (row) => {
         let bodyText = "";
         try { bodyText = await pageBodyText(row.id); } catch { /* body is enrichment */ }
 
+        const locations = await fileLocationsOf(relationIds(row.properties, "Media Assets"));
         const candidatePaths = extractVideoPaths(bodyText);
-        for (const loc of await fileLocationsOf(relationIds(row.properties, "Media Assets"))) {
-            candidatePaths.push(...extractVideoPaths(loc));
-        }
+        for (const loc of locations) candidatePaths.push(...extractVideoPaths(loc));
 
         const seen = new Set<string>();
         const videos: VideoRef[] = [];
@@ -222,6 +300,26 @@ async function loadDeskRows(): Promise<DeskRow[]> {
             });
         }
 
+        // Stills named in the body or in the assets, the Calendar Row's own
+        // media (reel, cover, carousel slides), and — only when nothing local
+        // resolved on this machine — the hosted copies the body names.
+        const media: MediaRef[] = [];
+        const known = new Set<string>(videos.map((v) => v.url));
+        const add = (refs: MediaRef[]) => {
+            for (const ref of refs) {
+                if (known.has(ref.url)) continue;
+                known.add(ref.url);
+                media.push(ref);
+            }
+        };
+        add(localImagesFromText([bodyText, ...locations].join("\n")));
+        // Following ids named in the body costs a page read each: only the
+        // editorial types earn it, questions keep their relation-only path.
+        const type = propText(row.properties, "Type") || "other";
+        const follow = EDITORIAL_LOOKUP_TYPES.has(type) ? bodyText : "";
+        try { add(await calendarRowMedia(row.properties, follow, calendarMemo)); } catch { /* enrichment only */ }
+        if (videos.length === 0 && media.length === 0) add(hostedMediaFromText(bodyText));
+
         return {
             rowId: row.id,
             url: row.url,
@@ -233,6 +331,7 @@ async function loadDeskRows(): Promise<DeskRow[]> {
             correction: propText(row.properties, "Correction") || "",
             body: bodyText.slice(0, 700),
             videos,
+            media,
         };
     });
 }
