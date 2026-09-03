@@ -173,7 +173,7 @@ export default function ReviewPage() {
         // Only the editorial family stands at this gate: what is to be
         // published, cut or captioned. Questions, plans and recommendations
         // are answered at Le Questioni, never sealed here.
-        const editorial = (row: DeskRow) => deskFamily(row.type) === "editorial";
+        const editorial = (row: DeskRow) => deskFamily(row.type, row.videos.length > 0) === "editorial";
         return [
             ...state.wall.filter(editorial).map(fromDesk),
             ...state.calendar
@@ -228,14 +228,14 @@ export default function ReviewPage() {
                         .filter((r) => r.status === "In Production" || r.status === "Draft")
                         .map((r) => ({ key: `c:${r.rowId}`, title: r.title, state: r.status, url: r.url })),
                     ...state.desk
-                        .filter((r) => r.status === "In production" && deskFamily(r.type) === "editorial")
+                        .filter((r) => r.status === "In production" && deskFamily(r.type, r.videos.length > 0) === "editorial")
                         .map((r) => ({ key: `d:${r.rowId}`, title: r.title, state: r.status, url: r.url }))
                 ]
             },
             {
                 label: "In coda — approvati, in attesa di uno slot",
                 rows: state.desk
-                    .filter((r) => r.status === "Approved" && deskFamily(r.type) === "editorial")
+                    .filter((r) => r.status === "Approved" && deskFamily(r.type, r.videos.length > 0) === "editorial")
                     .map((r) => ({ key: `d:${r.rowId}`, title: r.title, state: "Approved", url: r.url }))
             },
             {

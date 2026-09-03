@@ -67,6 +67,16 @@ describe("computeAwaiting splits the desk into editorial acts and questions", ()
         expect(a.questionsByKind).toEqual({ question: 1, recommendation: 2 });
     });
 
+    it("sends any desk row carrying a clip to the gate, whatever its type", () => {
+        const a = computeAwaiting(
+            gate({ desk: [desk({ rowId: "v", type: "question", videos: [{ url: "/video?path=a.mp4", name: "a", path: "a.mp4", ageDays: 40 }] })] }),
+            [],
+            NOW
+        );
+        expect(a.desk).toBe(1);
+        expect(a.questions).toBe(0);
+    });
+
     it("treats an unknown desk type as a question, never as a publish act", () => {
         const a = computeAwaiting(gate({ desk: [desk({ rowId: "z", type: "something-new" })] }), [], NOW);
         expect(a.total).toBe(0);

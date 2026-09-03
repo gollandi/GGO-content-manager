@@ -6,15 +6,21 @@
  * QUESTION (something to answer, decide or plan: it goes to Le Questioni,
  * grouped by kind so a hundred recommendations never bury one clip).
  *
- * Any type not listed is treated as a question: the safe side, because an
- * unknown type must never slip into the publish gate unnoticed.
+ * Two rules decide the family:
+ *   1. By content — a row carrying a clip or a still is an editorial
+ *      proposal whatever its Type says. The girls file "is this cut right?"
+ *      as a question; JJ reads it as a clip to judge, at the gate.
+ *   2. By type — otherwise the Type decides, and any type not listed is a
+ *      question: the safe side, because an unknown type must never slip
+ *      into the publish gate unnoticed.
  */
 export const EDITORIAL_DESK_TYPES = ["publish-approval", "clip-script", "long-video-proposal"] as const;
 export const QUESTION_DESK_TYPES = ["question", "recommendation", "plan-proposal", "budget-request"] as const;
 
 export type DeskFamily = "editorial" | "question";
 
-export function deskFamily(type: string | null | undefined): DeskFamily {
+export function deskFamily(type: string | null | undefined, hasMedia = false): DeskFamily {
+    if (hasMedia) return "editorial";
     return (EDITORIAL_DESK_TYPES as readonly string[]).includes(type ?? "") ? "editorial" : "question";
 }
 
