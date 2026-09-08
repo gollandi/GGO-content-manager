@@ -18,19 +18,25 @@ function deferred<T>() {
   const promise = new Promise<T>((yes) => { resolve = yes; });
   return { promise, resolve };
 }
+// The new panel has its own independent read; desk/house timing stays isolated.
+function withPipeline(fn: (url: string) => Promise<unknown>) {
+  return vi.fn((url: string) => url === "/api/pipeline/health"
+    ? Promise.resolve(response({ checkedAt: "2026-09-08T10:00:00Z", configured: false, workflows: [] }))
+    : fn(url));
+}
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("Questioni independent loading", () => {
   it("shows questions before the slower house summary resolves", async () => {
     const summary = deferred<Response>();
-    vi.stubGlobal("fetch", vi.fn((url: string) => url.includes("/house/") ? summary.promise : Promise.resolve(response(desk("Ready question")))));
+    vi.stubGlobal("fetch", withPipeline((url: string) => url.includes("/house/") ? summary.promise : Promise.resolve(response(desk("Ready question")))));
     render(<QuestioniPage />);
     expect(await screen.findByText("Ready question")).toBeTruthy();
     await act(async () => { summary.resolve(response(house)); });
   });
 
   it("keeps questions usable when the summary fails and labels the error", async () => {
-    vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve(url.includes("/house/") ? { ok: false, status: 503 } : response(desk("Available question")))));
+    vi.stubGlobal("fetch", withPipeline((url: string) => Promise.resolve(url.includes("/house/") ? { ok: false, status: 503 } : response(desk("Available question")))));
     render(<QuestioniPage />);
     expect(await screen.findByText("Available question")).toBeTruthy();
     expect(await screen.findByText("Segnali della casa: 503")).toBeTruthy();
@@ -38,7 +44,7 @@ describe("Questioni independent loading", () => {
 
   it("ignores an older response arriving after a refresh", async () => {
     const old = deferred<Response>();
-    vi.stubGlobal("fetch", vi.fn((url: string) => {
+    vi.stubGlobal("fetch", withPipeline((url: string) => {
       if (url.includes("/house/")) return Promise.resolve(response(house));
       return url.includes("refresh=1") ? Promise.resolve(response(desk("Current question"))) : old.promise;
     }));
@@ -49,14 +55,14 @@ describe("Questioni independent loading", () => {
     expect(screen.queryByText("Obsolete question")).toBeNull();
   });
 
-  it("cancels both outstanding requests on navigation away", async () => {
+  it("cancels all three outstanding requests on navigation away", async () => {
     const signals: AbortSignal[] = [];
     vi.stubGlobal("fetch", vi.fn((_url: string, options: RequestInit) => {
       signals.push(options.signal as AbortSignal);
       return new Promise<Response>(() => {});
     }));
     const view = render(<QuestioniPage />);
-    await waitFor(() => expect(signals).toHaveLength(2));
+    await waitFor(() => expect(signals).toHaveLength(3));
     view.unmount();
     expect(signals.every((signal) => signal.aborted)).toBe(true);
   });

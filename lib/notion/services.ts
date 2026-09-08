@@ -1,3 +1,4 @@
+import { hydrateEvidenceRelations } from "./evidence-relations";
 import { notion } from "./client";
 import { SCHEMA } from "./schema";
 import {
@@ -66,7 +67,16 @@ export async function getContentAssets(): Promise<ContentItem[]> {
  * Reuses cached content assets to avoid redundant Notion API calls.
  */
 export async function getPifValidations(): Promise<PifValidationItem[]> {
-    const validations = await fetchAll(SCHEMA.PifValidation.databaseId, mapPifValidationItem);
+    const pages = await fetchAll(SCHEMA.PifValidation.databaseId, page => page);
+    const validations: PifValidationItem[] = [];
+    for (const page of pages) {
+        const hydrated = await hydrateEvidenceRelations(page, async (pageId, propertyId, cursor) => {
+            const result = await notion.pages.properties.retrieve({ page_id: pageId, property_id: propertyId, start_cursor: cursor });
+            if (result.object !== "list") throw new Error("Expected paginated evidence relation");
+            return result;
+        });
+        validations.push(mapPifValidationItem(hydrated));
+    }
 
     // Get unique related content IDs
     const contentIds = Array.from(new Set(validations.map(v => v.contentAssetId).filter(id => !!id))) as string[];
