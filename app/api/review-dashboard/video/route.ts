@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { serveLocalMedia } from "../media/route";
+import { GET as serveLocalMedia } from "../media/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

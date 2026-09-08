@@ -53,10 +53,14 @@ requires consumer parity and preservation of manual edits and relation targets.
 - Unit/component/API tests exercise complete 106-reference reads, pagination
   errors, auth isolation, run-attempt/SHA mismatch, oversized/missing reports,
   high-severity findings, old green runs, missing access and UI unknown states.
-- Full suite: 154 passed, five existing skipped tests. TypeScript and production
+  The panel cancels pending fetches on navigation and rejects malformed responses;
+  integrated page tests verify independent loading and cancellation of all three reads.
+- Full suite after integration with main PR 28: 177 passed, five existing skipped tests. TypeScript and production
   build passed. Targeted source lint passed.
 - A real read-only GitHub smoke check correctly showed the 6 September full
   run and 2 September webhook as unverified because they predate health artifacts.
+- A real read-only Notion pagination check expanded an initial 25-reference
+  property response to its complete 28 references.
 - No source schema mutation, live ETL execution, editorial approval, deployment
   or authenticated visual browser acceptance is claimed by these tests.
 

@@ -1,0 +1,26 @@
+[
+  {
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "fixtureOnly": true,
+    "summaryDelayMs": 2500,
+    "questionsVisibleMs": 27,
+    "summaryDeliveredAtFirstQuestions": false,
+    "pageErrors": [],
+    "horizontalOverflow": false
+  },
+  {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "fixtureOnly": true,
+    "summaryDelayMs": 2500,
+    "questionsVisibleMs": 19,
+    "summaryDeliveredAtFirstQuestions": false,
+    "pageErrors": [],
+    "horizontalOverflow": false
+  }
+]

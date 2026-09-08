@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { PipelineHealth, WorkflowHealth } from "../lib/pipeline/health";
 
 const labels: Record<WorkflowHealth["state"], string> = {
@@ -31,22 +31,35 @@ export default function PipelineHealthPanel() {
   const [data, setData] = useState<PipelineHealth | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  const activeLoad = useRef<AbortController | null>(null);
   const load = useCallback(async () => {
+    activeLoad.current?.abort();
+    const controller = new AbortController();
+    activeLoad.current = controller;
     setBusy(true);
     setError(false);
     try {
-      const response = await fetch("/api/pipeline/health", { cache: "no-store" });
+      const response = await fetch("/api/pipeline/health", {
+        cache: "no-store",
+        signal: controller.signal,
+      });
       if (!response.ok) throw new Error("Unavailable");
-      setData(await response.json());
+      const value = await response.json();
+      if (controller.signal.aborted) return;
+      if (!value || !Array.isArray(value.workflows) || typeof value.checkedAt !== "string")
+        throw new Error("Invalid health response");
+      setData(value);
     } catch {
+      if (controller.signal.aborted) return;
       setError(true);
       setData(null);
     } finally {
-      setBusy(false);
+      if (!controller.signal.aborted) setBusy(false);
     }
   }, []);
   useEffect(() => {
     void load();
+    return () => activeLoad.current?.abort();
   }, [load]);
   return (
     <section
