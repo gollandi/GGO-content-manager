@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import PipelineHealthPanel from "../../components/PipelineHealthPanel";
 import MarkdownBlock from "../../components/MarkdownBlock";
 import AssetSheet from "../../components/cancello/AssetSheet";
 import { Guilloche, Mark, AgeBar } from "../../components/Registro";
@@ -335,6 +336,8 @@ export default function QuestioniPage() {
                     </p>
                 ) : null}
             </section>
+
+            <PipelineHealthPanel />
 
             {/* Questions, by kind. */}
             <section className="relative px-8 pb-12 pt-8 max-sm:px-4" aria-labelledby="questioni-scrivania">
