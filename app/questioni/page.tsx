@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import MarkdownBlock from "../../components/MarkdownBlock";
 import AssetSheet from "../../components/cancello/AssetSheet";
@@ -157,28 +157,54 @@ export default function QuestioniPage() {
     const [state, setState] = useState<ReviewState | null>(null);
     const [house, setHouse] = useState<HouseSignals | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [houseError, setHouseError] = useState<string | null>(null);
+    const activeLoad = useRef<AbortController | null>(null);
     const [busyId, setBusyId] = useState<string | null>(null);
     const [toast, setToast] = useState<string | null>(null);
     const [gone, setGone] = useState<Record<string, true>>({});
     const [unfolded, setUnfolded] = useState<Record<string, true>>({});
 
     const load = useCallback(async (refresh = false) => {
-        try {
-            const [r, h] = await Promise.all([
-                fetch(`/api/review-dashboard/state${refresh ? "?refresh=1" : ""}`, { cache: "no-store" }),
-                fetch(`/api/house/state${refresh ? "?refresh=1" : ""}`, { cache: "no-store" }),
-            ]);
-            if (!r.ok) throw new Error(`Scrivania: ${r.status}`);
-            setState((await r.json()) as ReviewState);
-            if (h.ok) setHouse((await h.json()) as HouseSignals);
-            setError(null);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : String(err));
-        }
+        activeLoad.current?.abort();
+        const controller = new AbortController();
+        activeLoad.current = controller;
+        const options = { cache: "no-store" as const, signal: controller.signal };
+        const suffix = refresh ? "?refresh=1" : "";
+        // Each panel commits as soon as it is ready. The house summary joins
+        // several additional sources and must not hold back the questions.
+        await Promise.all([
+            (async () => {
+                try {
+                    const res = await fetch(`/api/review-dashboard/state${suffix}`, options);
+                    if (!res.ok) throw new Error(`Scrivania: ${res.status}`);
+                    const data = await res.json() as ReviewState;
+                    if (controller.signal.aborted) return;
+                    setState(data);
+                    setError(null);
+                } catch (err) {
+                    if (!controller.signal.aborted) setError(err instanceof Error ? err.message : String(err));
+                }
+            })(),
+            (async () => {
+                try {
+                    const res = await fetch(`/api/house/state${suffix}`, options);
+                    if (!res.ok) throw new Error(`Segnali della casa: ${res.status}`);
+                    const data = await res.json() as HouseSignals;
+                    if (controller.signal.aborted) return;
+                    setHouse(data);
+                    setHouseError(null);
+                } catch (err) {
+                    if (controller.signal.aborted) return;
+                    setHouse(null);
+                    setHouseError(err instanceof Error ? err.message : String(err));
+                }
+            })(),
+        ]);
     }, []);
 
     useEffect(() => {
         void load();
+        return () => activeLoad.current?.abort();
     }, [load]);
 
     useEffect(() => {
@@ -313,7 +339,9 @@ export default function QuestioniPage() {
             {/* Signals: the technical side, read-only. */}
             <section className="relative px-8 pt-6 max-sm:px-4" aria-labelledby="questioni-segnali">
                 <h2 id="questioni-segnali" className="column-label">Segnali tecnici</h2>
-                {!house ? (
+                {houseError ? (
+                    <p role="status" className="mt-2 text-sm text-seal">{houseError}</p>
+                ) : !house ? (
                     <p className="mt-2 text-[12px] text-plate-foreground-soft">Leggo lo stato della casa…</p>
                 ) : signals.length === 0 ? (
                     <p className="mt-2 text-[13px] text-plate-foreground-soft">Nessun segnale: run pulite, review PIF in regola, snapshot fresco.</p>
