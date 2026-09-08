@@ -201,7 +201,14 @@ tokens — so either set can be revoked without taking the other down.
 Provision with `tools/vps/ernesto-setup.sh inspect|apply|enable`; which jobs
 move is `tools/vps/ernesto-jobs.txt`, copied to `/etc/ggo-ernesto-jobs.txt`.
 
-### Wave 1 — moved
+### Wave 1 — prepared, not activated
+
+On 8 September 2026 all eight VPS timers were installed but disabled, and
+their Mac counterparts were still loaded. The required Ernesto Notion
+credentials and Cockpit service token were empty or absent on the VPS.
+The list below records migration candidates, not completed cutovers. See
+[the VPS execution plan](VPS-EXECUTION-PLAN.md) for the verified inventory,
+read-path improvements and migration sequence.
 
 `nightly-review-due` (02:00), `evolution-review` (05:45),
 `morning-sitemap-fetch` (06:00), `morning-orphan-check` (06:30),

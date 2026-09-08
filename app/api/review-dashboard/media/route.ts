@@ -19,7 +19,7 @@ function toWebStream(stream: fs.ReadStream): ReadableStream {
     return Readable.toWeb(stream) as ReadableStream;
 }
 
-export async function serveLocalMedia(req: NextRequest): Promise<NextResponse> {
+async function serveLocalMedia(req: NextRequest): Promise<NextResponse> {
     const auth = await requireAuth();
     if (!auth.authenticated) return auth.response;
 

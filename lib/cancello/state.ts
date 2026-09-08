@@ -13,6 +13,7 @@ import { notion } from "../notion/client";
 import { notionConfig } from "../config";
 import { ggomedRawClient } from "../sanity/clients";
 import { selectCalendarRowsForGate } from "../notion/story-policy";
+import { createBodyCache } from "./body-cache";
 import {
     extractVideoPaths, isPathWithinRoots, resolveLocalMediaPath, IMAGE_EXTS, VIDEO_EXTS,
 } from "./paths";
@@ -153,19 +154,42 @@ const orStatus = (states: string[]) => ({
 const MEDIA_URL = (p: string) => `/media?path=${encodeURIComponent(p)}`;
 const VIDEO_URL = (p: string) => `/video?path=${encodeURIComponent(p)}`;
 
-async function fileLocationsOf(assetIds: string[]): Promise<string[]> {
+type ReadContext = {
+    pages: Map<string, Promise<PageObjectResponse>>;
+    body: (row: PageObjectResponse) => Promise<string>;
+};
+
+const bodyCache = createBodyCache();
+
+function readPage(id: string, context: ReadContext): Promise<PageObjectResponse> {
+    const key = id.replace(/-/g, "").toLowerCase();
+    const existing = context.pages.get(key);
+    if (existing) return existing;
+    const task = notion.pages.retrieve({ page_id: id }) as Promise<PageObjectResponse>;
+    context.pages.set(key, task);
+    return task;
+}
+
+function rememberPages(rows: PageObjectResponse[], context: ReadContext): void {
+    for (const row of rows) {
+        const key = row.id.replace(/-/g, "").toLowerCase();
+        if (!context.pages.has(key)) context.pages.set(key, Promise.resolve(row));
+    }
+}
+
+async function fileLocationsOf(assetIds: string[], context: ReadContext): Promise<string[]> {
     const locations = await mapLimit(assetIds, NOTION_CONCURRENCY, async (id) => {
         try {
-            const page = (await notion.pages.retrieve({ page_id: id })) as PageObjectResponse;
+            const page = await readPage(id, context);
             return propText(page.properties, "File Location");
         } catch { return null; /* a missing asset yields no media — not fatal */ }
     });
     return locations.filter((loc): loc is string => Boolean(loc));
 }
 
-async function resolveRowMedia(props: Props): Promise<MediaRef[]> {
+async function resolveRowMedia(props: Props, context: ReadContext): Promise<MediaRef[]> {
     const media: MediaRef[] = [];
-    for (const loc of await fileLocationsOf(relationIds(props, "Media Assets"))) {
+    for (const loc of await fileLocationsOf(relationIds(props, "Media Assets"), context)) {
         for (const m of loc.matchAll(/file:\/\/(\/[^\s<>"]+)/gi)) {
             let p = m[1];
             try { p = decodeURIComponent(p); } catch { /* keep raw */ }
@@ -240,7 +264,7 @@ const MAX_BODY_IDS = 4;
  *  its page id written in the body ("4 slides landed in Review on Content
  *  Calendar row 3acd…"). Both are followed; only pages that live in the
  *  Content Calendar count, and each page is fetched once per load. */
-async function calendarRowMedia(props: Props, bodyText: string, memo: Map<string, Promise<MediaRef[]>>): Promise<MediaRef[]> {
+async function calendarRowMedia(props: Props, bodyText: string, memo: Map<string, Promise<MediaRef[]>>, context: ReadContext): Promise<MediaRef[]> {
     const calendarDb = bareId(notionConfig.dbs.contentCalendar());
     const ids = new Set<string>(relationIds(props, "Calendar Row").map(bareId));
     for (const m of bodyText.matchAll(NOTION_ID_RE)) {
@@ -253,10 +277,10 @@ async function calendarRowMedia(props: Props, bodyText: string, memo: Map<string
         if (cached) return cached;
         const task = (async () => {
             try {
-                const page = (await notion.pages.retrieve({ page_id: id })) as PageObjectResponse;
+                const page = await readPage(id, context);
                 const parent = page.parent.type === "database_id" ? bareId(page.parent.database_id) : "";
                 if (parent !== calendarDb) return [];
-                return await resolveRowMedia(page.properties);
+                return await resolveRowMedia(page.properties, context);
             } catch { return []; }
         })();
         memo.set(id, task);
@@ -268,19 +292,20 @@ async function calendarRowMedia(props: Props, bodyText: string, memo: Map<string
 
 /* ── The three families ──────────────────────────────────────────────── */
 
-async function loadDeskRows(): Promise<DeskRow[]> {
+async function loadDeskRows(context: ReadContext): Promise<DeskRow[]> {
     const rows = await queryAll(
         notionConfig.dbs.ernestoDesk(),
         orStatus(OPEN_DESK_STATES),
         [{ property: "Priority", direction: "ascending" }]
     );
+    rememberPages(rows, context);
     // One fetch per calendar page across the whole desk, however many rows name it.
     const calendarMemo = new Map<string, Promise<MediaRef[]>>();
     return mapLimit(rows, NOTION_CONCURRENCY, async (row) => {
         let bodyText = "";
-        try { bodyText = await pageBodyText(row.id); } catch { /* body is enrichment */ }
+        try { bodyText = await context.body(row); } catch { /* body is enrichment */ }
 
-        const locations = await fileLocationsOf(relationIds(row.properties, "Media Assets"));
+        const locations = await fileLocationsOf(relationIds(row.properties, "Media Assets"), context);
         const candidatePaths = extractVideoPaths(bodyText);
         for (const loc of locations) candidatePaths.push(...extractVideoPaths(loc));
 
@@ -317,7 +342,7 @@ async function loadDeskRows(): Promise<DeskRow[]> {
         // editorial types earn it, questions keep their relation-only path.
         const type = propText(row.properties, "Type") || "other";
         const follow = EDITORIAL_LOOKUP_TYPES.has(type) ? bodyText : "";
-        try { add(await calendarRowMedia(row.properties, follow, calendarMemo)); } catch { /* enrichment only */ }
+        try { add(await calendarRowMedia(row.properties, follow, calendarMemo, context)); } catch { /* enrichment only */ }
         if (videos.length === 0 && media.length === 0) add(hostedMediaFromText(bodyText));
 
         return {
@@ -346,8 +371,9 @@ export function wallFromDeskRows(deskRows: DeskRow[], freshDays = FRESH_DAYS): D
     });
 }
 
-async function loadCalendarRows(): Promise<CalendarRow[]> {
+async function loadCalendarRows(context: ReadContext): Promise<CalendarRow[]> {
     const rows = await queryAll(notionConfig.dbs.contentCalendar(), orStatus(ACTIVE_CALENDAR_STATES));
+    rememberPages(rows, context);
     return mapLimit(rows, NOTION_CONCURRENCY, async (row) => {
         const status = propText(row.properties, "Status");
         return {
@@ -369,13 +395,13 @@ async function loadCalendarRows(): Promise<CalendarRow[]> {
                 Boolean(propText(row.properties, "Card URL")),
             // Inline media only where JJ decides (Review) — resolving assets
             // for every Draft row was most of the old load time.
-            media: status === "Review" ? await resolveRowMedia(row.properties) : [],
+            media: status === "Review" ? await resolveRowMedia(row.properties, context) : [],
             url: row.url,
         };
     });
 }
 
-async function loadWebsiteReview(warnings: string[]): Promise<WebsiteArticle[]> {
+async function loadWebsiteReview(warnings: string[], context: ReadContext): Promise<WebsiteArticle[]> {
     let dbId: string;
     try {
         dbId = notionConfig.dbs.contentAssetHouse();
@@ -384,13 +410,14 @@ async function loadWebsiteReview(warnings: string[]): Promise<WebsiteArticle[]> 
         return [];
     }
     const rows = await queryAll(dbId, orStatus(WEBSITE_REVIEW_STATES));
+    rememberPages(rows, context);
     const articles: WebsiteArticle[] = await mapLimit(rows, NOTION_CONCURRENCY, async (row) => {
         const fetched = await mapLimit(
             relationIds(row.properties, "Content Needs"),
             NOTION_CONCURRENCY,
             async (relId): Promise<WebsiteArticle["proposals"][number] | null> => {
                 try {
-                    const need = (await notion.pages.retrieve({ page_id: relId })) as PageObjectResponse;
+                    const need = await readPage(relId, context);
                     const actionStatus = propText(need.properties, "Action Status");
                     if (actionStatus === "Done") return null;
                     return {
@@ -460,9 +487,13 @@ async function loadWebsiteReview(warnings: string[]): Promise<WebsiteArticle[]> 
 
 const CACHE_TTL_MS = Number(process.env.REVIEW_DASHBOARD_CACHE_MS) || 5 * 60 * 1000;
 let stateCache: { data: Omit<CancelloState, "cached">; at: number } | null = null;
-let stateInflight: Promise<CancelloState> | null = null;
+let stateInflight: { promise: Promise<CancelloState>; fresh: boolean } | null = null;
 
-export function invalidateCancelloCache(): void { stateCache = null; }
+export function invalidateCancelloCache(): void {
+    stateCache = null;
+    stateInflight = null;
+    bodyCache.clear();
+}
 
 export async function loadCancelloState({ refresh = false } = {}): Promise<CancelloState> {
     if (!refresh && stateCache && Date.now() - stateCache.at < CACHE_TTL_MS) {
@@ -470,18 +501,33 @@ export async function loadCancelloState({ refresh = false } = {}): Promise<Cance
     }
     // Concurrent callers (sidebar + page on the same navigation) share one
     // crawl instead of each starting their own.
-    if (!refresh && stateInflight) return stateInflight;
-    const promise = buildCancelloState().finally(() => { stateInflight = null; });
-    if (!refresh) stateInflight = promise;
+    if (stateInflight && (!refresh || stateInflight.fresh)) return stateInflight.promise;
+    if (refresh) bodyCache.clear();
+    const promise = buildCancelloState(refresh)
+        .then((state) => {
+            if (stateInflight?.promise === promise) {
+                stateCache = { data: state, at: Date.now() };
+            }
+            return state;
+        })
+        .finally(() => {
+            if (stateInflight?.promise === promise) stateInflight = null;
+        });
+    stateInflight = { promise, fresh: refresh };
     return promise;
 }
 
-async function buildCancelloState(): Promise<CancelloState> {
+async function buildCancelloState(refresh: boolean): Promise<CancelloState> {
+    const readBody = bodyCache.reader(refresh);
+    const context: ReadContext = {
+        pages: new Map(),
+        body: (row) => readBody(row.id, row.last_edited_time, () => pageBodyText(row.id)),
+    };
     const warnings: string[] = [];
     const [desk, calendar, website] = await Promise.all([
-        loadDeskRows(),
-        loadCalendarRows(),
-        loadWebsiteReview(warnings),
+        loadDeskRows(context),
+        loadCalendarRows(context),
+        loadWebsiteReview(warnings, context),
     ]);
     const selectedCalendar = selectCalendarRowsForGate(calendar);
     if (selectedCalendar.suppressed > 0) {
@@ -497,6 +543,5 @@ async function buildCancelloState(): Promise<CancelloState> {
         generatedAt: new Date().toISOString(),
         warnings,
     };
-    stateCache = { data, at: Date.now() };
     return { ...data, cached: false };
 }
