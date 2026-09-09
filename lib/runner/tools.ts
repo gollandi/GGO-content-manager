@@ -257,7 +257,7 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
         input_schema: {
             type: "object" as const,
             properties: {
-                summary: { type: "string", description: "What was created + review notes for JJ" },
+                summary: { type: "string", description: "Two to four connected prose paragraphs in Italian for JJ: what was actually prepared, why it matters, remaining uncertainties and what he must review before publishing. No raw log, ID inventory or long bullet list. Do not call a draft approved or published." },
             },
             required: ["summary"],
             additionalProperties: false,

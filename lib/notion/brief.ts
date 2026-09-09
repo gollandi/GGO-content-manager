@@ -2,6 +2,9 @@ import type { BlockObjectResponse } from "@notionhq/client/build/src/api-endpoin
 import { notion } from "./client";
 import { notionConfig } from "../config";
 import { cached } from "../cache";
+import { prepareNarrative } from "../briefing/service";
+import { morningFallback } from "../briefing/fallback";
+import type { Narrative } from "../briefing/policy";
 
 /**
  * The morning brief — read-only.
@@ -21,6 +24,7 @@ export interface MorningBrief {
     url: string | null;
     lastEditedAt: string | null;
     markdown: string;
+    narrative?: Narrative;
 }
 
 const BRIEF_TTL_MS = 5 * 60 * 1000; // the page changes once a day; five minutes is plenty
@@ -93,8 +97,12 @@ async function readBriefUncached(pageId: string): Promise<MorningBrief> {
 }
 
 /** The current morning brief, or `configured: false` when no page id is set. */
-export async function getMorningBrief(): Promise<MorningBrief> {
+export async function getMorningBrief({ wait = false } = {}): Promise<MorningBrief> {
     const pageId = notionConfig.pages.ernestoBrief();
     if (!pageId) return { configured: false, pageId: null, url: null, lastEditedAt: null, markdown: "" };
-    return cached(`ernesto:brief:${pageId}`, () => readBriefUncached(pageId), BRIEF_TTL_MS);
+    const brief = await cached(`ernesto:brief:${pageId}`, () => readBriefUncached(pageId), BRIEF_TTL_MS);
+    if (!brief.markdown) return brief;
+    const narrative = await prepareNarrative({ key: `Brief del mattino: ${pageId}:${brief.lastEditedAt}`,
+        source: brief.markdown, fallback: morningFallback(brief.markdown), wait });
+    return { ...brief, narrative };
 }

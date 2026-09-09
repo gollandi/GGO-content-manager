@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ErnestoOperationsBoard from "../../components/ErnestoOperationsBoard";
+import { RunSummary } from "../../components/RunSummary";
+import { RunConversation, isConversationRow } from "../../components/RunConversation";
 import MarkdownBlock from "../../components/MarkdownBlock";
 import MorningBrief from "../../components/MorningBrief";
 import WeeklyCronReport from "../../components/WeeklyCronReport";
@@ -136,7 +138,8 @@ export default function CasaDiErnestoPage() {
             window.history.replaceState({}, "", "/casa-di-ernesto");
         }
     }, [openRun]);
-    useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [log]);
+    const latestConversationEntry = [...log].reverse().find(isConversationRow);
+    useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [latestConversationEntry?.key, latestConversationEntry?.text]);
 
     async function consumeStream(res: Response) {
         if (!res.ok || !res.body) {
@@ -280,7 +283,10 @@ export default function CasaDiErnestoPage() {
 
                     <ErnestoOperationsBoard />
 
-                    {error && <div className="mb-4 p-4  border border-seal px-4 py-3 text-[13px] text-seal-bright">{error}</div>}
+                    {error && <div className="mb-4 border border-seal px-4 py-3 text-[13px] text-seal-bright">
+                        <p>Il passaggio richiesto non è stato completato. Prima di proseguire, occorre verificare il problema segnalato.</p>
+                        <details className="mt-2"><summary className="cursor-pointer">Dettaglio del problema</summary><p className="mt-2 whitespace-pre-wrap break-words">{error}</p></details>
+                    </div>}
 
                     {/* Usage / cost strip */}
                     {meta?.usage && (
@@ -441,22 +447,7 @@ export default function CasaDiErnestoPage() {
                     {/* Log / chat transcript */}
                     <section className="paper border border-paper-edge p-5 text-paper-foreground mb-4">
                         <h2 className="text-base font-bold mb-3">{activeId ? "Conversazione" : "Nuovo run"}</h2>
-                        {log.length > 0 && (
-                            <div className="text-sm space-y-2 max-h-[380px] overflow-y-auto mb-4">
-                                {log.map((row) => (
-                                    <p key={row.key}
-                                       className={
-                                           row.kind === "jj" ? "ml-12 p-2.5  bg-ggo-teal/10 border border-ggo-teal/30 whitespace-pre-wrap"
-                                           : row.kind === "tool" ? "font-mono text-[12px] text-engraving-ink"
-                                           : row.kind === "status" ? "font-semibold text-[13px]"
-                                           : "whitespace-pre-wrap text-paper-foreground"
-                                       }>
-                                        {row.text}
-                                    </p>
-                                ))}
-                                <div ref={logEndRef} />
-                            </div>
-                        )}
+                        {log.length > 0 && <RunConversation rows={log} endRef={logEndRef} />}
                         <div className="flex gap-3 items-end">
                             <textarea
                                 value={input}
@@ -510,12 +501,7 @@ export default function CasaDiErnestoPage() {
                         </div>
                     </section>
 
-                    {meta?.summary && (
-                        <div className="paper border border-engraving p-4 text-sm text-paper-foreground">
-                            <StatusBadge tone="success" label="Nota di riconsegna" className="mb-2" />
-                            <MarkdownBlock content={meta.summary} />
-                        </div>
-                    )}
+                    {meta?.summary && activeId && meta.runId === activeId && <RunSummary key={`${activeId}:${meta.updatedAt}`} runId={activeId} version={meta.updatedAt} original={meta.summary} />}
                 </main>
             </div>
         </>

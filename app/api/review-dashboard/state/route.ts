@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "../../../../lib/auth/api-guard";
+import { warmBriefings } from "../../../../lib/briefing/warm";
 import { getHouseState } from "../../../../lib/house/state";
 import { loadCancelloState } from "../../../../lib/cancello/state";
 
@@ -34,7 +35,8 @@ export async function GET(req: NextRequest) {
             const started = Date.now();
             const house = await getHouseState({ revalidate: true });
             const cancello = await loadCancelloState();
-            return NextResponse.json({ ok: true, elapsedMs: Date.now() - started,
+            const briefings = await warmBriefings();
+            return NextResponse.json({ ok: true, briefings, elapsedMs: Date.now() - started,
                 cancelloGeneratedAt: cancello.generatedAt, houseGeneratedAt: house.generatedAt,
                 warnings: cancello.warnings.length, errors: house.errors.length },
                 { headers: { "Cache-Control": "private, no-store" } });

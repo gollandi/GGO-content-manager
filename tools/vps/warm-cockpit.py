@@ -14,9 +14,12 @@ try:
         result = json.load(response)
     if result.get("ok") is not True or result.get("errors") != 0:
         raise RuntimeError("Snapshot warm-up incomplete")
-    print(json.dumps({key: result[key] for key in (
+    metadata = {key: result[key] for key in (
         "ok", "elapsedMs", "cancelloGeneratedAt", "houseGeneratedAt", "warnings", "errors"
-    )}))
+    )}
+    if isinstance(result.get("briefings"), dict):
+        metadata["briefings"] = {key: result["briefings"].get(key) for key in ("ready", "unavailable")}
+    print(json.dumps(metadata))
 except Exception as error:
     # Some HTTP error bodies may contain upstream details: do not print them.
     print("Cockpit warm-up failed: " + type(error).__name__, file=sys.stderr)

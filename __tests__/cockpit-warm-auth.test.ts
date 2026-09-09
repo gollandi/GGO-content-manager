@@ -1,10 +1,11 @@
 // @vitest-environment node
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
-const { requireAuth, requireWriter, load, house, decide } = vi.hoisted(() => ({
-    requireAuth: vi.fn(), requireWriter: vi.fn(), load: vi.fn(), house: vi.fn(), decide: vi.fn(),
+const { requireAuth, requireWriter, load, house, decide, warm } = vi.hoisted(() => ({
+    requireAuth: vi.fn(), requireWriter: vi.fn(), load: vi.fn(), house: vi.fn(), decide: vi.fn(), warm: vi.fn(),
 }));
 vi.mock("../lib/auth/api-guard", () => ({ requireAuth, requireWriter }));
+vi.mock("../lib/briefing/warm", () => ({ warmBriefings: warm }));
 vi.mock("../lib/cancello/state", () => ({ loadCancelloState: load }));
 vi.mock("../lib/house/state", () => ({ getHouseState: house }));
 vi.mock("../lib/cancello/decision", () => ({ applyCancelloDecision: decide }));
@@ -15,6 +16,7 @@ beforeEach(() => {
     vi.stubEnv("COCKPIT_SERVICE_TOKEN", "read-only-fixture");
     requireAuth.mockResolvedValue({ authenticated: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) });
     requireWriter.mockResolvedValue({ authenticated: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) });
+    warm.mockResolvedValue({ ready: 8, unavailable: 0 });
     house.mockResolvedValue({ generatedAt: "fixture", errors: [], privateData: "must not escape" });
     load.mockResolvedValue({ generatedAt: "fixture", warnings: [], privateData: "must not escape" });
 });
