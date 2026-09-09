@@ -1,20 +1,7 @@
 /**
- * Retry-on-429 fetch wrapper for the Notion client.
- *
- * Notion allows an average of ~3 requests/second per integration and rejects
- * bursts with a 429 whose body reads "You have been rate limited. Please try
- * again in a few minutes." The SDK does not retry, so without this wrapper
- * that raw message surfaces in the cockpit UI.
- *
- * Policy: retry ONLY on 429 — a 429 is guaranteed not to have executed, so
- * retrying is safe for writes (Cancello decisions, Desk deposits). 5xx
- * responses are returned as-is: Notion queries go over POST, and a retried
- * 5xx write could execute twice.
- *
- * A small concurrency gate smooths the Promise.all fan-outs (pulse,
- * operations, editorial) that trip the limit in the first place. The gate
- * slot is held while backing off, so a rate-limited response also slows the
- * queue behind it.
+ * Pace Notion requests, with one shared cooldown after upstream throttling.
+ * Concurrency alone does not enforce a request rate. Retry only explicit
+ * rate-limit/overload responses; never replay an ambiguous write failure.
  */
 
 type MinimalResponse = {
@@ -23,34 +10,52 @@ type MinimalResponse = {
 };
 
 export type NotionRetryOptions = {
-    /** Retries after the first attempt (default 3). */
     maxRetries?: number;
-    /** First backoff delay; doubles per attempt (default 400ms). */
     baseDelayMs?: number;
-    /** Cap on any single wait, including Retry-After (default 5000ms). */
+    /** Cap the fallback backoff only, never the server's Retry-After. */
     maxDelayMs?: number;
-    /** Requests in flight at once (default 4). */
     maxConcurrent?: number;
+    /** Minimum spacing between every attempt, including retries (default 400ms). */
+    minIntervalMs?: number;
+    /** Entire request, queue and retries included; below the SDK's 60s timeout. */
+    maxDurationMs?: number;
 };
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
+    signal.throwIfAborted();
+    const aborted = () => {
+        clearTimeout(timer);
+        reject(signal.reason);
+    };
+    const timer = setTimeout(() => {
+        signal.removeEventListener("abort", aborted);
+        resolve();
+    }, ms);
+    signal.addEventListener("abort", aborted, { once: true });
+});
 
 const createGate = (limit: number) => {
     let active = 0;
     const waiting: Array<() => void> = [];
     return {
-        acquire: () =>
-            new Promise<void>((resolve) => {
-                if (active < limit) {
-                    active += 1;
-                    resolve();
-                } else {
-                    waiting.push(() => {
-                        active += 1;
-                        resolve();
-                    });
-                }
-            }),
+        acquire: (signal: AbortSignal) => new Promise<void>((resolve, reject) => {
+            signal.throwIfAborted();
+            const grant = () => {
+                signal.removeEventListener("abort", aborted);
+                active += 1;
+                resolve();
+            };
+            const aborted = () => {
+                const index = waiting.indexOf(grant);
+                if (index !== -1) waiting.splice(index, 1);
+                reject(signal.reason);
+            };
+            if (active < limit) grant();
+            else {
+                waiting.push(grant);
+                signal.addEventListener("abort", aborted, { once: true });
+            }
+        }),
         release: () => {
             active -= 1;
             waiting.shift()?.();
@@ -58,10 +63,9 @@ const createGate = (limit: number) => {
     };
 };
 
-/** Wait suggested by the server, in ms — or null when absent/unparsable. */
 const retryAfterMs = (response: MinimalResponse): number | null => {
     const header = response.headers.get("retry-after");
-    if (!header) return null;
+    if (!header?.trim()) return null;
     const seconds = Number(header);
     return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : null;
 };
@@ -73,20 +77,61 @@ export const withNotionRetry = <Init, Res extends MinimalResponse>(
     const maxRetries = options.maxRetries ?? 3;
     const baseDelayMs = options.baseDelayMs ?? 400;
     const maxDelayMs = options.maxDelayMs ?? 5000;
-    const gate = createGate(options.maxConcurrent ?? 4);
+    const minIntervalMs = options.minIntervalMs ?? 400;
+    const maxDurationMs = options.maxDurationMs ?? 45_000;
+    const maxConcurrent = options.maxConcurrent ?? 4;
+    for (const value of [maxRetries, baseDelayMs, maxDelayMs, minIntervalMs]) {
+        if (!Number.isFinite(value) || value < 0) throw new Error("Invalid Notion retry configuration");
+    }
+    if (!Number.isInteger(maxRetries) || !Number.isInteger(maxConcurrent) || maxConcurrent < 1 || !Number.isFinite(maxDurationMs) || maxDurationMs <= 0) {
+        throw new Error("Invalid Notion retry configuration");
+    }
+    const gate = createGate(maxConcurrent);
+    let nextStart = 0;
+    let cooldownUntil = 0;
+    let turn = Promise.resolve();
+
+    const waitForStart = (signal: AbortSignal) => {
+        const pending = turn.then(async () => {
+            signal.throwIfAborted();
+            // Another in-flight response may extend the cooldown while we wait.
+            let delay = Math.max(nextStart, cooldownUntil) - Date.now();
+            while (delay > 0) {
+                await sleep(delay, signal);
+                delay = Math.max(nextStart, cooldownUntil) - Date.now();
+            }
+            signal.throwIfAborted();
+            nextStart = Date.now() + minIntervalMs;
+        });
+        turn = pending.catch(() => {});
+        return pending;
+    };
 
     return async (url, init) => {
-        await gate.acquire();
+        const controller = new AbortController();
+        const callerSignal = (init as { signal?: AbortSignal | null } | undefined)?.signal;
+        const abort = () => controller.abort(callerSignal?.reason);
+        if (callerSignal?.aborted) abort();
+        else callerSignal?.addEventListener("abort", abort, { once: true });
+        const timeout = setTimeout(() => controller.abort(new DOMException("Notion request deadline exceeded", "TimeoutError")), maxDurationMs);
+        let acquired = false;
         try {
-            let response = await baseFetch(url, init);
-            for (let attempt = 0; response.status === 429 && attempt < maxRetries; attempt += 1) {
-                const backoff = baseDelayMs * 2 ** attempt * (1 + Math.random() * 0.25);
-                await sleep(Math.min(retryAfterMs(response) ?? backoff, maxDelayMs));
-                response = await baseFetch(url, init);
+            await gate.acquire(controller.signal);
+            acquired = true;
+            for (let attempt = 0; ; attempt += 1) {
+                await waitForStart(controller.signal);
+                const response = await baseFetch(url, { ...init, signal: controller.signal } as Init);
+                if (response.status !== 429 && response.status !== 529) return response;
+                const fallback = Math.min(baseDelayMs * 2 ** attempt * (1 + Math.random() * 0.25), maxDelayMs);
+                cooldownUntil = Math.max(cooldownUntil, Date.now() + (retryAfterMs(response) ?? fallback));
+                // An exhausted request still communicates its cooldown to others.
+                // Aborted/expired work is never dispatched later.
+                if (attempt >= maxRetries) return response;
             }
-            return response;
         } finally {
-            gate.release();
+            clearTimeout(timeout);
+            callerSignal?.removeEventListener("abort", abort);
+            if (acquired) gate.release();
         }
     };
 };

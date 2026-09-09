@@ -36,6 +36,10 @@ jobs:
             --exclude node_modules \
             --exclude .next \
             --exclude .env.local \
+            --exclude .runs \
+            --exclude .officina \
+            --exclude .media \
+            --exclude docs/retros \
             --exclude tsconfig.tsbuildinfo \
             -e "ssh -i ~/.ssh/deploy_key" \
             ./ "root@${{ secrets.VPS_HOST }}:/srv/ggo-content-manager/"
@@ -48,6 +52,7 @@ jobs:
             cd /srv/ggo-content-manager
             sudo -u jj npm ci --no-audit --no-fund || sudo -u jj npm install --no-audit --no-fund
             sudo -u jj npm run build
+            python3 tools/vps/install-cockpit-warm.py
             systemctl restart ggo-content-manager
           '
 
@@ -64,3 +69,14 @@ jobs:
           ssh -i ~/.ssh/deploy_key "root@${{ secrets.VPS_HOST }}" \
             'journalctl -u ggo-content-manager --since "-3 min" --no-pager | tail -30' || true
           exit 1
+
+      - name: Prepare dashboard snapshots and enable background refresh
+        run: |
+          ssh -i ~/.ssh/deploy_key "root@${{ secrets.VPS_HOST }}" '
+            set -e
+            systemctl start ggo-cockpit-warm.service
+            systemctl restart ggo-cockpit-warm.timer
+            test -s /var/lib/ggo-cockpit/cancello.json
+            test -s /var/lib/ggo-cockpit/house.json
+            journalctl -u ggo-cockpit-warm.service -n 5 --no-pager
+          '

@@ -1,5 +1,6 @@
 "use client";
 
+import { SnapshotFreshness } from "../../components/SnapshotFreshness";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import PipelineHealthPanel from "../../components/PipelineHealthPanel";
@@ -31,7 +32,7 @@ interface DeskRow {
     priority: string; due: string | null; correction: string; body: string;
     videos: VideoRef[]; media?: MediaRef[];
 }
-interface ReviewState { desk: DeskRow[]; generatedAt: string; cached: boolean }
+interface ReviewState { readModel?: import("../../lib/cockpit/snapshots").SnapshotFreshness; desk: DeskRow[]; generatedAt: string; cached: boolean }
 
 interface HouseSignals {
     night: { runs: number; attention: number; failed: { id: string; job: string | null; status: string | null; startedAt: string | null; summary: string }[]; lastProductiveAt: string | null; zeroOutputStreak: number } | null;
@@ -315,7 +316,7 @@ export default function QuestioniPage() {
                         )}
                         {state && (
                             <p className="mt-1.5 font-condensed text-[10px] uppercase tracking-[0.14em] text-plate-foreground-soft">
-                                aggiornato {new Date(state.generatedAt).toLocaleTimeString("it-IT")}{state.cached ? " · cache" : ""}
+                                aggiornato {new Date(state.generatedAt).toLocaleTimeString("it-IT")}{state.cached ? " · cache" : ""}<SnapshotFreshness value={state.readModel} />
                             </p>
                         )}
                     </div>

@@ -1,3 +1,4 @@
+import { SnapshotFreshness } from "../components/SnapshotFreshness";
 import Link from "next/link";
 import Citofono from "../components/Citofono";
 import { Guilloche, AgeBar, RoomCrest, ROOM_INK, type RoomId } from "../components/Registro";
@@ -376,6 +377,7 @@ export default async function AtrioPage() {
               </h1>
               <p className="mt-2 text-[12px] text-plate-foreground-soft">
                 Letto alle {fmtWhen(state.generatedAt)}
+                <SnapshotFreshness value={state.readModel} />
                 {state.errors.length > 0 && (
                   <span className="text-seal"> · {state.errors.length} {state.errors.length === 1 ? "fonte non risponde" : "fonti non rispondono"}</span>
                 )}

@@ -27,7 +27,8 @@ import { normaliseGgomed, normaliseCompass, type PifRow } from "../pif/normalise
 import { listRuns } from "../runner/store";
 import { listRetros } from "../retro/run";
 import { settle } from "../settle";
-import { cached } from "../cache";
+import { cached, withFreshReads } from "../cache";
+import { snapshot as persistentSnapshot, snapshotsEnabled, type SnapshotFreshness } from "../cockpit/snapshots";
 import { deskFamily } from "./families";
 
 /* ── Shape ─────────────────────────────────────────────────────────────── */
@@ -113,6 +114,7 @@ export interface Pif {
 }
 
 export interface HouseState {
+    readModel?: SnapshotFreshness;
     generatedAt: string;
     awaiting: Awaiting | null;
     night: Night | null;
@@ -295,9 +297,9 @@ function weeklyTarget(): number | null {
     return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-async function build(now: Date): Promise<HouseState> {
+async function build(now: Date, revalidateCancello = false): Promise<HouseState> {
     const [cancello, needs, activity, calendar, site, ggomed, compass, snapshot, ambrogio] = await Promise.all([
-        settle(() => loadCancelloState()),
+        settle(() => loadCancelloState({ revalidate: revalidateCancello })),
         settle(getContentNeeds),
         settle(getAgentsActivityLog),
         settle(getContentCalendar),
@@ -340,7 +342,12 @@ async function build(now: Date): Promise<HouseState> {
     };
 }
 
-export function getHouseState({ refresh = false } = {}): Promise<HouseState> {
-    if (refresh) return build(new Date());
+export function getHouseState({ refresh = false, revalidate = false } = {}): Promise<HouseState> {
+    if (snapshotsEnabled()) return persistentSnapshot("house", () => withFreshReads(() => build(new Date(), true)), {
+        ttlMs: 5 * 60_000, revalidate: refresh || revalidate,
+        valid: (state) => Array.isArray(state.errors) && state.errors.length === 0 &&
+            Boolean(state.awaiting && state.night && state.week && state.editorial && state.pif && state.runs),
+    });
+    if (refresh || revalidate) return build(new Date(), revalidate);
     return cached("house:state", () => build(new Date()), HOUSE_TTL_MS);
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { SnapshotFreshness } from "../../components/SnapshotFreshness";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import MarkdownBlock from "../../components/MarkdownBlock";
@@ -47,7 +48,7 @@ interface WebsiteArticle {
     patchState?: "awaiting-publish" | "published";
     draftId?: string;
 }
-interface ReviewState {
+interface ReviewState { readModel?: import("../../lib/cockpit/snapshots").SnapshotFreshness;
     wall: DeskRow[];
     desk: DeskRow[];
     calendar: CalendarRow[];
@@ -654,7 +655,7 @@ export default function ReviewPage() {
                             })()}
                             {state && (
                                 <p className="mt-1.5 font-condensed text-[10px] uppercase tracking-[0.14em] text-plate-foreground-soft">
-                                    aggiornato {new Date(state.generatedAt).toLocaleTimeString("it-IT")}{state.cached ? " · cache" : ""}
+                                    aggiornato {new Date(state.generatedAt).toLocaleTimeString("it-IT")}{state.cached ? " · cache" : ""}<SnapshotFreshness value={state.readModel} />
                                 </p>
                             )}
                         </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "../../../../lib/auth/api-guard";
+import { getHouseState } from "../../../../lib/house/state";
 import { loadCancelloState } from "../../../../lib/cancello/state";
 
 /**
@@ -27,10 +28,21 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+        // Same read-only service capability; no decision, approval or publish code.
+        // The systemd timer uses this process, sharing its body cache and limiter.
+        if (req.nextUrl.searchParams.get("warm") === "1") {
+            const started = Date.now();
+            const house = await getHouseState({ revalidate: true });
+            const cancello = await loadCancelloState();
+            return NextResponse.json({ ok: true, elapsedMs: Date.now() - started,
+                cancelloGeneratedAt: cancello.generatedAt, houseGeneratedAt: house.generatedAt,
+                warnings: cancello.warnings.length, errors: house.errors.length },
+                { headers: { "Cache-Control": "private, no-store" } });
+        }
         const state = await loadCancelloState({
             refresh: req.nextUrl.searchParams.get("refresh") === "1",
         });
-        return NextResponse.json(state);
+        return NextResponse.json(state, { headers: { "Cache-Control": "private, no-store" } });
     } catch (err) {
         return NextResponse.json(
             { error: err instanceof Error ? err.message : String(err) },
