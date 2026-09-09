@@ -7,6 +7,7 @@
  * the house's disk, patch progress in Sanity. This module only assembles the
  * snapshot; decisions live in ./decision.ts.
  */
+import { snapshot, snapshotsEnabled, invalidateSnapshots, type SnapshotFreshness } from "../cockpit/snapshots";
 import fs from "node:fs";
 import path from "node:path";
 import { notion } from "../notion/client";
@@ -58,6 +59,7 @@ export interface WebsiteArticle {
 export interface CancelloState {
     wall: DeskRow[]; desk: DeskRow[]; calendar: CalendarRow[]; website: WebsiteArticle[];
     generatedAt: string; cached: boolean; warnings: string[];
+    readModel?: SnapshotFreshness;
 }
 
 /* ── Constants (unchanged from the house) ────────────────────────────── */
@@ -155,6 +157,7 @@ const MEDIA_URL = (p: string) => `/media?path=${encodeURIComponent(p)}`;
 const VIDEO_URL = (p: string) => `/video?path=${encodeURIComponent(p)}`;
 
 type ReadContext = {
+    failedReads: number;
     pages: Map<string, Promise<PageObjectResponse>>;
     body: (row: PageObjectResponse) => Promise<string>;
 };
@@ -165,7 +168,12 @@ function readPage(id: string, context: ReadContext): Promise<PageObjectResponse>
     const key = id.replace(/-/g, "").toLowerCase();
     const existing = context.pages.get(key);
     if (existing) return existing;
-    const task = notion.pages.retrieve({ page_id: id }) as Promise<PageObjectResponse>;
+    const task = (notion.pages.retrieve({ page_id: id }) as Promise<PageObjectResponse>).catch((err) => {
+        // A dangling relation may legitimately point at a removed page. A
+        // timeout/rate limit must not silently erase media from a durable snapshot.
+        if ((err as { status?: number }).status !== 404) context.failedReads += 1;
+        throw err;
+    });
     context.pages.set(key, task);
     return task;
 }
@@ -303,7 +311,7 @@ async function loadDeskRows(context: ReadContext): Promise<DeskRow[]> {
     const calendarMemo = new Map<string, Promise<MediaRef[]>>();
     return mapLimit(rows, NOTION_CONCURRENCY, async (row) => {
         let bodyText = "";
-        try { bodyText = await context.body(row); } catch { /* body is enrichment */ }
+        try { bodyText = await context.body(row); } catch { context.failedReads += 1; }
 
         const locations = await fileLocationsOf(relationIds(row.properties, "Media Assets"), context);
         const candidatePaths = extractVideoPaths(bodyText);
@@ -490,13 +498,26 @@ let stateCache: { data: Omit<CancelloState, "cached">; at: number } | null = nul
 let stateInflight: { promise: Promise<CancelloState>; fresh: boolean } | null = null;
 
 export function invalidateCancelloCache(): void {
+    invalidateSnapshots();
     stateCache = null;
     stateInflight = null;
     bodyCache.clear();
 }
 
-export async function loadCancelloState({ refresh = false } = {}): Promise<CancelloState> {
-    if (!refresh && stateCache && Date.now() - stateCache.at < CACHE_TTL_MS) {
+export async function loadCancelloState({ refresh = false, revalidate = false } = {}): Promise<CancelloState> {
+    if (snapshotsEnabled()) {
+        const data = await snapshot("cancello", () => {
+            if (refresh) bodyCache.clear();
+            return buildCancelloState(refresh);
+        }, {
+            ttlMs: CACHE_TTL_MS, revalidate: refresh || revalidate, force: refresh,
+            valid: (state) => Array.isArray(state.desk) && Array.isArray(state.wall) &&
+                Array.isArray(state.calendar) && Array.isArray(state.website) &&
+                Array.isArray(state.warnings) && state.warnings.every((w) => w.includes("Story duplicate nascoste")),
+        });
+        return { ...data, cached: !refresh && !revalidate };
+    }
+    if (!refresh && !revalidate && stateCache && Date.now() - stateCache.at < CACHE_TTL_MS) {
         return { ...stateCache.data, cached: true };
     }
     // Concurrent callers (sidebar + page on the same navigation) share one
@@ -520,6 +541,7 @@ export async function loadCancelloState({ refresh = false } = {}): Promise<Cance
 async function buildCancelloState(refresh: boolean): Promise<CancelloState> {
     const readBody = bodyCache.reader(refresh);
     const context: ReadContext = {
+        failedReads: 0,
         pages: new Map(),
         body: (row) => readBody(row.id, row.last_edited_time, () => pageBodyText(row.id)),
     };
@@ -529,6 +551,7 @@ async function buildCancelloState(refresh: boolean): Promise<CancelloState> {
         loadCalendarRows(context),
         loadWebsiteReview(warnings, context),
     ]);
+    if (context.failedReads) warnings.push(`${context.failedReads} letture di testo o media non riuscite; rileggi prima di decidere.`);
     const selectedCalendar = selectCalendarRowsForGate(calendar);
     if (selectedCalendar.suppressed > 0) {
         warnings.push(

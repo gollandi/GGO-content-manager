@@ -5,6 +5,15 @@
  * and serve stale data while refreshing in the background.
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
+import { invalidateSnapshots } from "./cockpit/snapshots";
+
+const freshReads = new AsyncLocalStorage<boolean>();
+/** The warm-up awaits actual source reads rather than persisting SWR results. */
+export function withFreshReads<T>(read: () => Promise<T>): Promise<T> {
+    return freshReads.run(true, read);
+}
+
 interface CacheEntry<T> {
     data: T;
     timestamp: number;
@@ -39,6 +48,9 @@ export async function cached<T>(
     fetcher: () => Promise<T>,
     ttlMs: number = DEFAULT_TTL_MS
 ): Promise<T> {
+    if (freshReads.getStore()) {
+        return (inflight.get(key) as Promise<T> | undefined) ?? startFetch(key, fetcher, ttlMs);
+    }
     const now = Date.now();
     const entry = store.get(key) as CacheEntry<T> | undefined;
 
@@ -70,6 +82,7 @@ export async function cached<T>(
  * Invalidate one or all cache entries.
  */
 export function invalidateCache(key?: string): void {
+    invalidateSnapshots();
     if (key) {
         store.delete(key);
         inflight.delete(key);
