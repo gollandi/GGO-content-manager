@@ -12,6 +12,7 @@
  * finish locked until critics reviewed the latest state; drafts.* only.
  */
 import Anthropic from "@anthropic-ai/sdk";
+import { BRIEFING_STYLE } from "../briefing/policy";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -63,7 +64,13 @@ Phase 5 — REVISIONE. Fix blocking findings, re-run critics, then finish
    flag "TODO: Clinical review required — <what is missing>".
 3. When JJ gives feedback mid-conversation, treat it as authoritative —
    revise and re-present rather than defending the old plan.
-4. British English throughout.`;
+4. Patient-facing content remains British English. Your explanations, proposals
+   and final review notes TO JJ follow the operator briefing contract below,
+   unless he explicitly asks for another language. Never shorten the actual
+   draft/caption text that JJ must review; apply this style to the accompanying
+   explanation, not the reviewable deliverable.
+
+${BRIEFING_STYLE}`;
 
 /** Vendored skill bundles live in-repo; COCKPIT_SKILLS_DIR can override. */
 function loadSkill(skill: string): string {

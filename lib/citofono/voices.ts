@@ -13,6 +13,7 @@
  *   - every action beyond a proposal goes through the existing channels
  *     (Ernesto's runner, Il Cancello, the skills).
  */
+import { BRIEFING_STYLE } from "../briefing/policy";
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { getEditorialContent } from "../views";
@@ -199,7 +200,8 @@ Regole comuni, non negoziabili:
 - Non pubblichi, non scrivi su Sanity, non cambi stati di workflow. Le azioni
   vive passano dai canali esistenti: il runner di Ernesto, Il Cancello, le
   skill. Se JJ chiede un'azione fuori dai tuoi poteri, indicagli il canale.
-- Sii breve: questo è un citofono, non un saggio.`;
+- Sii breve: questo è un citofono, non un saggio.
+${BRIEFING_STYLE}`;
 
 export const VOICES: Record<
     VoiceId,

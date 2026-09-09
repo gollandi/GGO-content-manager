@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { usePreparedBrief } from "../lib/briefing/use-prepared-brief";
+import type { Narrative } from "../lib/briefing/policy";
+import { morningFallback } from "../lib/briefing/fallback";
+import { NarrativeAccount } from "./NarrativeAccount";
 import MarkdownBlock from "./MarkdownBlock";
 
 /**
@@ -15,8 +19,11 @@ interface BriefPayload {
     url: string | null;
     lastEditedAt: string | null;
     markdown: string;
+    narrative?: Narrative;
     error?: string;
 }
+
+const briefPending = (brief: BriefPayload) => brief.narrative?.status === "pending";
 
 const STALE_AFTER_MS = 26 * 60 * 60 * 1000;
 
@@ -34,23 +41,8 @@ function formatWhen(value: string | null): string {
 }
 
 export default function MorningBrief() {
-    const [brief, setBrief] = useState<BriefPayload | null>(null);
+    const { data: brief, loading, error, reload } = usePreparedBrief<BriefPayload>("/api/ernesto/brief", briefPending);
     const [open, setOpen] = useState(true);
-
-    useEffect(() => {
-        let alive = true;
-        fetch("/api/ernesto/brief", { cache: "no-store" })
-            .then(async (res) => {
-                const json = (await res.json()) as BriefPayload;
-                if (alive) setBrief(json);
-            })
-            .catch((err: unknown) => {
-                if (alive) setBrief({ configured: true, url: null, lastEditedAt: null, markdown: "", error: String(err) });
-            });
-        return () => {
-            alive = false;
-        };
-    }, []);
 
     if (brief && !brief.configured) return null; // room degrades silently when no page id is set
 
@@ -81,11 +73,15 @@ export default function MorningBrief() {
                     Il brief non è stato riscritto da più di un giorno: il job delle 07:00 potrebbe non aver girato.
                 </p>
             )}
-            {brief?.error && <p className="mt-2 text-xs text-seal">{brief.error}</p>}
-            {!brief && <p className="mt-3 text-xs text-paper-foreground-soft">Leggo il brief…</p>}
+            {error && <p className="mt-2 text-xs text-seal">{error} <button type="button" onClick={() => void reload()} className="underline">Riprova</button></p>}
+            {loading && !brief && <p className="mt-3 text-xs text-paper-foreground-soft">Leggo il brief…</p>}
             {open && brief && brief.markdown && (
-                <div className="mt-3 max-h-[28rem] overflow-y-auto border-t border-paper-edge pt-3">
-                    <MarkdownBlock content={brief.markdown} />
+                <div className="mt-4 border-t border-paper-edge pt-4">
+                    <NarrativeAccount narrative={brief.narrative ?? { paragraphs: morningFallback(brief.markdown), status: "basic", generatedAt: null }} />
+                    <details className="mt-4 border-t border-paper-edge pt-3">
+                        <summary className="cursor-pointer text-xs font-semibold">Testo originale e riferimenti</summary>
+                        <div className="mt-3 max-h-[28rem] overflow-y-auto"><MarkdownBlock content={brief.markdown} /></div>
+                    </details>
                 </div>
             )}
             {open && brief && brief.configured && !brief.markdown && !brief.error && (

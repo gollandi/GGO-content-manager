@@ -1,7 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { usePreparedBrief } from "../lib/briefing/use-prepared-brief";
+import { dayFallback, runNeedsAttention } from "../lib/briefing/fallback";
+import type { Narrative } from "../lib/briefing/policy";
+import { NarrativeAccount } from "./NarrativeAccount";
 import StatusBadge from "./StatusBadge";
 
 /**
@@ -29,6 +33,7 @@ export interface CronRun {
 }
 
 interface DayReport {
+  narrative?: Narrative;
   date: string;
   prose: string | null;
   proseError: string | null;
@@ -77,7 +82,7 @@ function readableJob(job: string | null, run: string) {
   if (/review|critic/.test(value)) return "Revisione contenuti";
   if (/produce|content|writer/.test(value)) return "Produzione contenuti";
   if (/research|evidence/.test(value)) return "Ricerca e fonti";
-  return job?.trim() || run || "Cron senza nome";
+  return "Attività registrata";
 }
 
 function readableProblem(message: string) {
@@ -101,10 +106,12 @@ export function describeCronRun(entry: CronRun) {
     ? ` Ha aggiornato ${entry.rowsWritten} ${entry.rowsWritten === 1 ? "record" : "record"}.`
     : "";
 
+  if (isFinished(entry.status) && runNeedsAttention(entry)) return `${job} risulta terminato, ma il registro segnala errori. Occorre verificarne l’esito.${records}`;
   if (isFinished(entry.status)) return `${job} si è concluso correttamente.${records}`;
   if (entry.status === "Running") return `${job} sta ancora lavorando.`;
-  if (entry.status === "Disabled") return `${job} è disattivato e non verrà eseguito.`;
+  if (entry.status === "Disabled") return `${job} risulta disattivato nell’esecuzione registrata.`;
   if (entry.status === "Partial") return `${job} ha completato solo una parte del lavoro.${records}`;
+  if (!needsAttention(entry.status)) return `${job} non ha uno stato finale riconoscibile nel registro: non è possibile confermarne l’esito.`;
   return `${job} si è fermato prima della fine. ${readableProblem(entry.errorMessage || entry.summary)}`;
 }
 
@@ -129,40 +136,13 @@ function longDay(date: string) {
   }).format(new Date(`${date}T12:00:00`));
 }
 
+const reportsPending = (report: DailyReportData) => report.days.some((day) => day.narrative?.status === "pending");
+
 export default function WeeklyCronReport() {
-  const [data, setData] = useState<DailyReportData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error, reload: load } = usePreparedBrief<DailyReportData>("/api/ernesto/operations/daily-report", reportsPending);
   const [filter, setFilter] = useState<RunFilter>("all");
   const [openDays, setOpenDays] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Two passes: first the raw register without prose (fast — no LLM
-      // calls), then the chronicler's accounts fill in when they arrive.
-      const response = await fetch("/api/ernesto/operations/daily-report?prose=0", { cache: "no-store" });
-      const body = (await response.json()) as DailyReportData;
-      if (!response.ok) throw new Error(body.error ?? "Il giornale di bordo non risponde.");
-      setData(body);
-      setError(null);
-      setLoading(false);
-      try {
-        const full = await fetch("/api/ernesto/operations/daily-report", { cache: "no-store" });
-        const fullBody = (await full.json()) as DailyReportData;
-        if (full.ok) setData(fullBody);
-      } catch { /* the prose is enrichment — the register is already shown */ }
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Il giornale di bordo non risponde.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   const days = data?.days ?? [];
 
@@ -249,7 +229,7 @@ export default function WeeklyCronReport() {
       <div className="mt-5 space-y-5">
         {days.map((day) => {
           const visibleRuns = day.runs.filter((entry) =>
-            filter === "attention" ? needsAttention(entry.status) : true
+            filter === "attention" ? runNeedsAttention(entry) : true
           );
           if (filter === "attention" && visibleRuns.length === 0) return null;
           const opened = openDays.has(day.date);
@@ -268,15 +248,7 @@ export default function WeeklyCronReport() {
               </header>
 
               <div className="px-4 py-4">
-                {day.prose ? (
-                  <p className="max-w-3xl text-[14px] leading-relaxed text-plate-foreground-soft">{day.prose}</p>
-                ) : (
-                  <p className="max-w-3xl text-[13px] italic text-plate-foreground-soft">
-                    {day.proseError
-                      ? "Il cronista non ha risposto — sotto trovi comunque le run in chiaro."
-                      : "Il cronista sta scrivendo il resoconto…"}
-                  </p>
-                )}
+                <NarrativeAccount narrative={day.narrative ?? { paragraphs: dayFallback(day.runs), status: "basic", generatedAt: null }} />
 
                 <button
                   type="button"
@@ -333,6 +305,7 @@ export default function WeeklyCronReport() {
                               ))}
                               <div className="col-span-full border-t border-plate-rule bg-plate-raised px-3 py-3">
                                 <div className="column-label">Dettaglio registrato</div>
+                                <p className="mt-1 break-words text-xs">Operazione originale: {entry.job || entry.run || "Non indicata"}</p>
                                 <p className="mt-1 break-words text-xs leading-relaxed text-plate-foreground-soft">
                                   {detail || "Nessun dettaglio tecnico disponibile."}
                                 </p>
