@@ -21,6 +21,9 @@ export default auth((req) => {
         // service token (read-only) and otherwise enforces the session
         // itself — the redirect would break the media-sync job.
         pathname === "/api/review-dashboard/state" ||
+        // Il Guardiano's ledger read: service token (read-only GET) or
+        // session; POST (lifting a block) is admin-session only in the route.
+        pathname === "/api/llm/guard" ||
         // Il Carico's two listing endpoints do their own auth (session OR
         // service token) so the worker and ernesto can poll the inbox and
         // the worker's output headlessly. The exemption is per path, not

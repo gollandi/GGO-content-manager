@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
+import { guardedAnthropic } from "../../../../lib/llm/guard";
 import { requireAuth } from "../../../../lib/auth/api-guard";
 import { canWrite } from "../../../../lib/auth/roles";
 import { VOICES, isVoiceId } from "../../../../lib/citofono/voices";
@@ -51,7 +52,7 @@ export async function POST(
         return Response.json({ error: "Last message must be from JJ" }, { status: 400 });
     }
 
-    const anthropic = new Anthropic();
+    const anthropic = guardedAnthropic(`citofono-${voice}`);
     const tools = spec.tools.map((t) => ({
         name: t.name,
         description: t.description,
