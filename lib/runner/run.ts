@@ -11,7 +11,8 @@
  * Hard gates in code: create_draft locked until JJ approves a proposal;
  * finish locked until critics reviewed the latest state; drafts.* only.
  */
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
+import { guardedAnthropic } from "../llm/guard";
 import { BRIEFING_STYLE } from "../briefing/policy";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -287,7 +288,7 @@ export async function runLeg(
         emit(event);
     };
 
-    const client = new Anthropic({ apiKey: runnerConfig.anthropicApiKey });
+    const client = guardedAnthropic("runner", { apiKey: runnerConfig.anthropicApiKey });
     const family: SkillFamily = SKILL_FAMILY[meta.skill] ?? "A";
     const system = buildSystem(meta.skill, family);
     const runModel = meta.model || runnerConfig.model;

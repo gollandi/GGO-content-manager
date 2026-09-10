@@ -31,6 +31,7 @@ Named GROQ views are exposed twice: as a library (`lib/views`) and over HTTP (`/
 - The three publish gates (site publish, social approval, newsletter send) are JJ-only.
 - Ambrogio's Notion DBs have **no write path** in this app (asserted by `__tests__/ambrogio-no-write`).
 - Oxblood (`--seal`) in the UI is reserved for the act of sealing and for what awaits JJ.
+- Every Anthropic client is built with `guardedAnthropic(origin)` from `lib/llm/guard.ts` (never `new Anthropic`). Il Guardiano keeps a persisted ledger and refuses calls past the daily budget (`COCKPIT_LLM_DAILY_USD`), a per-origin burst (`COCKPIT_LLM_BURST_CALLS` in 10 min), an identical body repeated (`COCKPIT_LLM_REPEAT_LIMIT` in 24 h) or the kill switch (`COCKPIT_LLM_KILL_SWITCH=1`). Refusals are flagged and visible at `/api/llm/guard`; blocks lift only through that route (admin POST).
 
 ## Key Directories
 

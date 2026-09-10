@@ -10,7 +10,8 @@
  *    this is the machine looking at its own journals)
  *  - the Desk flip and the application of any patch are human acts
  */
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
+import { guardedAnthropic } from "../llm/guard";
 import { mkdirSync, writeFileSync, readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { runnerConfig } from "../config";
@@ -67,7 +68,7 @@ export function listRetros(): { file: string; content: string }[] {
 
 export async function runRetro(): Promise<RetroResult> {
     const signals = await collectSignals();
-    const client = new Anthropic({ apiKey: runnerConfig.anthropicApiKey });
+    const client = guardedAnthropic("soffitta-retro", { apiKey: runnerConfig.anthropicApiKey });
 
     const res = await client.messages.create({
         model: runnerConfig.model,

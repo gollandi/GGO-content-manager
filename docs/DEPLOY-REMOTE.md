@@ -254,6 +254,25 @@ ssh -i ~/.ssh/ionos_ggo_xl root@85.215.37.39 \
 
 Cross-check the 🤖 Agents Activity Log in Notion: one row per run, not two.
 
+## Il Guardiano — the model spend guard
+
+Every Anthropic call the cockpit makes goes through `lib/llm/guard.ts`. The
+ledger lives under `$COCKPIT_SNAPSHOT_DIR/llm-guard/` (`ledger.ndjson`,
+`state.json`, mode 0600). Defaults: `COCKPIT_LLM_DAILY_USD=8`,
+`COCKPIT_LLM_BURST_CALLS=20` per origin in ten minutes (then the origin is
+paused for an hour), `COCKPIT_LLM_REPEAT_LIMIT=3` identical request bodies in
+24 h (two when the last answer was truncated or failed), all in
+`/etc/ggo-content-manager.env`. `COCKPIT_LLM_KILL_SWITCH=1` refuses everything.
+
+Check what was spent and what was refused:
+
+```bash
+curl -s -H "Authorization: Bearer $COCKPIT_SERVICE_TOKEN" http://127.0.0.1:3010/api/llm/guard | python3 -m json.tool | head -60
+```
+
+A block never lifts itself: JJ lifts it from the same route (`POST {"all":true}`,
+`{"fp":"…"}` or `{"origin":"…"}`, admin session) once the cause is understood.
+
 ## What stays on the Mac
 
 - The local resident service (LaunchAgent on `localhost:3010`) continues

@@ -6,6 +6,8 @@ import { prepareNarrative } from "./service";
 import { dayFallback, FINISHED, runNeedsAttention, type ReportRun } from "./fallback";
 
 const DAYS_SHOWN = 7;
+/** A visit pays for today and yesterday at most; older days come from the cache or the boot warm-up. */
+const DAYS_STARTED_ON_VISIT = 2;
 type RunRow = ReportRun;
 
 async function fetchRecentRuns(): Promise<RunRow[]> {
@@ -63,12 +65,13 @@ export async function getDailyReports({ start = true, wait = false } = {}) {
         const key = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(row.startedAt));
         byDay.set(key, [...(byDay.get(key) ?? []), row]);
     }
-    const days = await Promise.all([...byDay.entries()].sort(([a], [b]) => b.localeCompare(a)).map(async ([date, runs]) => {
+    const days = await Promise.all([...byDay.entries()].sort(([a], [b]) => b.localeCompare(a)).map(async ([date, runs], index) => {
+        const startThisDay = start && (wait || index < DAYS_STARTED_ON_VISIT);
         runs.sort((a, b) => (b.startedAt ?? "").localeCompare(a.startedAt ?? ""));
         // Keep failures and production droughts even when a job calls itself a heartbeat.
         const meaningful = runs.filter((r) => !(new Set(["clip-ingest", "media-gc", "media-sync"]).has(r.job ?? "") &&
             FINISHED.has(r.status ?? "") && !runNeedsAttention(r) && /nothing to ingest|nothing to do|no files|0 file\(s\)/i.test(r.summary)));
-        const narrative = await prepareNarrative({ key: `Giornale di bordo: ${date}`, start, wait,
+        const narrative = await prepareNarrative({ key: `Giornale di bordo: ${date}`, start: startThisDay, wait,
             source: JSON.stringify({ date, totalRuns: runs.length, routineChecks: runs.length - meaningful.length, runs: meaningful }),
             fallback: dayFallback(runs) });
         return { date, narrative, prose: narrative.paragraphs.join("\n\n"),

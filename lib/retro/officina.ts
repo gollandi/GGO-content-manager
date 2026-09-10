@@ -11,7 +11,8 @@
  *  - il working tree dell'app viva NON viene mai toccato: worktree separato
  *  - MAI merge: push del branch e PR, il merge è di JJ
  */
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
+import { guardedAnthropic } from "../llm/guard";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdirSync, readFileSync, writeFileSync, existsSync, symlinkSync, rmSync } from "node:fs";
@@ -60,7 +61,7 @@ function parseJson<T>(text: string): T {
 }
 
 export async function runOfficina(log: (line: string) => void): Promise<OfficinaResult> {
-    const client = new Anthropic({ apiKey: runnerConfig.anthropicApiKey });
+    const client = guardedAnthropic("soffitta-officina", { apiKey: runnerConfig.anthropicApiKey });
     const ask = async (system: string, user: string, maxTokens = 16000) => {
         const res = await client.messages.create({
             model: runnerConfig.model,
