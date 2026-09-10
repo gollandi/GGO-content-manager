@@ -38,7 +38,7 @@ export function sanitiseSource(source: string): string {
         .replace(/\b[a-f0-9]{32,64}\b/gi, "[id]")
         .replace(/https?:\/\/\S+/gi, "[link]")
         .replace(/(?:\/Users\/|\/srv\/|\/var\/|\/home\/|\/opt\/)[^\s"',)]*/g, "[percorso]")
-        .replace(/\S*node_modules\/\S*/g, "[percorso]");
+        .replace(/(?:\/[\w.-]+)*\/node_modules\/\S*/g, "[percorso]"); // no leading \S*: it backtracks quadratically on a long token
 }
 /** A rejected answer is remembered on disk: the same source would be paid for again and rejected again. */
 function rejectedPath(dir: string, key: string) { return path.join(dir, `${key}.rejected.json`); }
