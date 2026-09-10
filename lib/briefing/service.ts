@@ -36,9 +36,11 @@ export function sanitiseSource(source: string): string {
     return source
         .replace(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/gi, "[id]")
         .replace(/\b[a-f0-9]{32,64}\b/gi, "[id]")
-        .replace(/https?:\/\/\S+/gi, "[link]")
-        .replace(/(?:\/Users\/|\/srv\/|\/var\/|\/home\/|\/opt\/)[^\s"',)]*/g, "[percorso]")
-        .replace(/(?:\/[\w.-]+)*\/node_modules\/\S*/g, "[percorso]"); // no leading \S*: it backtracks quadratically on a long token
+        // Matches stop at whitespace AND JSON/prose delimiters: the source is usually compact
+        // JSON, and a link must not swallow the keys that follow it.
+        .replace(/https?:\/\/[^\s"'<>)\]},]+/gi, "[link]")
+        .replace(/(?:\/Users\/|\/srv\/|\/var\/|\/home\/|\/opt\/)[^\s"'<>)\]},]*/g, "[percorso]")
+        .replace(/(?:\/[\w.-]+)*\/node_modules\/[^\s"'<>)\]},]*/g, "[percorso]"); // no leading \S*: it backtracks quadratically on a long token
 }
 /** A rejected answer is remembered on disk: the same source would be paid for again and rejected again. */
 function rejectedPath(dir: string, key: string) { return path.join(dir, `${key}.rejected.json`); }

@@ -117,4 +117,12 @@ describe("rejected answers are not paid for twice", () => {
         expect(call.messages[0].content).not.toMatch(/3f2a9c1e|\/srv\/|https:/);
         expect(call.messages[0].content).toMatch(/\[id\].*\[percorso\].*\[link\]/);
     });
+    it("redacts a link or path inside compact JSON without swallowing the fields after it", async () => {
+        const source = JSON.stringify({ url: "https://x.example/a?b=1", path: "/srv/ggo/x.log", status: "failed", rows: 3 });
+        await prepareNarrative({ key: "day", source, fallback, wait: true });
+        const sent = (create.mock.calls[0][0] as { messages: Array<{ content: string }> }).messages[0].content;
+        expect(sent).toContain('\\"url\\":\\"[link]\\"');
+        expect(sent).toContain('\\"path\\":\\"[percorso]\\"');
+        expect(sent).toContain('\\"status\\":\\"failed\\"');
+    });
 });

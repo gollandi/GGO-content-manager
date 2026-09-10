@@ -84,13 +84,16 @@ function dir(): string {
 const ledgerPath = () => path.join(dir(), "ledger.ndjson");
 const statePath = () => path.join(dir(), "state.json");
 
-const globals = globalThis as typeof globalThis & { __ggoLlmGuard?: { entries: LedgerEntry[]; state: GuardState; loaded: string | null } };
-const mem = globals.__ggoLlmGuard ??= { entries: [], state: { version: 1, blocked: {}, tripped: {}, flags: [] }, loaded: null };
+interface Reservation { origin: string; fp: string; at: number; usd: number }
+interface GuardMemory { entries: LedgerEntry[]; state: GuardState; loaded: string | null; inflight: Map<string, Reservation> }
+const emptyState = (): GuardState => ({ version: 1, blocked: {}, tripped: {}, flags: [] });
+const globals = globalThis as typeof globalThis & { __ggoLlmGuard?: GuardMemory };
+const mem: GuardMemory = globals.__ggoLlmGuard ??= { entries: [], state: emptyState(), loaded: null, inflight: new Map() };
 
 function load(): void {
     const d = dir();
     if (mem.loaded === d) return;
-    mem.loaded = d; mem.entries = []; mem.state = { version: 1, blocked: {}, tripped: {}, flags: [] };
+    mem.loaded = d; mem.entries = []; mem.state = emptyState();
     try {
         if (existsSync(statePath())) {
             const s = JSON.parse(readFileSync(statePath(), "utf8"));
@@ -135,21 +138,33 @@ export function fingerprint(origin: string, body: unknown): string {
 
 const startOfUtcDay = (now: number) => now - (now % DAY_MS);
 
-/** Refuse or admit one request. Exported for tests and for callers that must check before an expensive stream. */
-export function admit(origin: string, fp: string, now = Date.now()): void {
+/** Worst-case cost of a request before it is sent: every input character as a token, the whole
+ * output cap used. Concurrent calls (the runner's critics, overlapping runs) reserve this at
+ * admission, so they cannot all slip under the budget together; the ledger entry replaces it. */
+export function reserveUsd(model: string, body: { max_tokens?: unknown }, bodyLength: number): number {
+    const outputCap = typeof body.max_tokens === "number" && body.max_tokens > 0 ? body.max_tokens : 4096;
+    return estimateUsd(model, { inputTokens: Math.ceil(bodyLength / 2), outputTokens: outputCap, cacheReadTokens: 0, cacheWriteTokens: 0 });
+}
+
+/** Refuse or admit one request, reserving its worst-case spend while it is in flight.
+ * Returns the reservation id to release with `settle`. */
+export function admit(origin: string, fp: string, now = Date.now(), reserve = 0): string {
     load();
     const p = policy();
+    for (const [id, r] of mem.inflight) if (now - r.at > 15 * 60_000) mem.inflight.delete(id); // a lost reservation must not block the day
     if (p.killSwitch) { flag({ code: "kill_switch", origin, detail: "COCKPIT_LLM_KILL_SWITCH is on", fp }); throw new LlmGuardError("kill_switch", "LLM calls are switched off (COCKPIT_LLM_KILL_SWITCH)."); }
     if (mem.state.blocked[fp]) throw new LlmGuardError("blocked", `This exact request is blocked: ${mem.state.blocked[fp].reason}`);
     const trip = mem.state.tripped[origin];
     if (trip && Date.parse(trip.until) > now) throw new LlmGuardError("burst", `${origin} is paused until ${trip.until}: ${trip.reason}`);
 
-    const spentToday = mem.entries.filter((e) => Date.parse(e.at) >= startOfUtcDay(now)).reduce((s, e) => s + e.usd, 0);
-    if (spentToday >= p.dailyUsd) {
-        flag({ code: "daily_budget", origin, detail: `estimated $${spentToday.toFixed(2)} today ≥ budget $${p.dailyUsd}`, fp });
+    const reserved = [...mem.inflight.values()].reduce((s, r) => s + r.usd, 0);
+    const spentToday = mem.entries.filter((e) => Date.parse(e.at) >= startOfUtcDay(now)).reduce((s, e) => s + e.usd, 0) + reserved;
+    if (spentToday + reserve > p.dailyUsd) {
+        flag({ code: "daily_budget", origin, detail: `estimated $${spentToday.toFixed(2)} today (incl. $${reserved.toFixed(2)} in flight) + $${reserve.toFixed(2)} for this call > budget $${p.dailyUsd}`, fp });
         throw new LlmGuardError("daily_budget", `Daily LLM budget reached ($${spentToday.toFixed(2)} of $${p.dailyUsd}).`);
     }
-    const recent = mem.entries.filter((e) => e.origin === origin && Date.parse(e.at) >= now - p.burstWindowMs).length;
+    const recent = mem.entries.filter((e) => e.origin === origin && Date.parse(e.at) >= now - p.burstWindowMs).length +
+        [...mem.inflight.values()].filter((r) => r.origin === origin).length;
     if (recent >= p.burstCalls) {
         const until = new Date(now + p.tripMs).toISOString();
         mem.state.tripped[origin] = { until, reason: `${recent} calls in ${p.burstWindowMs / 60_000} minutes` };
@@ -165,7 +180,15 @@ export function admit(origin: string, fp: string, now = Date.now()): void {
         flag({ code: "repeat", origin, detail: reason, fp });
         throw new LlmGuardError("repeat", `Loop detected for ${origin}: ${reason}. Blocked until lifted from /api/llm/guard.`);
     }
+    const id = `${now}-${Math.random().toString(36).slice(2, 10)}`;
+    mem.inflight.set(id, { origin, fp, at: now, usd: reserve });
+    return id;
 }
+
+/** Release a reservation once the call has been recorded (or has failed before recording). */
+export function settle(id: string): void { mem.inflight.delete(id); }
+
+export function inflight(): number { load(); return mem.inflight.size; }
 
 export function record(entry: Omit<LedgerEntry, "at" | "usd"> & { at?: string }): LedgerEntry {
     load();
@@ -186,6 +209,7 @@ export function summary(now = Date.now()) {
     return {
         policy: policy(),
         today: { calls: day.length, usd: Number(day.reduce((s, e) => s + e.usd, 0).toFixed(4)), byOrigin },
+        inflight: [...mem.inflight.values()].map((r) => ({ origin: r.origin, startedAt: new Date(r.at).toISOString(), reservedUsd: Number(r.usd.toFixed(4)) })),
         blocked: Object.entries(mem.state.blocked).map(([fp, b]) => ({ fp, ...b })),
         tripped: Object.entries(mem.state.tripped).filter(([, t]) => Date.parse(t.until) > now).map(([origin, t]) => ({ origin, ...t })),
         flags: mem.state.flags.slice(-50).reverse(),
@@ -196,7 +220,7 @@ export function summary(now = Date.now()) {
 /** Lift blocks: a single fingerprint, a tripped origin, or everything. JJ-only, through the route. */
 export function lift(target: { fp?: string; origin?: string; all?: boolean }): void {
     load();
-    if (target.all) { mem.state.blocked = {}; mem.state.tripped = {}; }
+    if (target.all) mem.state = { ...mem.state, blocked: {}, tripped: {} };
     if (target.fp) delete mem.state.blocked[target.fp];
     if (target.origin) delete mem.state.tripped[target.origin];
     persistState();
@@ -216,7 +240,7 @@ function fold(into: ReturnType<typeof zero>, u: UsageShape | undefined) {
 const outcomeOf = (stop: unknown): LedgerEntry["outcome"] => stop === "end_turn" ? "end_turn" : stop === "max_tokens" ? "max_tokens" : "other";
 
 /** Read a teed SSE body to the end and account for it; never throws into the caller's stream. */
-async function accountStream(body: ReadableStream<Uint8Array>, base: { origin: string; model: string; fp: string }) {
+async function accountStream(body: ReadableStream<Uint8Array>, base: { origin: string; model: string; fp: string }): Promise<Omit<LedgerEntry, "at" | "usd">> {
     const usage = zero(); let stop: unknown = null; let buffer = "";
     try {
         const reader = body.getReader(); const decoder = new TextDecoder();
@@ -236,7 +260,7 @@ async function accountStream(body: ReadableStream<Uint8Array>, base: { origin: s
             }
         }
     } catch { /* the consumer's own read already surfaced the failure */ }
-    record({ ...base, outcome: stop === null ? "error" : outcomeOf(stop), ...usage });
+    return { ...base, outcome: stop === null ? "error" : outcomeOf(stop), ...usage };
 }
 
 export function guardedFetch(origin: string, inner: typeof fetch = fetch): typeof fetch {
@@ -244,11 +268,12 @@ export function guardedFetch(origin: string, inner: typeof fetch = fetch): typeo
         const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
         const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
         if (method !== "POST" || !/\/v1\/messages(\?|$)/.test(url) || typeof init?.body !== "string") return inner(input, init);
-        let body: { model?: string; stream?: boolean } = {};
+        let body: { model?: string; stream?: boolean; max_tokens?: unknown } = {};
         try { body = JSON.parse(init.body); } catch { /* the API will reject it */ }
         const model = body.model ?? "unknown";
         const fp = fingerprint(origin, body);
-        try { admit(origin, fp); }
+        let ticket: string;
+        try { ticket = admit(origin, fp, Date.now(), reserveUsd(model, body, init.body.length)); }
         catch (error) {
             if (!(error instanceof LlmGuardError)) throw error;
             // A 403 with our own body: the SDK raises PermissionDeniedError at once, without retrying,
@@ -256,20 +281,21 @@ export function guardedFetch(origin: string, inner: typeof fetch = fetch): typeo
             return new Response(JSON.stringify({ type: "error", error: { type: GUARD_ERROR_TYPE, code: error.code, message: error.message } }),
                 { status: 403, headers: { "content-type": "application/json", "x-llm-guard": error.code } });
         }
+        const done = (entry: Omit<LedgerEntry, "at" | "usd">) => { record(entry); settle(ticket); };
         let response: Response;
         try { response = await inner(input, init); }
-        catch (error) { record({ origin, model, fp, outcome: "error", ...zero() }); throw error; }
-        if (!response.ok) { record({ origin, model, fp, outcome: "error", ...zero() }); return response; }
+        catch (error) { done({ origin, model, fp, outcome: "error", ...zero() }); throw error; }
+        if (!response.ok) { done({ origin, model, fp, outcome: "error", ...zero() }); return response; }
         if (body.stream && response.body) {
             const [forCaller, forLedger] = response.body.tee();
-            void accountStream(forLedger, { origin, model, fp });
+            void accountStream(forLedger, { origin, model, fp }).then(done);
             return new Response(forCaller, { status: response.status, statusText: response.statusText, headers: response.headers });
         }
         const clone = response.clone();
         void clone.json().then((message: { usage?: UsageShape; stop_reason?: unknown }) => {
             const usage = zero(); fold(usage, message?.usage);
-            record({ origin, model, fp, outcome: outcomeOf(message?.stop_reason), ...usage });
-        }).catch(() => record({ origin, model, fp, outcome: "error", ...zero() }));
+            done({ origin, model, fp, outcome: outcomeOf(message?.stop_reason), ...usage });
+        }).catch(() => done({ origin, model, fp, outcome: "error", ...zero() }));
         return response;
     };
 }

@@ -86,6 +86,28 @@ describe("il Guardiano — every model call passes through one ledger", () => {
         vi.stubEnv("COCKPIT_LLM_DAILY_USD", "0.001");
         expect((await guard.guardedFetch("runner", inner as unknown as typeof fetch)(...post(body()))).headers.get("x-llm-guard")).toBe("daily_budget");
     });
+    it("reserves worst-case spend while calls are in flight, so concurrent calls cannot slip under the budget together", async () => {
+        // Each call reserves ~$0.0015 (100 output tokens of Sonnet + a short body); budget admits one, not three at once.
+        vi.stubEnv("COCKPIT_LLM_DAILY_USD", "0.002");
+        let release!: () => void;
+        const gate = new Promise<void>((r) => { release = r; });
+        const inner = vi.fn(() => gate.then(() => okJson()()));
+        const f = guard.guardedFetch("runner", inner as unknown as typeof fetch);
+        const first = f(...post(body("claude-sonnet-5", { seq: 1 })));
+        const second = await f(...post(body("claude-sonnet-5", { seq: 2 })));
+        expect(second.headers.get("x-llm-guard")).toBe("daily_budget");
+        expect(guard.summary().inflight).toHaveLength(1);
+        release(); expect((await first).status).toBe(200); await settle();
+        expect(guard.summary().inflight).toHaveLength(0);
+        expect(guard.summary().today.calls).toBe(1);
+    });
+    it("counts in-flight calls towards the burst limit", async () => {
+        vi.stubEnv("COCKPIT_LLM_BURST_CALLS", "2");
+        const inner = vi.fn(() => new Promise<Response>(() => { /* never resolves */ }));
+        const f = guard.guardedFetch("runner", inner as unknown as typeof fetch);
+        void f(...post(body("claude-sonnet-5", { seq: 1 }))); void f(...post(body("claude-sonnet-5", { seq: 2 })));
+        expect((await f(...post(body("claude-sonnet-5", { seq: 3 })))).headers.get("x-llm-guard")).toBe("burst");
+    });
     it("honours the kill switch", async () => {
         vi.stubEnv("COCKPIT_LLM_KILL_SWITCH", "1");
         const inner = vi.fn(okJson());
