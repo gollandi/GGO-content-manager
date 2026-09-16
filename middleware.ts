@@ -32,7 +32,10 @@ export default auth((req) => {
         // rather than redirecting. Chunk deposit (…/uploads/<id>) is not
         // exempted at all.
         pathname === "/api/media/uploads" ||
-        pathname === "/api/media/jobs"
+        pathname === "/api/media/jobs" ||
+        // The house board's Mac bridge: service token only, checked in the
+        // route on both methods. /api/board itself stays session-gated.
+        pathname === "/api/board/sync"
     ) {
         return NextResponse.next();
     }

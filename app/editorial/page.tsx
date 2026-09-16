@@ -10,7 +10,6 @@ import { settle, type Settled } from "../../lib/settle";
 import StatusBadge, { getStatusTone } from "../../components/StatusBadge";
 import ArticleActions from "../../components/ArticleActions";
 import { loadPatches } from "../../lib/cancello/patches";
-import Citofono from "../../components/Citofono";
 import NeedIntakeForm from "../../components/NeedIntakeForm";
 import ImpactReviewCard from "../../components/ImpactReviewCard";
 
@@ -291,7 +290,6 @@ export default async function EditorialPage({
                 </Section>
             </div>
         </div>
-            <Citofono voice="edmondo" />
         </>
     );
 }

@@ -1,6 +1,5 @@
 import { SnapshotFreshness } from "../components/SnapshotFreshness";
 import Link from "next/link";
-import Citofono from "../components/Citofono";
 import { Guilloche, AgeBar, RoomCrest, ROOM_INK, type RoomId } from "../components/Registro";
 import { getHouseState, type HouseState } from "../lib/house/state";
 import { QUESTION_KINDS } from "../lib/house/families";
@@ -521,7 +520,6 @@ export default async function AtrioPage() {
           </p>
         </footer>
       </div>
-      <Citofono voice="portineria" />
     </>
   );
 }

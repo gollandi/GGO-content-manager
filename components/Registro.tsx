@@ -368,7 +368,8 @@ export type RoomId =
   | "soffitta"
   | "ambrogio"
   | "archivio"
-  | "atrio";
+  | "atrio"
+  | "bacheca";
 
 /** Each room's own ink, drawn from the world's existing families. */
 export const ROOM_INK: Record<RoomId, { accent: string; bright: string }> = {
@@ -386,7 +387,9 @@ export const ROOM_INK: Record<RoomId, { accent: string; bright: string }> = {
   carico: { accent: "var(--sepia)", bright: "var(--sepia-bright)" },
   soffitta: { accent: "var(--stamp)", bright: "var(--stamp-bright)" },
   ambrogio: { accent: "var(--engraving)", bright: "var(--engraving-bright)" },
-  archivio: { accent: "var(--plate-fg-soft)", bright: "var(--plate-fg)" }
+  archivio: { accent: "var(--plate-fg-soft)", bright: "var(--plate-fg)" },
+  /* La Bacheca: the house talking among itself, in ink like the questions. */
+  bacheca: { accent: "var(--stamp)", bright: "var(--stamp-bright)" }
 };
 
 const CREST_PATHS: Record<RoomId, ReactNode> = {
@@ -501,6 +504,15 @@ const CREST_PATHS: Record<RoomId, ReactNode> = {
       <path d="M3.5 11l8.5-6.5L20.5 11" />
       <path d="M6 10v9h12v-9" />
       <path d="M6 14.5h12M12 10v9" />
+    </>
+  ),
+  /* The corkboard in the hall, three notes pinned to it. */
+  bacheca: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" />
+      <path d="M6.5 8h5v4h-5zM13.5 8h4v6h-4zM6.5 14.5h5v2.5h-5z" />
+      <circle cx="9" cy="8" r="0.7" />
+      <circle cx="15.5" cy="8" r="0.7" />
     </>
   )
 };
