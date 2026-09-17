@@ -53,18 +53,18 @@ Named GROQ views are exposed twice: as a library (`lib/views`) and over HTTP (`/
 - Port 3000 belongs to Edelia; do not take it.
 - **VPS (production):** `https://cockpit.ggo-suite.co.uk` — IONOS server `85.215.37.39` (AlmaLinux 9), app in `/srv/ggo-content-manager` (copied files, not a git clone), systemd unit `ggo-content-manager.service` on port 3010 behind nginx + Let's Encrypt. Runbook: `docs/DEPLOY-REMOTE.md`.
 
-## Il Citofono (room intercom)
+## La Bacheca (house board)
 
-Per-room chat with the house voices, on the existing auth: Portineria
-(atrio), Edmondo (editorial), Ettore (soffitta), Ambrogio (studio).
-Voices converse and READ their room live (`lib/citofono/voices.ts`);
-Edmondo and Ettore may deposit proposals into Content Needs (marked
-`[Proposta di <voce>, via citofono]`, always "To do"). Ambrogio has NO
-deposit tool — his independence stays structural. Route:
-`app/api/citofono/[voice]` (streaming NDJSON, `claude-sonnet-5` by
-default, override with `COCKPIT_CITOFONO_MODEL`). Transcripts live in the
-client session only. Voices never publish, never touch Sanity, never
-change workflow state.
+`/bacheca` replaced the intercom (Il Citofono, retired for HOUSE-0010). JJ
+reads every board thread, open and closed, and writes as `jj` only: open,
+reply, close. The board's truth is `docs/board/*.jsonl` in
+ernesto-agents-house on the Mac; the Cockpit keeps a snapshot and an outbox
+(`lib/board/store.ts`, under `$COCKPIT_SNAPSHOT_DIR/board`). Every write is
+checked with a verbatim, hash-pinned copy of the house writer
+(`lib/board/vendor/`, refreshed only by `node tools/board/sync-vendor.mjs`;
+never edit it). The Mac bridge drains the outbox and pushes the board through
+`/api/board/sync` (service token only). The board touches no publish gate, no
+Sanity and no Notion. See `docs/DEPLOY-REMOTE.md`.
 
 ## Il Carico (media ingest)
 

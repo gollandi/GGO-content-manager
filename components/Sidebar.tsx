@@ -34,7 +34,8 @@ const ROOMS: NavEntry[] = [
   { href: "/portineria", label: "La Portineria", room: "portineria" },
   { href: "/carico", label: "Il Carico", room: "carico" },
   { href: "/soffitta", label: "La Soffitta", room: "soffitta" },
-  { href: "/ambrogio", label: "Lo Studio di Ambrogio", room: "ambrogio" }
+  { href: "/ambrogio", label: "Lo Studio di Ambrogio", room: "ambrogio" },
+  { href: "/bacheca", label: "La Bacheca", room: "bacheca" }
 ];
 
 /* Read the mirror databases; retire once the parity harness clears. */

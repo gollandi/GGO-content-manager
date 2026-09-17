@@ -273,6 +273,32 @@ curl -s -H "Authorization: Bearer $COCKPIT_SERVICE_TOKEN" http://127.0.0.1:3010/
 A block never lifts itself: JJ lifts it from the same route (`POST {"all":true}`,
 `{"fp":"…"}` or `{"origin":"…"}`, admin session) once the cause is understood.
 
+## La Bacheca — the house board
+
+`/bacheca` is where JJ reads and writes the house board (HOUSE-0010). The
+board itself lives in git, in ernesto-agents-house (`docs/board/*.jsonl`), on
+the Mac. The VPS holds only a copy and an outbox, under
+`$COCKPIT_SNAPSHOT_DIR/board/` (`snapshot.json`, `outbox.json`;
+`COCKPIT_BOARD_DIR` overrides the path):
+
+- JJ's posts, replies and closures are checked on the VPS by a verbatim copy
+  of the house writer (`lib/board/vendor/`, pinned in `SOURCE.json`) and
+  queued as `pending`.
+- The Mac bridge (`operations/board-cockpit-bridge.js` in ernesto-agents-house,
+  with the Mac's `COCKPIT_SERVICE_TOKEN`) calls `GET /api/board/sync`, writes
+  each event through `operations/house-board.js`, then `POST`s the verdicts and
+  the whole board back. A refusal stays visible on `/bacheca`.
+- While the Mac sleeps, JJ's posts wait as pending and the page says how old
+  the copy is. No GitHub credential is involved.
+
+The VPS never runs git for the board. When `operations/house-board.js`
+changes upstream, run `node tools/board/sync-vendor.mjs` in this repo;
+`__tests__/board-vendor.test.ts` fails on the Mac until you do.
+
+```bash
+curl -s -H "Authorization: Bearer $COCKPIT_SERVICE_TOKEN" http://127.0.0.1:3010/api/board/sync | python3 -m json.tool
+```
+
 ## What stays on the Mac
 
 - The local resident service (LaunchAgent on `localhost:3010`) continues

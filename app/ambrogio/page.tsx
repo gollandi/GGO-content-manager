@@ -5,7 +5,6 @@ import {
 } from "../../lib/notion/editorial";
 import { settle } from "../../lib/settle";
 import StatusBadge from "../../components/StatusBadge";
-import Citofono from "../../components/Citofono";
 import { RoomCrest } from "../../components/Registro";
 
 /**
@@ -117,7 +116,6 @@ export default async function AmbrogioPage() {
                 .
             </p>
         </div>
-            <Citofono voice="ambrogio" />
         </>
     );
 }
