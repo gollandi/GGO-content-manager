@@ -569,7 +569,7 @@ Half-finished pages don't enter the audit trail.
 **Medical:**
 - [ ] No unsupported claims
 - [ ] Evidence quality markers used correctly
-- [ ] Complications / risks disclosed
+- [ ] All material risks relevant to the intervention and supported by the ledger are disclosed, rather than only the most salient trade-off; each risk carries its source frequency where available, preserving the population, event definition and timeframe. Missing evidence is flagged for clinical review, never filled with an invented risk or figure.
 - [ ] Would JJ sign this?
 
 **Voice:**
@@ -578,6 +578,7 @@ Half-finished pages don't enter the audit trail.
 - [ ] No corporate medical speak
 - [ ] No fake reassurance
 - [ ] Jargon explained on first use
+- [ ] Idioms and figurative phrasing avoided in safety-critical text and next-step/CTA instructions (plain literal wording where a misread has consequences); conversational voice retained elsewhere
 
 **Parser:**
 - [ ] No markdown syntax
