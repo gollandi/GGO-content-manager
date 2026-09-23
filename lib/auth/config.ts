@@ -10,6 +10,8 @@ import bcryptjs from "bcryptjs";
  *
  * To generate a hash: node -e "require('bcryptjs').hash('password', 10).then(console.log)"
  */
+const MIN_PASSWORD_LENGTH = 12;
+
 const CREDENTIALS_USERS: Record<string, { name: string; hash: string }> = {
     // Example:
     // "admin@ggomed.co.uk": { name: "JJ", hash: "$2a$10$..." },
@@ -29,6 +31,15 @@ const CREDENTIALS_USERS: Record<string, { name: string; hash: string }> = {
 const cockpitHash = process.env.COCKPIT_USER_HASH_B64
     ? Buffer.from(process.env.COCKPIT_USER_HASH_B64, "base64").toString("utf8")
     : process.env.COCKPIT_USER_HASH;
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+const googleProvider =
+    googleClientId && googleClientSecret
+        ? Google({
+              clientId: googleClientId,
+              clientSecret: googleClientSecret,
+          })
+        : null;
 
 if (process.env.COCKPIT_USER_EMAIL && cockpitHash) {
     CREDENTIALS_USERS[process.env.COCKPIT_USER_EMAIL.toLowerCase()] = {
@@ -37,12 +48,28 @@ if (process.env.COCKPIT_USER_EMAIL && cockpitHash) {
     };
 }
 
+const publicAuthUrl = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL;
+const productionAuthUrl = "https://cockpit.ggo-suite.co.uk";
+const resolvedAuthUrl =
+    process.env.NODE_ENV === "production" &&
+    (!publicAuthUrl || /^https?:\/\/(0\.0\.0\.0|127\.0\.0\.1|localhost)(:\d+)?\/?$/i.test(publicAuthUrl))
+        ? productionAuthUrl
+        : publicAuthUrl;
+
+if (resolvedAuthUrl) {
+    process.env.AUTH_URL = resolvedAuthUrl;
+    process.env.NEXTAUTH_URL = resolvedAuthUrl;
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
+    // The cockpit is served by the resident LaunchAgent (`next start` on
+    // localhost:3010). In production next-auth refuses any host it has not
+    // been told to trust — dev trusts localhost implicitly, prod does not —
+    // so every API call died with UntrustedHost. Local-only service today;
+    // revisit when the VPS deploy fronts this with a real hostname.
+    trustHost: true,
     providers: [
-        Google({
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        }),
+        ...(googleProvider ? [googleProvider] : []),
         Credentials({
             name: "Email & Password",
             credentials: {
@@ -53,6 +80,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 const email = (credentials?.email as string)?.toLowerCase();
                 const password = credentials?.password as string;
                 if (!email || !password) return null;
+
+                // Password policy: minimum 12 characters, no upper limit.
+                // The stored bcrypt hash must belong to a compliant password.
+                if (password.length < MIN_PASSWORD_LENGTH) return null;
 
                 const user = CREDENTIALS_USERS[email];
                 if (!user) return null;

@@ -57,6 +57,12 @@ export const notionConfig = {
         newsletterItems: lazyDb("NOTION_NEWSLETTER_ITEMS_DB"),
         publishQueue: lazyDb("NOTION_PUBLISH_QUEUE_DB"),
         ernestoDesk: lazyDb("NOTION_ERNESTO_DESK_DB"),
+        // The website registry read by Il Cancello. Ernesto's .env calls it
+        // NOTION_CONTENT_ASSET_DB; the cockpit has always held the same DB
+        // as NOTION_CONTENT_ASSETS_DB (verified identical, 2026-08-08) — so
+        // either name works and no new variable is required.
+        contentAssetHouse: () =>
+            process.env.NOTION_CONTENT_ASSET_DB || required("NOTION_CONTENT_ASSETS_DB"),
         agentsActivityLog: lazyDb("NOTION_AGENTS_ACTIVITY_LOG_DB"),
         performanceSnapshot: lazyDb("NOTION_PERFORMANCE_SNAPSHOT_DB"),
 
@@ -64,6 +70,14 @@ export const notionConfig = {
         //    construction; asserted by ambrogio-no-write test) ───────────
         ambrogioAudits: lazyDb("NOTION_AMBROGIO_AUDITS_DB"),
         ambrogioProposals: lazyDb("NOTION_AMBROGIO_PROPOSALS_DB"),
+    },
+
+    /** Single Notion pages the Shell reads (never writes). Optional: a room
+     *  degrades to "not configured" instead of failing when the id is absent. */
+    pages: {
+        // The page ernesto-agents-house's morning-brief rewrites every day
+        // at 07:00 (same env name as ernesto's .env.example).
+        ernestoBrief: (): string | null => process.env.NOTION_ERNESTO_BRIEF_PAGE_ID || null,
     },
 } as const;
 
@@ -111,6 +125,21 @@ export const runnerConfig = {
         process.env.COCKPIT_SKILLS_DIR ||
         `${process.env.HOME}/.claude/skills`,
     maxTurns: Number(process.env.COCKPIT_RUNNER_MAX_TURNS || 40),
+} as const;
+
+/**
+ * Il Carico — the media inbox on the server (Family C ingest half).
+ *
+ * Footage lands here straight from JJ's phone, so the Mac is out of the
+ * path. The root is env-driven: `/srv/ggo-media` on the VPS, a repo-local
+ * scratch directory in dev so a developer never writes to /srv by accident.
+ */
+export const mediaConfig = {
+    root: process.env.COCKPIT_MEDIA_ROOT || `${process.cwd()}/.media`,
+    /** Per-file ceiling. Phone clips are large; the VPS has 479 GB. */
+    maxBytes: Number(process.env.COCKPIT_MEDIA_MAX_BYTES || 2 * 1024 * 1024 * 1024),
+    /** Chunk ceiling — the client picks the size, this bounds it. */
+    maxChunkBytes: Number(process.env.COCKPIT_MEDIA_MAX_CHUNK_BYTES || 16 * 1024 * 1024),
 } as const;
 
 /**

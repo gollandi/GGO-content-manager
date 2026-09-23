@@ -1,4 +1,4 @@
-import { auth } from "./lib/auth/config";
+import { auth } from "./lib/auth/edge-config";
 import { NextResponse } from "next/server";
 
 /**
@@ -16,7 +16,26 @@ export default auth((req) => {
         pathname.startsWith("/favicon") ||
         // View API does its own auth (NextAuth session OR service token for
         // headless consumers) — a login redirect would break machine calls.
-        pathname.startsWith("/api/views")
+        pathname.startsWith("/api/views") ||
+        // Same contract for the Cancello state read: the route accepts the
+        // service token (read-only) and otherwise enforces the session
+        // itself — the redirect would break the media-sync job.
+        pathname === "/api/review-dashboard/state" ||
+        // Il Guardiano's ledger read: service token (read-only GET) or
+        // session; POST (lifting a block) is admin-session only in the route.
+        pathname === "/api/llm/guard" ||
+        // Il Carico's two listing endpoints do their own auth (session OR
+        // service token) so the worker and ernesto can poll the inbox and
+        // the worker's output headlessly. The exemption is per path, not
+        // per method, so POST /api/media/uploads passes through here too —
+        // it is guarded by requireWriter() in the route, which answers 401
+        // rather than redirecting. Chunk deposit (…/uploads/<id>) is not
+        // exempted at all.
+        pathname === "/api/media/uploads" ||
+        pathname === "/api/media/jobs" ||
+        // The house board's Mac bridge: service token only, checked in the
+        // route on both methods. /api/board itself stays session-gated.
+        pathname === "/api/board/sync"
     ) {
         return NextResponse.next();
     }

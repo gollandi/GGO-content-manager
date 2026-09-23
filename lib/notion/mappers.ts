@@ -1,3 +1,4 @@
+import { isEvidenceRelation } from "./evidence-relations";
 import { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { SCHEMA } from "./schema";
 import {
@@ -161,7 +162,7 @@ export function mapPifValidationItem(page: PageObjectResponse): PifValidationIte
         readabilityTier2: extractNumber(getProp(props, S.readabilityTier2)),
 
         contentAssetId: extractRelation(getProp(props, S.contentAsset))[0] ?? null,
-        evidenceSourceIds: extractRelation(getProp(props, S.evidenceSourcesUsed)),
+        evidenceSourceIds: [...new Set(Object.entries(props).filter(([name]) => isEvidenceRelation(name)).flatMap(([, prop]) => extractRelation(prop)))],
 
         automationLog: extractRichText(getProp(props, S.automationLog)),
         llmProvisionalResult: extractSelect(getProp(props, S.llmProvisionalResult)),

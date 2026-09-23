@@ -1,0 +1,11 @@
+[Unit]
+Description=Keep cockpit snapshots ready independently of visitors
+
+[Timer]
+OnBootSec=45s
+OnUnitInactiveSec=180s
+AccuracySec=10s
+Unit=ggo-cockpit-warm.service
+
+[Install]
+WantedBy=timers.target

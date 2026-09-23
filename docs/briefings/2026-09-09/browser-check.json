@@ -1,0 +1,28 @@
+[
+  {
+    "fixtureOnly": true,
+    "viewport": {
+      "width": 1280,
+      "height": 950
+    },
+    "automaticNarrativeUpdate": true,
+    "originalCollapsedInitially": true,
+    "originalAccessible": true,
+    "fullReviewTextPreserved": true,
+    "pageErrors": [],
+    "writes": []
+  },
+  {
+    "fixtureOnly": true,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "automaticNarrativeUpdate": true,
+    "originalCollapsedInitially": true,
+    "originalAccessible": true,
+    "fullReviewTextPreserved": true,
+    "pageErrors": [],
+    "writes": []
+  }
+]

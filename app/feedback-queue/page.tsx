@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import { IconBell, IconPlus, IconSearch } from "../../components/Icons";
 import { FeedbackItem, FeedbackType, FeedbackActionStatus, ContentItem } from "../../lib/notion/types";
@@ -128,7 +127,7 @@ export default function FeedbackQueuePage() {
   };
 
   return (
-    <AppShell>
+    <>
       <div className={styles.page}>
         <header className="page-header">
           <div>
@@ -158,7 +157,7 @@ export default function FeedbackQueuePage() {
 
         <section className="page-section">
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 mb-4 text-sm text-red-800">
+            <div className=" border border-seal  px-4 py-3 mb-4 text-sm text-seal-bright">
               Error loading feedback: {error}
             </div>
           )}
@@ -373,7 +372,7 @@ export default function FeedbackQueuePage() {
           </div>
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }
 

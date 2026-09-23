@@ -1,0 +1,20 @@
+[Unit]
+Description=Prepare private cockpit read snapshots
+After=ggo-content-manager.service
+Requires=ggo-content-manager.service
+
+[Service]
+Type=oneshot
+User=jj
+Group=jj
+EnvironmentFile=/etc/ggo-cockpit-warm.env
+ExecStart=/usr/bin/python3 /srv/ggo-content-manager/tools/vps/warm-cockpit.py
+TimeoutStartSec=620
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictAddressFamilies=AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=localhost

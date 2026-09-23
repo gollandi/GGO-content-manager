@@ -569,7 +569,7 @@ Half-finished pages don't enter the audit trail.
 **Medical:**
 - [ ] No unsupported claims
 - [ ] Evidence quality markers used correctly
-- [ ] Complications / risks disclosed — ALL material risks (bleeding, infection, incontinence, stricture, etc.), not just the single most salient trade-off; each named risk carries a frequency anchor where the ledger provides one
+- [ ] All material risks relevant to the intervention and supported by the ledger are disclosed, rather than only the most salient trade-off; each risk carries its source frequency where available, preserving the population, event definition and timeframe. Missing evidence is flagged for clinical review, never filled with an invented risk or figure.
 - [ ] Would JJ sign this?
 
 **Voice:**

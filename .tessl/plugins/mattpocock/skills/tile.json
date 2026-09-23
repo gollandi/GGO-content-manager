@@ -1,0 +1,55 @@
+{
+  "name": "mattpocock/skills",
+  "version": "9603c1cc8118d08bc1b3bf34cf714f62178dea3b",
+  "summary": "Auto-generated plugin from GitHub (41 skills)",
+  "private": true,
+  "skills": {
+    "improve-codebase-architecture": {
+      "path": "skills/engineering/improve-codebase-architecture/SKILL.md"
+    }
+  },
+  "excludes": {
+    "skills": [
+      "ask-matt",
+      "batch-grill-me",
+      "claude-handoff",
+      "code-review",
+      "codebase-design",
+      "design-an-interface",
+      "diagnosing-bugs",
+      "domain-modeling",
+      "edit-article",
+      "git-guardrails-claude-code",
+      "grill-me",
+      "grill-with-docs",
+      "grilling",
+      "handoff",
+      "implement",
+      "loop-me",
+      "migrate-to-shoehorn",
+      "obsidian-vault",
+      "prototype",
+      "qa",
+      "request-refactor-plan",
+      "research",
+      "resolving-merge-conflicts",
+      "scaffold-exercises",
+      "setup-matt-pocock-skills",
+      "setup-pre-commit",
+      "setup-ts-deep-modules",
+      "tdd",
+      "teach",
+      "to-questionnaire",
+      "to-spec",
+      "to-tickets",
+      "triage",
+      "ubiquitous-language",
+      "wayfinder",
+      "wizard",
+      "writing-beats",
+      "writing-fragments",
+      "writing-great-skills",
+      "writing-shape"
+    ]
+  }
+}

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
-import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import * as Icons from "../../components/Icons";
 import { PifValidationItem } from "../../lib/notion/types";
@@ -112,7 +111,7 @@ export default function ValidationHubPage() {
   ] : [];
 
   return (
-    <AppShell>
+    <>
       <div className={styles.page}>
         <header className="page-header">
           <div className={styles.pifHeader}>
@@ -465,6 +464,6 @@ export default function ValidationHubPage() {
           </div>
         </div>
       )}
-    </AppShell>
+    </>
   );
 }

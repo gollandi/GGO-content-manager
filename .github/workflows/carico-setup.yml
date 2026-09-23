@@ -1,0 +1,49 @@
+# Provision the VPS for Il Carico — the media inbox behind /carico.
+#
+# Thin wrapper: the whole procedure lives in tools/vps/carico-setup.sh so it
+# can be linted and read as a script instead of as YAML-quoted shell. This
+# copies it up and runs it over the same SSH channel the deploy already uses,
+# so nobody has to hold the key locally.
+#
+# Run `inspect` first — it changes nothing and prints what is actually on the
+# server. Then `apply`, which is idempotent and safe to re-run.
+#
+# Secrets: VPS_SSH_KEY, VPS_HOST (both already used by deploy-vps.yml).
+name: Carico setup (VPS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "inspect = read-only report · apply = provision"
+        required: true
+        default: inspect
+        type: choice
+        options: [inspect, apply]
+
+concurrency:
+  group: carico-setup
+  cancel-in-progress: false
+
+jobs:
+  carico:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Copy the provisioning script
+        run: |
+          scp -i ~/.ssh/deploy_key tools/vps/carico-setup.sh \
+            "root@${{ secrets.VPS_HOST }}:/root/carico-setup.sh"
+
+      - name: Run ${{ inputs.mode }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "root@${{ secrets.VPS_HOST }}" \
+            "chmod +x /root/carico-setup.sh && /root/carico-setup.sh ${{ inputs.mode }}"

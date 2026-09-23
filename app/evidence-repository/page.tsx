@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import {
   IconBell as BellIcon,
@@ -37,7 +36,7 @@ export default function EvidenceRepositoryPage() {
   ];
 
   return (
-    <AppShell>
+    <>
       <div className={styles.page}>
         <header className="page-header">
           <div>
@@ -196,6 +195,6 @@ export default function EvidenceRepositoryPage() {
           </aside>
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }

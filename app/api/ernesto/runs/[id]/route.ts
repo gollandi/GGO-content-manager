@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "../../../../../lib/auth/api-guard";
+import { getRunSummary } from "../../../../../lib/briefing/run-summary";
 import { loadEvents, loadMeta, runExists } from "../../../../../lib/runner/store";
 
 /** GET /api/ernesto/runs/[id] — meta + full event journal (UI replay). */
@@ -17,7 +18,11 @@ export async function GET(
         if (!runExists(id)) {
             return NextResponse.json({ error: "not found" }, { status: 404 });
         }
-        return NextResponse.json({ meta: loadMeta(id), events: loadEvents(id) });
+        const meta = loadMeta(id);
+        if (_req.nextUrl.searchParams.get("summary") === "1") {
+            return NextResponse.json({ narrative: await getRunSummary(meta) }, { headers: { "Cache-Control": "private, no-store" } });
+        }
+        return NextResponse.json({ meta, events: loadEvents(id) });
     } catch {
         return NextResponse.json({ error: "invalid run id" }, { status: 400 });
     }

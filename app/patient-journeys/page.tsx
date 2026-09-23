@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import * as Icons from "../../components/Icons";
 import { PatientJourneyItem } from "../../lib/notion/types";
@@ -115,7 +114,7 @@ export default function PatientJourneysPage() {
     item.contentAssetIds.length === 0;
 
   return (
-    <AppShell>
+    <>
       <div className={styles.page}>
         {/* Header */}
         <header className="page-header">
@@ -283,6 +282,6 @@ export default function PatientJourneysPage() {
           )}
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }

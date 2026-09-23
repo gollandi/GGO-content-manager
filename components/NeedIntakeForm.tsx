@@ -43,8 +43,8 @@ export default function NeedIntakeForm() {
     }
 
     return (
-        <div className="p-3 rounded-xl bg-surface-muted/60 border border-border-soft mb-3">
-            <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
+        <div className="p-3 rounded-xl bg-paper-shade border border-paper-edge mb-3">
+            <div className="text-xs font-bold uppercase tracking-widest text-paper-foreground-soft mb-2">
                 + Registra un need (paziente/clinica)
             </div>
             <div className="flex gap-2 max-lg:flex-col">
@@ -66,7 +66,7 @@ export default function NeedIntakeForm() {
                 <button
                     onClick={() => void submit()}
                     disabled={state === "saving" || !need.trim()}
-                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-ggo-purple to-ggo-teal text-white text-xs font-semibold disabled:opacity-50 whitespace-nowrap"
+                    className="px-4 py-2 rounded-lg bg-engraving-ink text-paper text-xs font-semibold disabled:opacity-50 whitespace-nowrap"
                 >
                     {state === "saving" ? "…" : "Registra"}
                 </button>

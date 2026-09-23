@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathAllowed } from "../lib/retro/edit-policy";
 
 /**
  * L'Officina è autonoma fino alla PR — ma i suoi rail sono costituzionali:
@@ -13,10 +14,11 @@ const SRC = readFileSync(join(__dirname, "../lib/retro/officina.ts"), "utf8");
 
 describe("Officina constitutional rails", () => {
     it("edits are allowlisted to editorial knowledge only", () => {
-        expect(SRC).toContain("EDIT_ALLOWLIST");
-        expect(SRC).toContain("skills\\/");
-        expect(SRC).toContain("lib\\/runner\\/shape\\.ts");
-        // The apply path must consult the allowlist
+        expect(pathAllowed("skills/ggomed-page-writer-v2/SKILL.md")).toBe(true);
+        expect(pathAllowed("skills/ggomed-page-writer-v2/references/parser-patterns.md")).toBe(true);
+        expect(pathAllowed("lib/runner/shape.ts")).toBe(true);
+        expect(pathAllowed("lib/runner/run.ts")).toBe(false);
+        expect(pathAllowed("lib/sanity/write-client.ts")).toBe(false);
         expect(SRC).toContain("pathAllowed(");
     });
 
@@ -38,7 +40,6 @@ describe("Officina constitutional rails", () => {
     });
 
     it("constitutional files are NOT in the allowlist", () => {
-        const allow = [/^skills\/[^/]+\/(SKILL\.md|references\/.+\.md)$/, /^lib\/runner\/shape\.ts$/];
         const forbidden = [
             "lib/sanity/write-client.ts",
             "lib/notion/social-write.ts",
@@ -51,9 +52,9 @@ describe("Officina constitutional rails", () => {
             "lib/config.ts",
         ];
         for (const f of forbidden) {
-            expect(allow.some((rx) => rx.test(f)), `${f} must NOT be editable`).toBe(false);
+            expect(pathAllowed(f), `${f} must NOT be editable`).toBe(false);
         }
-        expect(allow.some((rx) => rx.test("skills/ggomed-page-writer-v2/SKILL.md"))).toBe(true);
-        expect(allow.some((rx) => rx.test("lib/runner/shape.ts"))).toBe(true);
+        expect(pathAllowed("skills/ggomed-page-writer-v2/SKILL.md")).toBe(true);
+        expect(pathAllowed("lib/runner/shape.ts")).toBe(true);
     });
 });

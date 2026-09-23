@@ -1,0 +1,50 @@
+{
+  "baseCommit": "350823907b9f6b138fe760b9c8978dae129c7614",
+  "vitest": {
+    "numTotalTests": 167,
+    "numPassedTests": 162,
+    "numFailedTests": 0,
+    "numPendingTests": 5,
+    "success": true
+  },
+  "typescript": "passed",
+  "webpackProductionBuild": "passed",
+  "pipelinePatchApplyCheck": "passed",
+  "productionAfterChange": "NOT RUN",
+  "turbopackProductionBuild": "passed",
+  "gitnexus": {
+    "staged": {
+      "baseRef": null,
+      "changed_count": 50,
+      "affected_count": 40,
+      "changed_files": 16,
+      "risk_level": "critical",
+      "symbolFiles": [
+        "app/api/review-dashboard/media/route.ts",
+        "app/questioni/page.tsx",
+        "docs/performance/2026-09-08/README.md",
+        "lib/cache.ts",
+        "lib/cancello/body-cache.ts",
+        "lib/cancello/state.ts",
+        "tools/performance/verify-browser.mjs"
+      ]
+    },
+    "compare": {
+      "baseRef": "main",
+      "changed_count": 50,
+      "affected_count": 40,
+      "changed_files": 16,
+      "risk_level": "critical",
+      "symbolFiles": [
+        "app/api/review-dashboard/media/route.ts",
+        "app/questioni/page.tsx",
+        "docs/performance/2026-09-08/README.md",
+        "lib/cache.ts",
+        "lib/cancello/body-cache.ts",
+        "lib/cancello/state.ts",
+        "tools/performance/verify-browser.mjs"
+      ]
+    },
+    "review": "Expected shared-cache, Cancello, Questioni and media-handler caller reach. No unexpected production symbol files; import-only and tests checked in git diff. Critical graph reach is not a vulnerability finding."
+  }
+}

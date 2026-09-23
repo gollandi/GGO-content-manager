@@ -1,0 +1,15 @@
+{
+  "name": "GGO-content-manager",
+  "mode": "vendored",
+  "dependencies": {
+    "mattpocock/skills": {
+      "version": "9603c1cc8118d08bc1b3bf34cf714f62178dea3b",
+      "source": "https://github.com/mattpocock/skills",
+      "include": {
+        "skills": [
+          "improve-codebase-architecture"
+        ]
+      }
+    }
+  }
+}

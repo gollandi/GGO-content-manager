@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import * as Icons from "../../components/Icons";
 import SearchBar from "../../components/SearchBar";
@@ -129,7 +128,7 @@ export default function KeywordsPage() {
   ];
 
   return (
-    <AppShell>
+    <>
       <div className={styles.page}>
         {/* ---------- header ---------- */}
         <header className="page-header">
@@ -353,6 +352,6 @@ export default function KeywordsPage() {
           </DataTable>
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }

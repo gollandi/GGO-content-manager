@@ -96,3 +96,20 @@ export interface PifCompassRow {
         certifierName: string | null;
     } | null;
 }
+
+/**
+ * A pending draft paired with its published counterpart — the raw material
+ * of the pre/post register (/editorial/daria). Whole documents travel here
+ * on purpose: the delta is computed app-side, field by field, so the view
+ * survives schema drift without a projection change.
+ */
+export interface DraftDeltaRow {
+    _id: string;
+    _type: GgomedDocType;
+    _updatedAt: string;
+    title?: string | null;
+    slug?: { current?: string } | null;
+    /** null → orphan draft with no published counterpart yet. */
+    publishedDoc: Record<string, unknown> | null;
+    [key: string]: unknown;
+}

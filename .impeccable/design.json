@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-02T00:00:00Z",
+  "title": "Design System: Il Registro",
+  "extensions": {
+    "colorMeta": {
+      "seal": { "role": "primary", "displayName": "Seal Oxblood", "canonical": "#9e2b25", "tonalRamp": ["#3a0f0c", "#6d1b17", "#87231e", "#9e2b25", "#bc4038", "#d9564c", "#e88b83", "#f5c8c3"] },
+      "engraving": { "role": "secondary", "displayName": "Engraving Green", "canonical": "#1f6f63", "tonalRamp": ["#0a2b26", "#15564c", "#1f6f63", "#2d8a7a", "#45b9a3", "#6fcbba", "#a3ded3", "#d6f1eb"] },
+      "stamp": { "role": "tertiary", "displayName": "Stamp Violet", "canonical": "#5b3a8e", "tonalRamp": ["#221536", "#3c2660", "#5b3a8e", "#7757ae", "#a184d4", "#b9a2e0", "#d3c4ec", "#ece5f8"] },
+      "sepia": { "role": "tertiary", "displayName": "Sepia", "canonical": "#75591f", "tonalRamp": ["#2b2009", "#4f3c14", "#75591f", "#a07c2f", "#d0a955", "#dcbe7e", "#e9d5aa", "#f5ecd8"] },
+      "plate": { "role": "neutral", "displayName": "Intaglio Plate", "canonical": "#0d1626", "tonalRamp": ["#070e1a", "#0d1626", "#16223a", "#24314c", "#3d4a66", "#616e88", "#949cac", "#dcd6c8"] },
+      "paper": { "role": "neutral", "displayName": "Safety Paper", "canonical": "#efe7d6", "tonalRamp": ["#16202e", "#57606e", "#8a8271", "#a99d84", "#c7bb9f", "#e4dac5", "#efe7d6", "#f7f2e7"] },
+      "stub-torn-paper": { "role": "neutral", "displayName": "Torn-Stub Paper", "canonical": "#f0dfd8", "tonalRamp": ["#3a2620", "#6d4a3f", "#96685a", "#b58a7c", "#cfaba0", "#e0c6bd", "#f0dfd8", "#f8efeb"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Room mastheads and page titles, Bodoni Moda on the plate." },
+      "title": { "displayName": "Document Title", "purpose": "Entry and section titles on paper or plate." },
+      "body": { "displayName": "Body", "purpose": "Notes, captions and prose; small, plain, unromantic." },
+      "label": { "displayName": "Column Label", "purpose": "Table headers, eyebrows and section labels; tracked uppercase Archivo Narrow." },
+      "serial": { "displayName": "Serial", "purpose": "Counterfoil serials, counts and record dates; tabular lining numerals." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "transition", "value": "all 0.12s linear", "purpose": "Default state transition for every interactive surface." },
+      { "name": "press-seal", "value": "press-seal 260ms cubic-bezier(0.2, 0.8, 0.3, 1) both", "purpose": "The seal struck into an empty socket on approval (scale 1.6 → 0.94 → 1). Collapsed by prefers-reduced-motion." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "2xl", "value": "1536px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Seal Act",
+      "kind": "button",
+      "refersTo": "act-seal",
+      "description": "The press — the one irreversible commit act. Solid oxblood; nothing else may look like this.",
+      "html": "<button class=\"ds-act-seal\">Sigilla</button>",
+      "css": ".ds-act-seal { min-height: 2.75rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.625rem 1.125rem; background: var(--seal, #9e2b25); color: var(--paper, #efe7d6); font-family: 'Archivo Narrow', Archivo, sans-serif; font-weight: 700; font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase; border: 1px solid var(--seal-deep, #6d1b17); border-radius: 0; cursor: pointer; transition: all 0.12s linear; } .ds-act-seal:hover { background: var(--seal-bright, #d9564c); color: var(--plate, #0d1626); } .ds-act-seal:active { background: var(--seal-deep, #6d1b17); color: var(--paper, #efe7d6); } .ds-act-seal:focus-visible { outline: 2px solid var(--engraving-bright, #45b9a3); outline-offset: 2px; }"
+    },
+    {
+      "name": "Stamp Act",
+      "kind": "button",
+      "refersTo": "act-stamp",
+      "description": "Send back for rework — the hand-applied violet stamp.",
+      "html": "<button class=\"ds-act-stamp\">Timbra e rimanda</button>",
+      "css": ".ds-act-stamp { min-height: 2.75rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.625rem 1.125rem; background: transparent; color: var(--stamp-bright, #a184d4); font-family: 'Archivo Narrow', Archivo, sans-serif; font-weight: 700; font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase; border: 1px solid var(--stamp-bright, #a184d4); border-radius: 0; cursor: pointer; transition: all 0.12s linear; } .ds-act-stamp:hover { background: var(--stamp-wash, rgba(91,58,142,0.16)); } .ds-act-stamp:focus-visible { outline: 2px solid var(--engraving-bright, #45b9a3); outline-offset: 2px; }"
+    },
+    {
+      "name": "Void Act",
+      "kind": "button",
+      "refersTo": "act-void",
+      "description": "Cancellation — hover strikes the label through.",
+      "html": "<button class=\"ds-act-void\">Annulla</button>",
+      "css": ".ds-act-void { min-height: 2.75rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.625rem 1.125rem; background: transparent; color: var(--plate-fg, #dcd6c8); font-family: 'Archivo Narrow', Archivo, sans-serif; font-weight: 700; font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase; border: 1px solid var(--plate-rule, #24314c); border-radius: 0; cursor: pointer; transition: all 0.12s linear; } .ds-act-void:hover { border-color: var(--plate-fg-soft, #949cac); text-decoration: line-through; }"
+    },
+    {
+      "name": "Quiet Act",
+      "kind": "button",
+      "refersTo": "act-quiet",
+      "description": "Secondary act on the plate; hover turns engraving-bright.",
+      "html": "<button class=\"ds-act-quiet\">Rileggi le fonti</button>",
+      "css": ".ds-act-quiet { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.5rem 0.875rem; background: transparent; color: var(--plate-fg, #dcd6c8); font-family: 'Archivo Narrow', Archivo, sans-serif; font-weight: 600; font-size: 0.6875rem; letter-spacing: 0.12em; text-transform: uppercase; border: 1px solid var(--plate-rule, #24314c); border-radius: 0; cursor: pointer; transition: all 0.12s linear; } .ds-act-quiet:hover { border-color: var(--engraving-bright, #45b9a3); color: var(--engraving-bright, #45b9a3); }"
+    },
+    {
+      "name": "Mark",
+      "kind": "chip",
+      "refersTo": "mark",
+      "description": "A rubber stamp, not a pill: transparent, bordered in its own ink.",
+      "html": "<span class=\"ds-mark ds-mark-sealed\">Sealed</span> <span class=\"ds-mark ds-mark-pending\">Pending</span> <span class=\"ds-mark ds-mark-stamped\">Stamped</span> <span class=\"ds-mark ds-mark-ageing\">Ageing</span>",
+      "css": ".ds-mark { display: inline-flex; align-items: center; padding: 0.1875rem 0.5rem; margin-right: 0.375rem; font-family: 'Archivo Narrow', Archivo, sans-serif; font-size: 0.625rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 0; white-space: nowrap; background: transparent; } .ds-mark-sealed { color: var(--engraving-bright, #45b9a3); } .ds-mark-pending { color: var(--seal-bright, #d9564c); } .ds-mark-stamped { color: var(--stamp-bright, #a184d4); } .ds-mark-ageing { color: var(--sepia-bright, #d0a955); }"
+    },
+    {
+      "name": "Seal Socket",
+      "kind": "custom",
+      "refersTo": "socket",
+      "description": "Empty socket = waiting for JJ (dashed centre); sealed = radial oxblood wax, the one permitted gradient.",
+      "html": "<span class=\"ds-socket ds-socket-empty\" role=\"img\" aria-label=\"Awaiting your seal\"></span> <span class=\"ds-socket ds-socket-sealed\" role=\"img\" aria-label=\"Sealed\"><svg viewBox=\"0 0 24 24\" width=\"15\" height=\"15\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"8\" fill=\"none\" stroke=\"#6d1b17\" stroke-width=\"1\" opacity=\"0.7\"/><path d=\"M12 6.5 13.7 10.3 17.8 10.8 14.8 13.6 15.6 17.6 12 15.6 8.4 17.6 9.2 13.6 6.2 10.8 10.3 10.3Z\" fill=\"#6d1b17\" opacity=\"0.55\"/></svg></span>",
+      "css": ".ds-socket { display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; margin-right: 0.5rem; border-radius: 9999px; border: 1px solid var(--paper-edge, #c7bb9f); background: transparent; } .ds-socket-empty::after { content: ''; width: 0.75rem; height: 0.75rem; border-radius: 9999px; border: 1px dashed var(--paper-edge, #c7bb9f); } .ds-socket-sealed { border-color: var(--seal-deep, #6d1b17); background: radial-gradient(circle at 38% 32%, var(--seal-bright, #d9564c) 0%, var(--seal, #9e2b25) 46%, var(--seal-deep, #6d1b17) 100%); }"
+    },
+    {
+      "name": "Document Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "A sheet of safety paper set into the plate, with laid-line texture and a hairline edge.",
+      "html": "<div class=\"ds-document\"><p class=\"ds-doc-eyebrow\">Social · atto in attesa</p><h3 class=\"ds-doc-title\">Varicocele reel — caption review</h3><p class=\"ds-doc-body\">Bozze, caption e patch ferme sul tuo giudizio.</p></div>",
+      "css": ".ds-document { background-color: var(--paper, #efe7d6); color: var(--paper-fg, #16202e); background-image: repeating-linear-gradient(0deg, rgba(22,32,46,0.028) 0 1px, transparent 1px 4px); border: 1px solid var(--paper-edge, #c7bb9f); border-radius: 0; padding: 20px; transition: all 0.12s linear; } .ds-document:hover { border-color: var(--engraving, #1f6f63); } .ds-doc-eyebrow { font-family: 'Archivo Narrow', Archivo, sans-serif; font-size: 0.625rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--engraving-ink, #15564c); margin: 0 0 6px; } .ds-doc-title { font-family: 'Bodoni Moda', Georgia, serif; font-weight: 700; font-size: 17px; letter-spacing: -0.01em; line-height: 1.1; margin: 0 0 8px; } .ds-doc-body { font-family: Archivo, sans-serif; font-size: 13px; color: var(--paper-fg-soft, #57606e); margin: 0; }"
+    },
+    {
+      "name": "Register Input",
+      "kind": "input",
+      "refersTo": "search-box",
+      "description": "Transparent field with a hairline border; focus turns the border engraving-bright. No fill, no radius.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Cerca nel registro…\" />",
+      "css": ".ds-input { background: transparent; border: 1px solid var(--plate-rule, #24314c); border-radius: 0; padding: 8px 14px; font-family: Archivo, sans-serif; font-size: 13px; color: var(--plate-fg, #dcd6c8); outline: none; width: 100%; max-width: 380px; transition: all 0.12s linear; } .ds-input::placeholder { color: var(--plate-fg-soft, #949cac); } .ds-input:focus { border-color: var(--engraving-bright, #45b9a3); }"
+    },
+    {
+      "name": "Navigation Row",
+      "kind": "nav",
+      "refersTo": "nav-row",
+      "description": "Sidebar entry: 2px left border is the active device; engraving only, never oxblood.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-row ds-nav-active\" href=\"#\" aria-current=\"page\">Atrio</a><a class=\"ds-nav-row\" href=\"#\">Editorial</a><a class=\"ds-nav-row\" href=\"#\">PIF Tick</a></nav>",
+      "css": ".ds-nav { display: flex; flex-direction: column; background: var(--plate-deep, #070e1a); padding: 8px 0; width: 240px; } .ds-nav-row { display: flex; align-items: center; gap: 12px; border-left: 2px solid transparent; padding: 8px 12px 8px 16px; font-family: Archivo, sans-serif; font-size: 13px; color: var(--plate-fg-soft, #949cac); text-decoration: none; transition: color 0.12s linear, border-color 0.12s linear; } .ds-nav-row:hover { border-left-color: var(--engraving, #1f6f63); color: var(--plate-fg, #dcd6c8); } .ds-nav-active, .ds-nav-active:hover { border-left-color: var(--engraving-bright, #45b9a3); background: var(--plate-raised, #16223a); color: var(--plate-fg-strong, #f4eee2); }"
+    },
+    {
+      "name": "Filter Tab",
+      "kind": "chip",
+      "refersTo": "filter-pill",
+      "description": "Filters cut into the plate as underline tabs; active is an engraving-bright bottom border.",
+      "html": "<div class=\"ds-filters\"><button class=\"ds-filter ds-filter-active\">Tutti</button><button class=\"ds-filter\">Sigillati</button><button class=\"ds-filter\">Scaduti</button></div>",
+      "css": ".ds-filters { display: flex; border-bottom: 1px solid var(--plate-rule, #24314c); } .ds-filter { border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 8px 16px; background: transparent; color: var(--plate-fg-soft, #949cac); font-family: 'Archivo Narrow', Archivo, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; border-radius: 0; cursor: pointer; transition: all 0.12s linear; } .ds-filter:hover { color: var(--plate-fg, #dcd6c8); } .ds-filter-active, .ds-filter-active:hover { color: var(--engraving-bright, #45b9a3); border-bottom-color: var(--engraving-bright, #45b9a3); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Il Registro",
+    "overview": "This cockpit is the register the house is signed into, not a dashboard about it. It refuses the sidebar-plus-KPI-tiles-plus-filterable-table arrangement. The chrome of the whole application is intaglio blue-black plate; safety paper appears only where a real document sits; oxblood is reserved for the act of sealing and for what awaits JJ; violet stamps mark state applied by hand; sepia marks the thing quietly going stale. Depth is an engraved hairline, never a blur. The world was chosen as candidate 3 of the grounded list, seed key 9055bf41 — the full direction contract survives the production build as an HTML comment in app/layout.tsx. The story the interface tells: JJ reads which rooms want him from the counterfoil wall, opens that room's register, sees the asset at document scale, and seals it or sends it back.",
+    "keyCharacteristics": [
+      "Intaglio plate chrome (#0d1626) with runtime-generated guilloche watermarks (a real hypotrochoid lathe, parameter-driven, never a texture image)",
+      "Safety paper (#efe7d6, laid-line textured) only under genuine document content",
+      "Square corners everywhere; circles exist only for genuinely circular seals and sockets",
+      "No drop shadows, no gradients (one exception: the wax of .socket-sealed), no pill badges",
+      "Bodoni Moda for document titles, Archivo Narrow for tracked-uppercase labels/acts/serials, Archivo for text",
+      "Tabular lining numerals in every register"
+    ],
+    "rules": [
+      { "name": "The Oxblood Rule", "body": "--seal is reserved for the act of sealing and for what awaits JJ. Navigation, filters and selection states use engraving green. One decided exception: the login Sign-in act keeps .act-seal — signing into the register is itself a sealing act.", "section": "colors" },
+      { "name": "The Paper Rule", "body": "Safety paper appears only under real document content — a register table, an open document, a counterfoil stub. Chrome stays on the plate. A mute stub is plate-coloured and dashed: it never pretends to be paper it does not have.", "section": "colors" },
+      { "name": "The Tabular Rule", "body": "Numerals in registers are tabular lining: font-variant-numeric: tabular-nums lining-nums is applied globally to table and .tabular, and belongs on any column of figures.", "section": "typography" },
+      { "name": "The Hairline Rule", "body": "Depth is an engraved hairline, never a blur. If a boundary needs more weight, it becomes a 3px double rule — the register's way of ruling off a section.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep oxblood for sealing and for what awaits JJ — the seal press, sealed wax, torn stubs, Il Cancello's gate, the toast — and give every other interaction to engraving green (The Oxblood Rule; the login Sign-in act is the one decided exception).",
+      "Do put safety paper only under real document content and keep all chrome on the plate (The Paper Rule).",
+      "Do set every count in tabular lining numerals (The Tabular Rule) and every label in Archivo Narrow tracked uppercase.",
+      "Do write \"nessun riporto\" on a surface with no reporting line — a mute stub is dashed and plate-coloured, and a number is never invented to fill it.",
+      "Do use hairlines for depth and 3px double rules for section weight (The Hairline Rule); overlays dim with --plate-deep opacity.",
+      "Do respect prefers-reduced-motion: the global override collapses all animation and transitions to 0.001ms.",
+      "Do keep guilloche decorative: pointer-inert, aria-hidden, sub-0.2 opacity."
+    ],
+    "donts": [
+      "Don't round a corner: radius tokens are zeroed globally; rounded-full exists only for genuinely circular seals and sockets.",
+      "Don't cast a shadow — every shadow token is none; use an inset 1px ring or a hairline instead.",
+      "Don't use a gradient anywhere except the radial wax of .socket-sealed.",
+      "Don't make a pill badge: state is a bordered stamp (.mark), transparent with a 1px currentColor border.",
+      "Don't let anything that is not the commit act imitate .act-seal — solid oxblood is the press alone.",
+      "Don't ship filled-shape icons; icons are engraved line work at 1.25–1.5px strokes."
+    ]
+  }
+}

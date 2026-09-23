@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import AppShell from "../../components/AppShell";
 import styles from "./page.module.css";
 import { IconBell, IconPlus, IconFilter } from "../../components/Icons";
 import {
@@ -131,7 +130,7 @@ export default function ContentRequestsPage() {
   };
 
   return (
-    <AppShell>
+    <>
       <div className={styles.page}>
         <header className="page-header">
           <div>
@@ -175,7 +174,7 @@ export default function ContentRequestsPage() {
         </header>
 
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 mb-4 text-sm text-red-800" style={{ margin: "0 32px 16px" }}>
+          <div className=" border border-seal  px-4 py-3 mb-4 text-sm text-seal-bright" style={{ margin: "0 32px 16px" }}>
             Error loading requests: {error}
           </div>
         )}
@@ -318,7 +317,7 @@ export default function ContentRequestsPage() {
           ))}
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }
 

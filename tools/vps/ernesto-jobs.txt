@@ -1,0 +1,65 @@
+# ernesto-agents-house — which scheduled jobs run on the VPS.
+#
+# Format: name|OnCalendar|script (relative to the app dir)
+# Schedules are the launchd times, unchanged. The VPS clock is already
+# Europe/London, so the hours mean the same thing they did on the Mac.
+#
+# WAVE 1 — the night runs, and only the ones whose whole world is Notion
+# or HTTP. These are the jobs that were failing when the Mac's connection
+# went soft after dark, and none of them needs a secret beyond the Notion
+# token and the database ids.
+
+nightly-review-due|*-*-* 02:00:00|cron/nightly-review-due.js
+evolution-review|*-*-* 05:45:00|cron/evolution-review-cron.js
+morning-sitemap-fetch|*-*-* 06:00:00|cron/morning-sitemap-fetch.js
+morning-orphan-check|*-*-* 06:30:00|cron/morning-orphan-check.js
+video-pressure|*-*-* 06:55:00|cron/video-pressure.js
+ingester-health-check|*-*-* 07:47:00|cron/ingester-health-check.js
+weekly-natascia-summary|Mon *-*-* 08:00:00|cron/weekly-natascia-summary.js
+weekly-schema-check|Sun *-*-* 22:47:00|cron/weekly-schema-check.js
+
+# ─────────────────────────────────────────────────────────────────────────
+# WAVE 2 — moveable, but each carries a decision that is JJ's, not the
+# script's. Uncomment one at a time, once its condition is met.
+#
+# Needs the Sanity write token on the server (a NEW one, not the Mac's):
+# publish-reconciliation|*-*-* 06:10:00|cron/publish-reconciliation.js
+# social-publish-sync|*-*-* 06:20:00|cron/social-publish-sync.js
+#
+# Publishes to the social channels once JJ has approved. It crosses no
+# gate — the approval already happened — but it is the hand that acts on
+# the approval, and moving it means the VPS holds GGOMED_PUBLISH_BEARER.
+# That is a decision, not a detail:
+# social-approved-publish|*-*-* 06:40:00|cron/social-approved-publish.js
+#
+# Moves, but reel rows whose video URL is a file:// path on the Mac will
+# log an upload failure every run until rendering also lives here:
+# notion-to-sanity-sync|*-*-* 06:45:00|cron/notion-to-sanity-sync.js
+#
+# Need secrets/google-sa.json plus the GA4/Vercel/Meta/Beehiiv keys copied
+# to the server:
+# weekly-performance-snapshot|Sun *-*-* 23:00:00|cron/weekly-performance-snapshot.js
+# snapshot-revision|*-*-* 23:30:00|cron/snapshot-revision.js
+#
+# Writes its ledger INSIDE the repo (docs/throughput-ledger.jsonl). Running
+# it here would split the ledger across two machines, and a deploy that
+# rsyncs with --delete would erase the server's half. Keep it on the Mac
+# until the ledger lives somewhere that is not the checkout:
+# daily-throughput-ledger|*-*-* 06:05:00|cron/daily-throughput-ledger.js
+#
+# Only two things tie it to the Mac — an osascript notification and the
+# local ecosystem JSON — and both degrade quietly. It would run here, with
+# a briefer brief:
+# morning-brief|*-*-* 07:00:00|cron/morning-brief.js
+
+# ─────────────────────────────────────────────────────────────────────────
+# STAYS ON THE MAC — not a scheduling choice, a fact about what they do:
+#
+#   ernesto-headless, consiglio-headless, ettore-maintainer
+#       spawn the `claude` CLI and run skills from ~/.claude, and Ernesto
+#       drives ffmpeg over footage in ~/GGOMed/pipeline.
+#   ambrogio-cartografina
+#       IS a scan of the Mac: launchctl, ~/.claude/skills, the local git
+#       clones, and the PIF Tick ecosystem JSON.
+#   weekly-media-gc
+#       deletes footage under ~/GGOMed/pipeline/output.

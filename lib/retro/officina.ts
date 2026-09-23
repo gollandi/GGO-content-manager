@@ -11,7 +11,8 @@
  *  - il working tree dell'app viva NON viene mai toccato: worktree separato
  *  - MAI merge: push del branch e PR, il merge è di JJ
  */
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
+import { guardedAnthropic } from "../llm/guard";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdirSync, readFileSync, writeFileSync, existsSync, symlinkSync, rmSync } from "node:fs";
@@ -19,12 +20,11 @@ import { join } from "node:path";
 import { runnerConfig } from "../config";
 import { collectSignals } from "./collect";
 import { createDeskProposal } from "../notion/desk-write";
+import { pathAllowed } from "./edit-policy";
 
 const exec = promisify(execFile);
 const REPO = process.cwd();
 
-/** Solo la conoscenza editoriale è auto-migliorabile. */
-const EDIT_ALLOWLIST = [/^skills\/[^/]+\/(SKILL\.md|references\/.+\.md)$/, /^lib\/runner\/shape\.ts$/];
 const MAX_EDITS = 8;
 
 interface ProposedEdit {
@@ -51,8 +51,6 @@ export interface OfficinaResult {
     reportPath: string;
 }
 
-const pathAllowed = (file: string) => EDIT_ALLOWLIST.some((rx) => rx.test(file));
-
 function parseJson<T>(text: string): T {
     const stripped = text.replace(/^[\s\S]*?```(?:json)?\n?/, "").replace(/\n?```[\s\S]*$/, "");
     try {
@@ -63,7 +61,7 @@ function parseJson<T>(text: string): T {
 }
 
 export async function runOfficina(log: (line: string) => void): Promise<OfficinaResult> {
-    const client = new Anthropic({ apiKey: runnerConfig.anthropicApiKey });
+    const client = guardedAnthropic("soffitta-officina", { apiKey: runnerConfig.anthropicApiKey });
     const ask = async (system: string, user: string, maxTokens = 16000) => {
         const res = await client.messages.create({
             model: runnerConfig.model,
