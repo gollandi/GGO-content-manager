@@ -27,7 +27,7 @@ const desk = (over: Partial<DeskRow>): DeskRow => ({
 const cal = (over: Partial<GateCalendarRow>): GateCalendarRow => ({
     rowId: "c", title: "t", contentType: "Reel", status: "Review", platforms: null, date: null, variant: null,
     caption: "", hashtags: "", notes: "", canva: null, hasAssets: false, media: [], url: "", sourceUrl: null,
-    createdAt: "", ...over,
+    createdAt: "", orderedBy: null, sanitySync: "", ...over,
 });
 const site = (over: Partial<WebsiteArticle>): WebsiteArticle => ({
     rowId: "w", title: "t", status: null, category: null, reviewDue: null, lastReviewed: null, liveUrl: null,

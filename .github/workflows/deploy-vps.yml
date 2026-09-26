@@ -57,6 +57,7 @@ jobs:
             sudo -u jj npm ci --no-audit --no-fund || sudo -u jj npm install --no-audit --no-fund
             sudo -u jj npm run build
             python3 tools/vps/install-cockpit-warm.py
+            python3 tools/vps/install-buffer-sweep.py
             systemctl restart ggo-content-manager
           '
 
@@ -80,6 +81,7 @@ jobs:
             set -e
             systemctl start ggo-cockpit-warm.service
             systemctl restart ggo-cockpit-warm.timer
+            systemctl restart ggo-buffer-sweep.timer
             test -s /var/lib/ggo-cockpit/cancello.json
             test -s /var/lib/ggo-cockpit/house.json
             journalctl -u ggo-cockpit-warm.service -n 5 --no-pager

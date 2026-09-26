@@ -21,7 +21,7 @@ import { Guilloche, Socket, Mark, AgeBar, type MarkTone } from "../../components
  * acts pinned under the thumb. One hand, between clinics.
  */
 
-type Decision = "approve" | "modify" | "reject" | "done" | "delete";
+type Decision = "approve" | "modify" | "reject" | "done" | "delete" | "send";
 type Target = "desk" | "calendar" | "website";
 
 interface VideoRef { url: string; name?: string; path?: string; ageDays?: number }
@@ -35,6 +35,7 @@ interface CalendarRow {
     rowId: string; title: string; contentType: string | null; status: string; platforms: string | null;
     date: string | null; variant: string | null; caption: string; hashtags: string; notes: string;
     canva: string | null; hasAssets: boolean; media: MediaRef[]; url: string;
+    orderedBy?: string | null; sanitySync?: string;
 }
 interface WebsiteArticle {
     rowId: string; title: string; status: string | null; category: string | null; reviewDue: string | null;
@@ -63,7 +64,7 @@ interface Entry {
     key: string;
     rowId: string;
     target: Target;
-    family: "Social" | "Desk" | "Website";
+    family: "Social" | "Buffer" | "Desk" | "Website";
     title: string;
     stateLabel: string;
     dueDays: number | null;
@@ -72,6 +73,24 @@ interface Entry {
     desk?: DeskRow;
     calendar?: CalendarRow;
     website?: WebsiteArticle;
+}
+
+interface HandOff {
+    outcome: "not-approved" | "awaiting-staging" | "handed-off" | "partial";
+    calendarStatus?: string;
+    posts: { sanityId: string; outcome: string; detail?: string }[];
+}
+
+/** One honest line on what reached Buffer — never "sent" for what did not. */
+function describeHandOff(send: HandOff | undefined): string {
+    if (!send) return "Sigillato";
+    if (send.outcome === "awaiting-staging") return "Sigillato — partirà da solo appena i post sono preparati in Sanity";
+    if (send.outcome === "not-approved") return "La riga non è approvata: niente da consegnare";
+    if (send.outcome === "handed-off") {
+        return send.calendarStatus === "Published" ? "Pubblicato su Buffer — topic chiuso" : "In coda su Buffer — topic chiuso";
+    }
+    const problems = send.posts.filter((p) => p.outcome !== "sent" && p.outcome !== "already-sent");
+    return `Consegna incompleta: ${problems.map((p) => `${p.sanityId.replace(/^social-[0-9a-f-]+-/, "")} ${p.outcome}${p.detail ? ` (${p.detail})` : ""}`).join("; ")}`;
 }
 
 function daysUntil(due: string | null): number | null {
@@ -187,8 +206,27 @@ export default function ReviewPage() {
                     target: "calendar",
                     family: "Social",
                     title: row.title,
-                    stateLabel: [row.contentType, row.platforms].filter(Boolean).join(" · ") || "Social",
+                    stateLabel: [row.orderedBy === "JJ" ? "Ordine JJ" : null, row.contentType, row.platforms]
+                        .filter(Boolean).join(" · ") || "Social",
                     dueDays: null,
+                    hasMedia: row.media.length > 0,
+                    notionUrl: row.url,
+                    calendar: row
+                })),
+            // Approved and staged, not yet in Buffer: the team's rows wait for
+            // "Invia a Buffer"; JJ's own orders go by themselves and surface
+            // here only if the automatic hand-off could not finish.
+            ...state.calendar
+                .filter((row) => row.status === "Approved" && Boolean(row.sanitySync))
+                .map((row): Entry => ({
+                    key: `buffer:${row.rowId}`,
+                    rowId: row.rowId,
+                    target: "calendar",
+                    family: "Buffer",
+                    title: row.title,
+                    stateLabel: [row.orderedBy === "JJ" ? "Ordine JJ · invio automatico" : "Pronto per Buffer",
+                        row.contentType, row.platforms, row.date].filter(Boolean).join(" · "),
+                    dueDays: daysUntil(row.date),
                     hasMedia: row.media.length > 0,
                     notionUrl: row.url,
                     calendar: row
@@ -260,7 +298,7 @@ export default function ReviewPage() {
         entry: Entry,
         decision: Decision,
         comment: string,
-        opts: { date?: string; publishNow?: boolean } = {}
+        opts: { date?: string } = {}
     ) {
         if (decision === "modify" && !comment.trim()) {
             setError(entry.target === "website"
@@ -284,7 +322,6 @@ export default function ReviewPage() {
                 body: JSON.stringify({
                     rowId: entry.rowId, decision, comment, target: entry.target,
                     ...(opts.date ? { date: opts.date } : {}),
-                    ...(opts.publishNow ? { publishNow: true } : {}),
                 }),
             });
             const result = await res.json();
@@ -295,14 +332,16 @@ export default function ReviewPage() {
                 setTimeout(() => setJustSealed(null), 1200);
             }
             setToast(
-                decision === "approve"
-                    ? (opts.publishNow ? "Sigillato — pubblicazione invocata" : "Sigillato")
+                decision === "send" || (decision === "approve" && result.send)
+                    ? describeHandOff(result.send)
+                    : decision === "approve"
+                    ? (result.awaitingSecondFlip ? "Sigillato — dopo lo staging resta «Invia a Buffer»" : "Sigillato")
                     : decision === "modify" ? "Timbrato e rimandato"
                     : decision === "done" ? "Archiviato — non tornerà a chiedere"
                     : decision === "delete" ? "Eliminato — non tornerà nel Cancello"
                     : "Rifiutato"
             );
-            setTimeout(() => setToast(null), 2600);
+            setTimeout(() => setToast(null), decision === "send" ? 6000 : 2600);
             setModifyOpen(false);
             // The document stays open: the point of the act is seeing the wax land.
             await load(true);
@@ -517,6 +556,10 @@ export default function ReviewPage() {
                                         Sigillato alle {new Date(act.at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
                                     </span>
                                 </>
+                            ) : act.decision === "send" ? (
+                                <span className="font-condensed text-[12px] font-bold uppercase tracking-[0.14em] text-engraving-ink">
+                                    Consegnato a Buffer alle {new Date(act.at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                                </span>
                             ) : act.decision === "modify" ? (
                                 <span
                                     className="inline-block -rotate-2 border-2 px-3 py-1.5 font-condensed text-[12px] font-bold uppercase tracking-[0.16em]"
@@ -537,6 +580,17 @@ export default function ReviewPage() {
                         </div>
                     ) : (
                     <div className="flex flex-wrap items-center gap-2">
+                        {entry.family === "Buffer" ? (
+                        <button
+                            disabled={busy}
+                            onClick={() => void decide(entry, "send", note)}
+                            className="act-seal flex-1 min-w-[8rem]"
+                            type="button"
+                            title="Consegna a Buffer i post già preparati in Sanity per questa riga"
+                        >
+                            Invia a Buffer
+                        </button>
+                        ) : (
                         <button
                             disabled={busy}
                             onClick={() => void decide(entry, "approve", note,
@@ -544,23 +598,11 @@ export default function ReviewPage() {
                             className="act-seal flex-1 min-w-[8rem]"
                             type="button"
                         >
-                            {entry.target === "calendar" ? "Sigilla → in coda"
+                            {entry.target === "calendar"
+                                ? (entry.calendar?.orderedBy === "JJ" ? "Sigilla → invio automatico" : "Sigilla → poi Invia")
                                 : entry.target === "website" ? (entry.website?.patch ? "Sigilla → bozza Sanity" : "Commissiona a Edmondo")
                                 : "Sigilla"}
                         </button>
-                        {entry.target === "calendar" && (
-                            <button
-                                disabled={busy}
-                                onClick={() => void decide(entry, "approve", note, {
-                                    ...(plannedDate ? { date: plannedDate } : {}),
-                                    publishNow: true,
-                                })}
-                                className="act-seal flex-1 min-w-[9rem]"
-                                type="button"
-                                title="Sigilla e invoca subito i job di staging e pubblicazione"
-                            >
-                                Sigilla e pubblica ora
-                            </button>
                         )}
                         <button
                             disabled={busy}

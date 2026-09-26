@@ -44,6 +44,10 @@ export interface CalendarRow {
     platforms: string | null; date: string | null; variant: string | null;
     caption: string; hashtags: string; notes: string; canva: string | null;
     hasAssets: boolean; media: MediaRef[]; url: string; sourceUrl: string | null; createdAt: string;
+    /** `Ordered By` — "JJ" makes the first seal final; anything else needs "Invia a Buffer". */
+    orderedBy: string | null;
+    /** `Sanity Sync` — non-empty once the house has staged the row's drafts. */
+    sanitySync: string;
 }
 export interface WebsiteArticle {
     rowId: string; title: string; status: string | null; category: string | null;
@@ -65,7 +69,9 @@ export interface CancelloState {
 /* ── Constants (unchanged from the house) ────────────────────────────── */
 
 const OPEN_DESK_STATES = ["Pending", "Approved", "In production"];
-const ACTIVE_CALENDAR_STATES = ["Draft", "In Production", "Review", "Scheduled"];
+// Approved rows are read only once staged: they are the ones waiting for the
+// Buffer hand-off ("Invia a Buffer"), and an unstaged one has nothing to send.
+const ACTIVE_CALENDAR_STATES = ["Draft", "In Production", "Review", "Approved", "Scheduled"];
 const WEBSITE_REVIEW_STATES = ["👁️ Review", "⚠️ Needs Update", "📝 Draft", "🔧 To Create"];
 const FRESH_DAYS = Number(process.env.REVIEW_DASHBOARD_FRESH_DAYS) || 14;
 
@@ -381,8 +387,10 @@ export function wallFromDeskRows(deskRows: DeskRow[], freshDays = FRESH_DAYS): D
 
 async function loadCalendarRows(context: ReadContext): Promise<CalendarRow[]> {
     const rows = await queryAll(notionConfig.dbs.contentCalendar(), orStatus(ACTIVE_CALENDAR_STATES));
-    rememberPages(rows, context);
-    return mapLimit(rows, NOTION_CONCURRENCY, async (row) => {
+    const readable = rows.filter((row) =>
+        propText(row.properties, "Status") !== "Approved" || Boolean(propText(row.properties, "Sanity Sync")));
+    rememberPages(readable, context);
+    return mapLimit(readable, NOTION_CONCURRENCY, async (row) => {
         const status = propText(row.properties, "Status");
         return {
             rowId: row.id,
@@ -405,6 +413,8 @@ async function loadCalendarRows(context: ReadContext): Promise<CalendarRow[]> {
             // for every Draft row was most of the old load time.
             media: status === "Review" ? await resolveRowMedia(row.properties, context) : [],
             url: row.url,
+            orderedBy: propText(row.properties, "Ordered By"),
+            sanitySync: propText(row.properties, "Sanity Sync") || "",
         };
     });
 }
