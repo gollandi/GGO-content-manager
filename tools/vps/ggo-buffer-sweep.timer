@@ -1,0 +1,11 @@
+[Unit]
+Description=Send JJ's approved social orders to Buffer once staged
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=15min
+AccuracySec=30s
+Unit=ggo-buffer-sweep.service
+
+[Install]
+WantedBy=timers.target

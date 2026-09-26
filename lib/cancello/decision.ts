@@ -9,20 +9,21 @@
  * JJ's hand.
  *
  * Two deliberate departures from the old resident server:
- *  - Sanity staging after a calendar approve is NOT re-implemented here. The
- *    house's 06:35/06:40 crons are the idempotent staging/publish leg; when
- *    JJ asks for an immediate post, we kickstart those same jobs via
- *    launchd (`publishNow`) instead of duplicating their logic.
+ *  - Sanity staging after a calendar approve is NOT re-implemented here: the
+ *    house's 06:35 cron stages approved rows. The hand-off to Buffer is the
+ *    cockpit's own (./buffer-send.ts) — the house's publisher was retired on
+ *    2026-09-08, and launchd kickstarts never worked on the VPS.
  *  - Website patch application runs the house's own CLI one-shot
  *    (operations/website-patch.js <id> --apply) — single source of truth.
  */
 import { notion } from "../notion/client";
 import { notionConfig } from "../config";
 import { findPatchForAsset } from "./patches";
-import { kickstartJob, runHouseScript } from "./house";
+import { runHouseScript } from "./house";
+import { isOrderedByJJ, liveDeps, sendRow } from "./buffer-send";
 import { invalidateCancelloCache } from "./state";
 
-export type Decision = "approve" | "modify" | "reject" | "done" | "delete";
+export type Decision = "approve" | "modify" | "reject" | "done" | "delete" | "send";
 export type Target = "desk" | "calendar" | "website";
 
 // Verbatim from the house's core/publish-state.js — approve is publish.
@@ -46,8 +47,6 @@ export interface DecisionInput {
     target?: Target;
     /** Calendar only: JJ edited the proposed publish date before sealing. */
     date?: string;
-    /** Calendar approve only: kickstart the staging + publish jobs now. */
-    publishNow?: boolean;
 }
 
 export interface DecisionResult {
@@ -122,6 +121,14 @@ export async function applyCancelloDecision(input: DecisionInput): Promise<Decis
             return { rowId, status: "Deleted", archived: true };
         }
 
+        // The second flip: JJ authorises the hand-off of an approved, staged
+        // row to Buffer. The row's status moves only when every post landed.
+        if (decision === "send") {
+            if (target !== "calendar") throw new Error("send applies to calendar rows only");
+            const send = await sendRow(rowId, liveDeps, { budget: { immediate: 1 }, retryFailed: true });
+            return { rowId, status: send.calendarStatus ?? "Approved", send };
+        }
+
         const status = map[decision];
         if (!status) throw new Error(`unknown decision: ${decision}`);
 
@@ -135,18 +142,15 @@ export async function applyCancelloDecision(input: DecisionInput): Promise<Decis
         }
         await notion.pages.update({ page_id: rowId, properties: properties as never });
 
-        // Approve is publish (Level E.1). The idempotent staging/publish crons
-        // remain the pipeline; `publishNow` runs those same jobs immediately.
-        if (target === "calendar" && decision === "approve" && input.publishNow) {
-            const sync = await kickstartJob("co.uk.ggomed.agents-house.notion-to-sanity-sync");
-            const publish = await kickstartJob("co.uk.ggomed.agents-house.social-approved-publish");
-            return {
-                rowId,
-                status,
-                publishNow: true,
-                kicked: { sync: sync.ok, publish: publish.ok },
-                kickError: sync.error ?? publish.error ?? null,
-            };
+        // On a row JJ ordered, this approval is final: if the house has
+        // already staged its drafts the hand-off happens now, otherwise the
+        // Buffer sweep sends it once staging lands. A team row waits for the
+        // second flip ("send").
+        if (target === "calendar" && decision === "approve") {
+            const facts = await liveDeps.getRow(rowId);
+            if (!isOrderedByJJ(facts)) return { rowId, status, awaitingSecondFlip: true };
+            const send = await sendRow(rowId, liveDeps, { budget: { immediate: 1 }, retryFailed: false });
+            return { rowId, status: send.calendarStatus ?? status, send };
         }
         return { rowId, status };
     } finally {

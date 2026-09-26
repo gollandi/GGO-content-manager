@@ -44,6 +44,10 @@ export interface CalendarRow {
     platforms: string | null; date: string | null; variant: string | null;
     caption: string; hashtags: string; notes: string; canva: string | null;
     hasAssets: boolean; media: MediaRef[]; url: string; sourceUrl: string | null; createdAt: string;
+    /** `Ordered By` — "JJ" makes the first seal final; anything else needs "Invia a Buffer". */
+    orderedBy: string | null;
+    /** `Sanity Sync` — non-empty once the house has staged the row's drafts. */
+    sanitySync: string;
 }
 export interface WebsiteArticle {
     rowId: string; title: string; status: string | null; category: string | null;
@@ -65,7 +69,9 @@ export interface CancelloState {
 /* ── Constants (unchanged from the house) ────────────────────────────── */
 
 const OPEN_DESK_STATES = ["Pending", "Approved", "In production"];
-const ACTIVE_CALENDAR_STATES = ["Draft", "In Production", "Review", "Scheduled"];
+// Approved rows are read only once staged: they are the ones waiting for the
+// Buffer hand-off ("Invia a Buffer"), and an unstaged one has nothing to send.
+const ACTIVE_CALENDAR_STATES = ["Draft", "In Production", "Review", "Approved", "Scheduled"];
 const WEBSITE_REVIEW_STATES = ["👁️ Review", "⚠️ Needs Update", "📝 Draft", "🔧 To Create"];
 const FRESH_DAYS = Number(process.env.REVIEW_DASHBOARD_FRESH_DAYS) || 14;
 
@@ -226,6 +232,38 @@ async function resolveRowMedia(props: Props, context: ReadContext): Promise<Medi
     return media;
 }
 
+/**
+ * The media of an approved, staged row, read from the Sanity drafts the
+ * house staged — the very images and video the Buffer hand-off will send,
+ * so what JJ judges before "Invia a Buffer" is what goes out. Every
+ * platform of the row is read, de-duplicated by URL.
+ */
+async function approvedRowMedia(props: Props, context: ReadContext): Promise<MediaRef[]> {
+    try {
+        const staged = await stagedRowMedia(propText(props, "Sanity Sync") || "");
+        if (staged.length > 0) return staged;
+    } catch { /* fall back to the registered files */ }
+    return resolveRowMedia(props, context);
+}
+
+export async function stagedRowMedia(sanitySync: string): Promise<MediaRef[]> {
+    const ids = sanitySync.split(",").map((s) => s.trim().replace(/^drafts\./, "")).filter(Boolean);
+    if (ids.length === 0) return [];
+    const docs = await ggomedRawClient.fetch<{ images: (string | null)[] | null; video: string | null }[]>(
+        `*[_id in $ids]{ "images": mediaItems[].asset->url, "video": videoUrl }`,
+        { ids: ids.flatMap((id) => [`drafts.${id}`, id]) }
+    );
+    const seen = new Set<string>();
+    const media: MediaRef[] = [];
+    for (const doc of docs) {
+        for (const url of doc.images ?? []) {
+            if (url && !seen.has(url)) { seen.add(url); media.push({ kind: "image", url }); }
+        }
+        if (doc.video && !seen.has(doc.video)) { seen.add(doc.video); media.push({ kind: "video", url: doc.video }); }
+    }
+    return media;
+}
+
 /** Desk types whose body is scanned for the calendar row it speaks of. */
 const EDITORIAL_LOOKUP_TYPES = new Set(["publish-approval", "clip-script", "long-video-proposal"]);
 
@@ -381,8 +419,10 @@ export function wallFromDeskRows(deskRows: DeskRow[], freshDays = FRESH_DAYS): D
 
 async function loadCalendarRows(context: ReadContext): Promise<CalendarRow[]> {
     const rows = await queryAll(notionConfig.dbs.contentCalendar(), orStatus(ACTIVE_CALENDAR_STATES));
-    rememberPages(rows, context);
-    return mapLimit(rows, NOTION_CONCURRENCY, async (row) => {
+    const readable = rows.filter((row) =>
+        propText(row.properties, "Status") !== "Approved" || Boolean(propText(row.properties, "Sanity Sync")));
+    rememberPages(readable, context);
+    return mapLimit(readable, NOTION_CONCURRENCY, async (row) => {
         const status = propText(row.properties, "Status");
         return {
             rowId: row.id,
@@ -401,10 +441,18 @@ async function loadCalendarRows(context: ReadContext): Promise<CalendarRow[]> {
             hasAssets:
                 relationIds(row.properties, "Media Assets").length > 0 ||
                 Boolean(propText(row.properties, "Card URL")),
-            // Inline media only where JJ decides (Review) — resolving assets
-            // for every Draft row was most of the old load time.
-            media: status === "Review" ? await resolveRowMedia(row.properties, context) : [],
+            // Inline media only where JJ decides — resolving assets for every
+            // Draft row was most of the old load time. Review rows show the
+            // files the team registered; approved, staged rows show what
+            // Buffer will receive, falling back to the registered files.
+            media: status === "Review"
+                ? await resolveRowMedia(row.properties, context)
+                : status === "Approved"
+                    ? await approvedRowMedia(row.properties, context)
+                    : [],
             url: row.url,
+            orderedBy: propText(row.properties, "Ordered By"),
+            sanitySync: propText(row.properties, "Sanity Sync") || "",
         };
     });
 }

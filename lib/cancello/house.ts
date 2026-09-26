@@ -35,8 +35,9 @@ export function houseAvailable(): boolean {
 
 /** LaunchAgent labels the cockpit is allowed to kickstart. Nothing else. */
 const KICKABLE_JOBS = new Set([
+    // social-approved-publish was retired by the house on 2026-09-08; the
+    // Buffer hand-off is now lib/cancello/buffer-send.ts.
     "co.uk.ggomed.agents-house.notion-to-sanity-sync",
-    "co.uk.ggomed.agents-house.social-approved-publish",
 ]);
 
 export async function kickstartJob(label: string): Promise<{ ok: boolean; error?: string }> {

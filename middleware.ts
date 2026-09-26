@@ -35,7 +35,10 @@ export default auth((req) => {
         pathname === "/api/media/jobs" ||
         // The house board's Mac bridge: service token only, checked in the
         // route on both methods. /api/board itself stays session-gated.
-        pathname === "/api/board/sync"
+        pathname === "/api/board/sync" ||
+        // The Buffer sweep: its own bearer (COCKPIT_BUFFER_SWEEP_TOKEN),
+        // checked in the route; the VPS timer is its only caller.
+        pathname === "/api/review-dashboard/buffer-sweep"
     ) {
         return NextResponse.next();
     }

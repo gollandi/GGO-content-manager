@@ -67,3 +67,26 @@ export async function patchDraft(
     assertDraftId(id);
     await writeClient().patch(id).set(set).commit();
 }
+
+/**
+ * Patch a draft only if it is still at `rev` — the optimistic lock the
+ * Buffer hand-off takes before calling the site, so two concurrent sends of
+ * the same post cannot both pass. Sanity rejects a stale revision with 409.
+ */
+export async function patchDraftIfRevision(
+    id: string,
+    rev: string,
+    set: Record<string, unknown>,
+    unset: string[] = []
+): Promise<{ _rev: string }> {
+    assertDraftId(id);
+    let patch = writeClient().patch(id).ifRevisionId(rev).set(set);
+    if (unset.length > 0) patch = patch.unset(unset);
+    const result = await patch.commit();
+    return { _rev: result._rev };
+}
+
+/** Read documents by id with the write client (drafts are invisible to anonymous reads). */
+export async function fetchByIds<T>(ids: string[], projection: string): Promise<T[]> {
+    return writeClient().fetch<T[]>(`*[_id in $ids]${projection}`, { ids });
+}
