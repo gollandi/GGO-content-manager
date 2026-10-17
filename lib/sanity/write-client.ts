@@ -86,7 +86,12 @@ export async function patchDraftIfRevision(
     return { _rev: result._rev };
 }
 
-/** Read documents by id with the write client (drafts are invisible to anonymous reads). */
+/**
+ * Read documents by id, drafts included. The raw perspective is explicit: since
+ * API version 2025-02-19 a query defaults to `published`, which hides every
+ * drafts.* document — the first Buffer sweep (2026-09-26) found no staged
+ * draft for that reason and, correctly, sent nothing.
+ */
 export async function fetchByIds<T>(ids: string[], projection: string): Promise<T[]> {
-    return writeClient().fetch<T[]>(`*[_id in $ids]${projection}`, { ids });
+    return writeClient().fetch<T[]>(`*[_id in $ids]${projection}`, { ids }, { perspective: "raw" });
 }
