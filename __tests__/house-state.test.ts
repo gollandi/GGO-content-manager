@@ -67,6 +67,30 @@ describe("computeAwaiting splits the desk into editorial acts and questions", ()
         expect(a.questionsByKind).toEqual({ question: 1, recommendation: 2 });
     });
 
+    it("counts a desk row once when it only re-offers a Calendar row already at the gate", () => {
+        const calId = "3acd1234-0000-4000-8000-00000000abcd";
+        const state = gate({
+            desk: [
+                desk({ rowId: "dup", type: "publish-approval", calendarRowIds: ["3acd123400004000800000000000abcd"] }),
+                desk({ rowId: "own", type: "publish-approval", calendarRowIds: ["ffff0000000040008000000000000000"] }),
+                desk({ rowId: "none", type: "publish-approval" }),
+            ],
+            calendar: [cal({ rowId: calId, status: "Review" })],
+        });
+        const a = computeAwaiting(state, [], NOW);
+        expect(a.social).toBe(1);
+        expect(a.desk).toBe(2);
+        expect(a.total).toBe(3);
+    });
+
+    it("still counts the desk row when its Calendar row is not at the gate", () => {
+        const state = gate({
+            desk: [desk({ rowId: "dup", type: "publish-approval", calendarRowIds: ["3acd123400004000800000000000abcd"] })],
+            calendar: [cal({ rowId: "3acd1234-0000-4000-8000-00000000abcd", status: "Scheduled" })],
+        });
+        expect(computeAwaiting(state, [], NOW).desk).toBe(1);
+    });
+
     it("sends any desk row carrying a clip to the gate, whatever its type", () => {
         const a = computeAwaiting(
             gate({ desk: [desk({ rowId: "v", type: "question", videos: [{ url: "/video?path=a.mp4", name: "a", path: "a.mp4", ageDays: 40 }] })] }),

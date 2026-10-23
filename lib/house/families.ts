@@ -37,3 +37,22 @@ export const EDITORIAL_KINDS: { type: string; label: string }[] = [
     { type: "clip-script", label: "Script di clip" },
     { type: "long-video-proposal", label: "Proposte di video lungo" },
 ];
+
+/* ── Calendar shadowing (2026-10-24) ──────────────────────────────────── */
+
+const bareId = (id: string) => id.replace(/-/g, "").toLowerCase();
+
+/** Bare ids of the Calendar rows that stand at Il Cancello themselves:
+ *  Review rows to seal and approved staged rows waiting for Buffer. */
+export function gateCalendarIds(calendar: { rowId: string; status: string | null; sanitySync?: string }[]): Set<string> {
+    return new Set(calendar
+        .filter((r) => r.status === "Review" || (r.status === "Approved" && Boolean(r.sanitySync)))
+        .map((r) => bareId(r.rowId)));
+}
+
+/** A desk row that only re-offers a Calendar row already at the gate. It is
+ *  shown once, as the Calendar row, whose seal is the publish act (E.1).
+ *  Until 2026-10-24 JJ met the same carousel twice and the count said so. */
+export function shadowedByCalendar(row: { calendarRowIds?: string[] }, gateIds: Set<string>): boolean {
+    return (row.calendarRowIds ?? []).some((id) => gateIds.has(bareId(id)));
+}

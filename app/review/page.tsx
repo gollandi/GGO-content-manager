@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import MarkdownBlock from "../../components/MarkdownBlock";
 import AssetSheet from "../../components/cancello/AssetSheet";
-import { deskFamily } from "../../lib/house/families";
+import { deskFamily, gateCalendarIds, shadowedByCalendar } from "../../lib/house/families";
 import { Guilloche, Socket, Mark, AgeBar, type MarkTone } from "../../components/Registro";
 
 /**
@@ -29,7 +29,7 @@ interface MediaRef { kind: "image" | "video"; url: string }
 interface DeskRow {
     rowId: string; url: string; title: string; type: string; status: string;
     priority: string; due: string | null; correction: string; body: string;
-    videos: VideoRef[]; media: MediaRef[];
+    videos: VideoRef[]; media: MediaRef[]; calendarRowIds?: string[];
 }
 interface CalendarRow {
     rowId: string; title: string; contentType: string | null; status: string; platforms: string | null;
@@ -195,7 +195,10 @@ export default function ReviewPage() {
         // published, cut or captioned. Questions, plans and recommendations
         // are answered at Le Questioni, never sealed here.
         const carries = (row: DeskRow) => row.videos.length > 0 || (row.media?.length ?? 0) > 0;
-        const editorial = (row: DeskRow) => deskFamily(row.type, carries(row)) === "editorial";
+        const gateIds = gateCalendarIds(state.calendar);
+        // A desk row that re-offers a Calendar row already listed below is
+        // shown once, as that Calendar row.
+        const editorial = (row: DeskRow) => deskFamily(row.type, carries(row)) === "editorial" && !shadowedByCalendar(row, gateIds);
         return [
             ...state.wall.filter(editorial).map(fromDesk),
             ...state.calendar
@@ -206,9 +209,11 @@ export default function ReviewPage() {
                     target: "calendar",
                     family: "Social",
                     title: row.title,
-                    stateLabel: [row.orderedBy === "JJ" ? "Ordine JJ" : null, row.contentType, row.platforms]
+                    // The slot date is shown, and a passed slot ages like any
+                    // overdue item: a Review row whose day is gone is stale.
+                    stateLabel: [row.orderedBy === "JJ" ? "Ordine JJ" : null, row.contentType, row.platforms, row.date]
                         .filter(Boolean).join(" · ") || "Social",
-                    dueDays: null,
+                    dueDays: daysUntil(row.date),
                     hasMedia: row.media.length > 0,
                     notionUrl: row.url,
                     calendar: row
