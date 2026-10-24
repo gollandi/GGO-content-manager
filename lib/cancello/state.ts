@@ -38,6 +38,9 @@ export interface DeskRow {
     /** Everything else the row points at: local stills, the Calendar Row's
      *  own assets, and hosted copies when nothing local is on this machine. */
     media: MediaRef[];
+    /** Content Calendar rows this desk row points at (bare ids, verified to
+     *  live in the Calendar). Optional: older cached snapshots lack it. */
+    calendarRowIds?: string[];
 }
 export interface CalendarRow {
     rowId: string; title: string; contentType: string | null; status: string | null;
@@ -310,31 +313,37 @@ const MAX_BODY_IDS = 4;
  *  its page id written in the body ("4 slides landed in Review on Content
  *  Calendar row 3acd…"). Both are followed; only pages that live in the
  *  Content Calendar count, and each page is fetched once per load. */
-async function calendarRowMedia(props: Props, bodyText: string, memo: Map<string, Promise<MediaRef[]>>, context: ReadContext): Promise<MediaRef[]> {
+async function calendarRowMedia(props: Props, bodyText: string, memo: Map<string, Promise<MediaRef[] | null>>, context: ReadContext): Promise<{ media: MediaRef[]; ids: string[] }> {
     const calendarDb = bareId(notionConfig.dbs.contentCalendar());
     const ids = new Set<string>(relationIds(props, "Calendar Row").map(bareId));
     for (const m of bodyText.matchAll(NOTION_ID_RE)) {
         if (ids.size >= MAX_BODY_IDS + relationIds(props, "Calendar Row").length) break;
         ids.add(bareId(m[0]));
     }
-    if (ids.size === 0) return [];
-    const fetchOne = (id: string): Promise<MediaRef[]> => {
+    if (ids.size === 0) return { media: [], ids: [] };
+    // null = not a Calendar page (or unreadable); [] = a Calendar page without media.
+    const fetchOne = (id: string): Promise<MediaRef[] | null> => {
         const cached = memo.get(id);
         if (cached) return cached;
         const task = (async () => {
             try {
                 const page = await readPage(id, context);
                 const parent = page.parent.type === "database_id" ? bareId(page.parent.database_id) : "";
-                if (parent !== calendarDb) return [];
+                if (parent !== calendarDb) return null;
                 return await resolveRowMedia(page.properties, context);
-            } catch { return []; }
+            } catch { return null; }
         })();
         memo.set(id, task);
         return task;
     };
-    const nested = await mapLimit([...ids], NOTION_CONCURRENCY, fetchOne);
-    return nested.flat();
+    const list = [...ids];
+    const nested = await mapLimit(list, NOTION_CONCURRENCY, fetchOne);
+    return {
+        media: nested.flatMap((m) => m ?? []),
+        ids: list.filter((_, i) => nested[i] !== null),
+    };
 }
+
 
 /* ── The three families ──────────────────────────────────────────────── */
 
@@ -346,7 +355,7 @@ async function loadDeskRows(context: ReadContext): Promise<DeskRow[]> {
     );
     rememberPages(rows, context);
     // One fetch per calendar page across the whole desk, however many rows name it.
-    const calendarMemo = new Map<string, Promise<MediaRef[]>>();
+    const calendarMemo = new Map<string, Promise<MediaRef[] | null>>();
     return mapLimit(rows, NOTION_CONCURRENCY, async (row) => {
         let bodyText = "";
         try { bodyText = await context.body(row); } catch { context.failedReads += 1; }
@@ -388,7 +397,12 @@ async function loadDeskRows(context: ReadContext): Promise<DeskRow[]> {
         // editorial types earn it, questions keep their relation-only path.
         const type = propText(row.properties, "Type") || "other";
         const follow = EDITORIAL_LOOKUP_TYPES.has(type) ? bodyText : "";
-        try { add(await calendarRowMedia(row.properties, follow, calendarMemo, context)); } catch { /* enrichment only */ }
+        let calendarRowIds: string[] = [];
+        try {
+            const linked = await calendarRowMedia(row.properties, follow, calendarMemo, context);
+            add(linked.media);
+            calendarRowIds = linked.ids;
+        } catch { /* enrichment only */ }
         if (videos.length === 0 && media.length === 0) add(hostedMediaFromText(bodyText));
 
         return {
@@ -403,6 +417,7 @@ async function loadDeskRows(context: ReadContext): Promise<DeskRow[]> {
             body: bodyText.slice(0, 700),
             videos,
             media,
+            calendarRowIds,
         };
     });
 }

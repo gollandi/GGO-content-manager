@@ -29,7 +29,7 @@ import { listRetros } from "../retro/run";
 import { settle } from "../settle";
 import { cached, withFreshReads } from "../cache";
 import { snapshot as persistentSnapshot, snapshotsEnabled, type SnapshotFreshness } from "../cockpit/snapshots";
-import { deskFamily } from "./families";
+import { deskFamily, gateCalendarIds, shadowedByCalendar } from "./families";
 
 /* ── Shape ─────────────────────────────────────────────────────────────── */
 
@@ -152,7 +152,8 @@ export function computeAwaiting(state: CancelloState, needs: ContentNeedRow[], n
         ...state.desk.filter((r) => r.status === "Pending" && !wallIds.has(r.rowId)),
     ];
     const carries = (r: { videos: unknown[]; media?: unknown[] }) => r.videos.length > 0 || (r.media?.length ?? 0) > 0;
-    const editorialDesk = pending.filter((r) => deskFamily(r.type, carries(r)) === "editorial");
+    const gateIds = gateCalendarIds(state.calendar);
+    const editorialDesk = pending.filter((r) => deskFamily(r.type, carries(r)) === "editorial" && !shadowedByCalendar(r, gateIds));
     const questionDesk = pending.filter((r) => deskFamily(r.type, carries(r)) === "question");
     // Review rows to seal, plus approved staged rows waiting for "Invia a Buffer".
     const social = state.calendar.filter(
