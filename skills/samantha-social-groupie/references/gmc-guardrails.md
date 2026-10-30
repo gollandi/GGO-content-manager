@@ -43,7 +43,7 @@ Content must inform, not coerce. Urgency is acceptable only for genuine clinical
 ### 5. Proper Title and Credentials
 - Always: "Mr Giangiacomo Ollandini" or "Mr Ollandini"
 - Never: "Dr Ollandini", "Dr GGO", or any shorthand
-- Full credentials when used: "FRCS(Eng)" — not "FRCS(Urol)" or "FEBU"
+- Full credentials when used: "FRCS (Eng), MSc" (FRCS ad eundem) — never "FRCS (Urol)" or "FEBU"; "MD" only where it denotes the primary medical qualification, not in UK copy
 - Professional title: "Consultant Urological Surgeon & Andrologist"
 
 ### 6. No Patient-Identifiable Content

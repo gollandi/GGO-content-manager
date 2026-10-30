@@ -514,7 +514,7 @@ Entity [N]:
 **PIF Tick Compliance Fields** (if applicable)
 ```
 Author:             Mr Giangiacomo Ollandini, Consultant Urological Surgeon
-Credentials:        FRCS (Eng) MD MSc
+Credentials:        FRCS (Eng), MSc
 Last reviewed:      [date]
 Next review:        [date, +12 months]
 Evidence base:      [NICE / BAUS / EAU / primary studies — list]

@@ -154,7 +154,7 @@ PIF Tick requirements are applied **only when JJ explicitly requests it** (e.g.,
 
 1. **Cite evidence** — If a clinical claim is made, include a brief reference (e.g., "Source: NICE CG97" or "Based on EAU Guidelines 2025"). This can go at the end of the caption or in a comment.
 2. **Accessible language** — Aim for reading age 12-14. No unexplained jargon. If a medical term is used, follow it with a plain-English explanation in parentheses.
-3. **Author attribution** — Include "Written by Mr Giangiacomo Ollandini FRCS" or equivalent.
+3. **Author attribution** — Include "Written by Mr Giangiacomo Ollandini FRCS (Eng), MSc" or equivalent.
 4. **Review date** — Add "Content reviewed: [month year]" at the end of the caption.
 5. **Patient-centred framing** — Content should serve the patient's information needs, not be promotional.
 
