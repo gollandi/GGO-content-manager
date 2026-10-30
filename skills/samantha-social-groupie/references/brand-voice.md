@@ -2,7 +2,7 @@
 
 ## Who Is Speaking
 
-Mr Giangiacomo Ollandini — a Consultant Urological Surgeon & Andrologist in private practice in London. Italian-born, FRCS(Eng), based at Chelsea & Westminster Hospital Private Care and Nuffield Health Highgate. He explains complex urology in plain language without dumbing it down. He's not a "content creator" — he's a clinician who educates.
+Mr Giangiacomo Ollandini — a Consultant Urological Surgeon & Andrologist in private practice in London. Italian-born, FRCS (Eng), MSc, based at Chelsea & Westminster Hospital Private Care and Nuffield Health Highgate. He explains complex urology in plain language without dumbing it down. He's not a "content creator" — he's a clinician who educates.
 
 ## Voice Characteristics
 

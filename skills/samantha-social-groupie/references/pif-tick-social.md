@@ -39,7 +39,7 @@ Social media is inherently accessible in format (short, visual), but captions mu
 Every PIF Tick caption must include clear authorship.
 
 **Format options (pick one per post):**
-- "Written by Mr Giangiacomo Ollandini FRCS(Eng), Consultant Urological Surgeon & Andrologist"
+- "Written by Mr Giangiacomo Ollandini FRCS (Eng), MSc, Consultant Urological Surgeon & Andrologist"
 - "Content by Mr G. Ollandini, ggomed.co.uk"
 - Bio reference: "See @ggomed.co.uk for author credentials" (only if the bio is up to date)
 
@@ -76,7 +76,7 @@ In PIF Tick mode, CTAs should be informational ("Learn more at ggomed.co.uk") ra
 
 [Clinical claim with source reference]
 
-Written by Mr Giangiacomo Ollandini FRCS(Eng)
+Written by Mr Giangiacomo Ollandini FRCS (Eng), MSc
 Content reviewed: [Month Year]
 📚 [Source citation]
 
@@ -92,7 +92,7 @@ This painless scan uses sound waves to measure blood flow in the penis. It helps
 
 The European Association of Urology recommends vascular assessment as part of a comprehensive ED workup (EAU Guidelines 2025).
 
-Written by Mr Giangiacomo Ollandini FRCS(Eng)
+Written by Mr Giangiacomo Ollandini FRCS (Eng), MSc
 Content reviewed: April 2026
 📚 Source: EAU Guidelines on Male Sexual Dysfunction, 2025
 
