@@ -197,7 +197,7 @@ function readPage(id: string, context: ReadContext): Promise<PageObjectResponse>
     }
     const sentAt = Date.now();
     const task = (notion.pages.retrieve({ page_id: id }) as Promise<PageObjectResponse>).then((page) => {
-        context.linked.store(page, sentAt);
+        context.linked.store(page, sentAt, isCalendarPage(page) ? CALENDAR_PAGE_MAX_AGE_MS : undefined);
         return page;
     }, (err) => {
         // A dangling relation may legitimately point at a removed page. A
@@ -208,6 +208,19 @@ function readPage(id: string, context: ReadContext): Promise<PageObjectResponse>
     });
     context.pages.set(key, task);
     return task;
+}
+
+/**
+ * A Calendar row the crawl reads by id is one outside the active query
+ * (Published, Blocked, Archived…). Assets are attached to a row from the
+ * asset's side, which need not bump the row's last_edited_time, so the
+ * "edited since" check may miss a new reel or cover: such a row is kept for
+ * ten minutes at most, whatever the check says.
+ */
+const CALENDAR_PAGE_MAX_AGE_MS = 10 * 60_000;
+function isCalendarPage(page: PageObjectResponse): boolean {
+    return page.parent?.type === "database_id" &&
+        bareId(page.parent.database_id) === bareId(notionConfig.dbs.contentCalendar());
 }
 
 /** Every page of `databaseId` edited on or after `sinceIso`. */

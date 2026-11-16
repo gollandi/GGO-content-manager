@@ -213,4 +213,17 @@ describe("Cancello request volume and freshness", () => {
     expect(second.calendar[0].media).toEqual(second.desk[0].media);
     expect(retrieve).toHaveBeenCalledOnce();
   });
+
+  it("re-reads an inactive linked Calendar row after ten minutes even when Notion reports no edit", async () => {
+    const calendarId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    rows = [page("desk", { Type: select("publish-approval"), "Calendar Row": relations(calendarId) })];
+    retrieve.mockResolvedValue({ ...page(calendarId, { Status: select("Blocked") }), parent: { type: "database_id", database_id: "calendar" } });
+    await loadCancelloState();
+    vi.advanceTimersByTime(5 * 60_000 + 1);
+    await loadCancelloState();
+    expect(retrieve).toHaveBeenCalledOnce();
+    vi.advanceTimersByTime(5 * 60_000);
+    await loadCancelloState();
+    expect(retrieve).toHaveBeenCalledTimes(2);
+  });
 });

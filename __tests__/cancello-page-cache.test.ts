@@ -90,6 +90,17 @@ describe("Cancello page cache", () => {
         expect(cache.reader().get("b")).toBeUndefined();
     });
 
+    it("a page stored with its own shorter age goes stale on that age, checked or not", async () => {
+        const c = clock();
+        const cache = createPageCache({ now: c.now });
+        cache.reader().store(page("row", "calendar-db"), c.now(), 10 * MIN);
+        cache.reader().store(page("asset"), c.now());
+        c.advance(10 * MIN + 1);
+        expect(cache.reader().get("row")).toBeUndefined();
+        await cache.validate(async () => []);
+        expect(cache.reader().get("asset")).toMatchObject({ id: "asset" });
+    });
+
     it("does not cache pages that live outside a database", () => {
         const cache = createPageCache();
         cache.reader().store({ ...page("loose"), parent: { type: "page_id", page_id: "p" } } as unknown as PageObjectResponse, Date.now());

@@ -15,7 +15,7 @@ import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoint
 /** Pages of `databaseId` edited on or after `sinceIso` (every page of results). */
 export type ChangedSince = (databaseId: string, sinceIso: string) => Promise<PageObjectResponse[]>;
 
-type Entry = { page: PageObjectResponse; fetchedAt: number } | { missingUntil: number };
+type Entry = { page: PageObjectResponse; fetchedAt: number; maxAgeMs?: number } | { missingUntil: number };
 
 export interface PageCacheOptions {
     maxEntries?: number;
@@ -67,7 +67,7 @@ export function createPageCache({
                     if (entry.missingUntil <= started) entries.delete(key);
                     continue;
                 }
-                if (started - entry.fetchedAt > maxAgeMs) {
+                if (started - entry.fetchedAt > (entry.maxAgeMs ?? maxAgeMs)) {
                     entries.delete(key);
                     continue;
                 }
@@ -93,7 +93,8 @@ export function createPageCache({
                 if (generation !== before) return;
                 for (const page of changed) {
                     const key = bare(page.id);
-                    if (entries.has(key)) put(key, { page, fetchedAt: started });
+                    const entry = entries.get(key);
+                    if (entry && !("missingUntil" in entry)) put(key, { page, fetchedAt: started, maxAgeMs: entry.maxAgeMs });
                 }
                 checkedAt.set(db, started);
             }));
@@ -112,16 +113,18 @@ export function createPageCache({
                         entries.delete(key);
                         return undefined;
                     }
-                    if (now() - entry.fetchedAt > maxAgeMs) {
+                    if (now() - entry.fetchedAt > (entry.maxAgeMs ?? maxAgeMs)) {
                         entries.delete(key);
                         return undefined;
                     }
                     return entry.page;
                 },
-                /** `fetchedAt`: when the read was sent, so the next check covers it. */
-                store(page: PageObjectResponse, fetchedAt: number) {
+                /** `fetchedAt`: when the read was sent, so the next check covers it.
+                 *  `entryMaxAgeMs`: a shorter life for pages whose changes the
+                 *  "edited since" check may not see. */
+                store(page: PageObjectResponse, fetchedAt: number, entryMaxAgeMs?: number) {
                     if (before !== generation || !parentOf(page)) return;
-                    put(bare(page.id), { page, fetchedAt });
+                    put(bare(page.id), { page, fetchedAt, maxAgeMs: entryMaxAgeMs });
                 },
                 storeMissing(id: string) {
                     if (before !== generation) return;
