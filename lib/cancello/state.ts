@@ -7,7 +7,9 @@
  * the house's disk, patch progress in Sanity. This module only assembles the
  * snapshot; decisions live in ./decision.ts.
  */
-import { snapshot, snapshotsEnabled, invalidateSnapshots, type SnapshotFreshness } from "../cockpit/snapshots";
+import {
+    snapshot, snapshotsEnabled, invalidateSnapshots, SnapshotInvalidatedError, type SnapshotFreshness,
+} from "../cockpit/snapshots";
 import fs from "node:fs";
 import path from "node:path";
 import { notion } from "../notion/client";
@@ -15,6 +17,7 @@ import { notionConfig } from "../config";
 import { ggomedRawClient } from "../sanity/clients";
 import { selectCalendarRowsForGate } from "../notion/story-policy";
 import { createBodyCache } from "./body-cache";
+import { createPageCache, type PageCacheReader } from "./page-cache";
 import {
     extractVideoPaths, isPathWithinRoots, resolveLocalMediaPath, IMAGE_EXTS, VIDEO_EXTS,
 } from "./paths";
@@ -168,23 +171,65 @@ const VIDEO_URL = (p: string) => `/video?path=${encodeURIComponent(p)}`;
 type ReadContext = {
     failedReads: number;
     pages: Map<string, Promise<PageObjectResponse>>;
+    /** Linked pages kept from the previous crawl, checked before this one. */
+    linked: PageCacheReader;
     body: (row: PageObjectResponse) => Promise<string>;
 };
 
 const bodyCache = createBodyCache();
+const pageCache = createPageCache();
+
+const notShared = () => Object.assign(new Error("object_not_found (remembered)"), { status: 404 });
 
 function readPage(id: string, context: ReadContext): Promise<PageObjectResponse> {
     const key = id.replace(/-/g, "").toLowerCase();
     const existing = context.pages.get(key);
     if (existing) return existing;
-    const task = (notion.pages.retrieve({ page_id: id }) as Promise<PageObjectResponse>).catch((err) => {
+    const kept = context.linked.get(id);
+    if (kept === "missing") {
+        const task = Promise.reject(notShared());
+        task.catch(() => {});
+        context.pages.set(key, task);
+        return task;
+    }
+    if (kept) {
+        const task = Promise.resolve(kept);
+        context.pages.set(key, task);
+        return task;
+    }
+    const sentAt = Date.now();
+    const task = (notion.pages.retrieve({ page_id: id }) as Promise<PageObjectResponse>).then((page) => {
+        context.linked.store(page, sentAt, isCalendarPage(page) ? CALENDAR_PAGE_MAX_AGE_MS : undefined);
+        return page;
+    }, (err) => {
         // A dangling relation may legitimately point at a removed page. A
         // timeout/rate limit must not silently erase media from a durable snapshot.
-        if ((err as { status?: number }).status !== 404) context.failedReads += 1;
+        if ((err as { status?: number }).status === 404) context.linked.storeMissing(id);
+        else context.failedReads += 1;
         throw err;
     });
     context.pages.set(key, task);
     return task;
+}
+
+/**
+ * A Calendar row the crawl reads by id is one outside the active query
+ * (Published, Blocked, Archived…). Assets are attached to a row from the
+ * asset's side, which need not bump the row's last_edited_time, so the
+ * "edited since" check may miss a new reel or cover: such a row is kept for
+ * ten minutes at most, whatever the check says.
+ */
+const CALENDAR_PAGE_MAX_AGE_MS = 10 * 60_000;
+function isCalendarPage(page: PageObjectResponse): boolean {
+    if (page.parent?.type !== "database_id") return false;
+    let calendarDb: string;
+    try { calendarDb = notionConfig.dbs.contentCalendar(); } catch { return false; }
+    return bareId(page.parent.database_id) === bareId(calendarDb);
+}
+
+/** Every page of `databaseId` edited on or after `sinceIso`. */
+async function editedSince(databaseId: string, sinceIso: string): Promise<PageObjectResponse[]> {
+    return queryAll(databaseId, { timestamp: "last_edited_time", last_edited_time: { on_or_after: sinceIso } });
 }
 
 function rememberPages(rows: PageObjectResponse[], context: ReadContext): void {
@@ -432,11 +477,19 @@ export function wallFromDeskRows(deskRows: DeskRow[], freshDays = FRESH_DAYS): D
     });
 }
 
-async function loadCalendarRows(context: ReadContext): Promise<CalendarRow[]> {
+/** The active Calendar rows, read fresh and remembered for this crawl before
+ *  the desk looks any up: assets are attached to a row from the asset's
+ *  side, which need not bump the row's last_edited_time, so a desk card must
+ *  not see an older cached copy of a row this query has just read. */
+async function queryActiveCalendar(context: ReadContext): Promise<PageObjectResponse[]> {
     const rows = await queryAll(notionConfig.dbs.contentCalendar(), orStatus(ACTIVE_CALENDAR_STATES));
+    rememberPages(rows, context);
+    return rows;
+}
+
+async function loadCalendarRows(rows: PageObjectResponse[], context: ReadContext): Promise<CalendarRow[]> {
     const readable = rows.filter((row) =>
         propText(row.properties, "Status") !== "Approved" || Boolean(propText(row.properties, "Sanity Sync")));
-    rememberPages(readable, context);
     return mapLimit(readable, NOTION_CONCURRENCY, async (row) => {
         const status = propText(row.properties, "Status");
         return {
@@ -564,7 +617,18 @@ export function invalidateCancelloCache(): void {
     invalidateSnapshots();
     stateCache = null;
     stateInflight = null;
+    // The body and linked-page caches are left alone: bodies are checked
+    // against each row's revision, linked pages against Notion's "edited
+    // since" before every crawl, so a decision's own writes are seen by the
+    // next crawl. Cutting running crawls off from them made the crawl a
+    // fenced snapshot waits for a full one: minutes, not seconds.
+}
+
+/** Forget every read this process holds (tests; an operator's clean slate). */
+export function resetCancelloCaches(): void {
+    invalidateCancelloCache();
     bodyCache.clear();
+    pageCache.clear();
 }
 
 export async function loadCancelloState({ refresh = false, revalidate = false } = {}): Promise<CancelloState> {
@@ -601,17 +665,71 @@ export async function loadCancelloState({ refresh = false, revalidate = false } 
     return promise;
 }
 
+/**
+ * Raised when the state is not ready within a reader's deadline — a cold
+ * crawl (after a restart, or "Rileggi") takes minutes. The crawl itself
+ * carries on and lands in the snapshot; only this wait is abandoned, so the
+ * reader can say so plainly instead of hanging.
+ */
+export class CancelloStateTimeoutError extends Error {
+    readonly name = "CancelloStateTimeoutError";
+    constructor(readonly timeoutMs: number) {
+        super(`Lo stato del Cancello non è pronto entro ${Math.round(timeoutMs / 1000)} s: ` +
+            "la lettura di Notion è ancora in corso e continua in background. Riprova tra poco.");
+    }
+}
+
+/** Default deadline for an interactive read: long enough for a rebuild from
+ *  what changed, short enough that a cold crawl is reported, not waited out. */
+export const CANCELLO_STATE_TIMEOUT_MS = Number(process.env.COCKPIT_CANCELLO_STATE_TIMEOUT_MS) || 25_000;
+
+export function loadCancelloStateWithin(
+    timeoutMs: number = CANCELLO_STATE_TIMEOUT_MS,
+    options: { refresh?: boolean; revalidate?: boolean } = {},
+): Promise<CancelloState> {
+    let expired = false;
+    const load = (async () => {
+        for (;;) {
+            try {
+                return await loadCancelloState(options);
+            } catch (err) {
+                // A decision fenced the crawl this read had joined: the
+                // replacement is the state to wait for, within the same deadline.
+                if (!(err instanceof SnapshotInvalidatedError) || expired) throw err;
+            }
+        }
+    })();
+    // The crawl may still fail after the deadline: nobody awaits it then.
+    load.catch(() => {});
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+            expired = true;
+            reject(new CancelloStateTimeoutError(timeoutMs));
+        }, timeoutMs);
+    });
+    return Promise.race([load, deadline]).finally(() => clearTimeout(timer));
+}
+
 async function buildCancelloState(refresh: boolean): Promise<CancelloState> {
     const readBody = bodyCache.reader(refresh);
+    if (refresh) pageCache.clear();
+    // Bound to this crawl before the check, so an explicit full re-read
+    // (clear) landing during the check cuts it off.
+    const linked = pageCache.reader();
+    if (!refresh) await pageCache.validate(editedSince);
     const context: ReadContext = {
         failedReads: 0,
         pages: new Map(),
+        linked,
         body: (row) => readBody(row.id, row.last_edited_time, () => pageBodyText(row.id)),
     };
     const warnings: string[] = [];
-    const [desk, calendar, website] = await Promise.all([
-        loadDeskRows(context),
-        loadCalendarRows(context),
+    const [[desk, calendar], website] = await Promise.all([
+        queryActiveCalendar(context).then((rows) => Promise.all([
+            loadDeskRows(context),
+            loadCalendarRows(rows, context),
+        ])),
         loadWebsiteReview(warnings, context),
     ]);
     if (context.failedReads) warnings.push(`${context.failedReads} letture di testo o media non riuscite; rileggi prima di decidere.`);

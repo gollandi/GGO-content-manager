@@ -2,6 +2,7 @@
 
 import { SnapshotFreshness } from "../../components/SnapshotFreshness";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isTransientStateFailure, retryAfterSeconds } from "../../lib/cancello/state-retry";
 import Link from "next/link";
 import PipelineHealthPanel from "../../components/PipelineHealthPanel";
 import MarkdownBlock from "../../components/MarkdownBlock";
@@ -165,6 +166,10 @@ export default function QuestioniPage() {
     const [toast, setToast] = useState<string | null>(null);
     const [gone, setGone] = useState<Record<string, true>>({});
     const [unfolded, setUnfolded] = useState<Record<string, true>>({});
+    // Seconds until the desk is asked again, set only while the state is
+    // being rebuilt or the service restarts.
+    // An object, not a number: two equal waits in a row must still re-arm the timer.
+    const [retry, setRetry] = useState<{ seconds: number } | null>(null);
 
     const load = useCallback(async (refresh = false) => {
         activeLoad.current?.abort();
@@ -177,8 +182,15 @@ export default function QuestioniPage() {
         await Promise.all([
             (async () => {
                 try {
+                    setRetry(null);
                     const res = await fetch(`/api/review-dashboard/state${suffix}`, options);
-                    if (!res.ok) throw new Error(`Scrivania: ${res.status}`);
+                    if (!res.ok) {
+                        const body = await res.json().catch(() => ({})) as { error?: string; code?: string };
+                        if (!controller.signal.aborted && isTransientStateFailure(res.status, body)) {
+                            setRetry({ seconds: retryAfterSeconds(res.headers.get("retry-after")) });
+                        }
+                        throw new Error(body.error ?? `Scrivania: ${res.status}`);
+                    }
                     const data = await res.json() as ReviewState;
                     if (controller.signal.aborted) return;
                     setState(data);
@@ -208,6 +220,12 @@ export default function QuestioniPage() {
         void load();
         return () => activeLoad.current?.abort();
     }, [load]);
+
+    useEffect(() => {
+        if (retry === null) return;
+        const timer = setTimeout(() => { void load(); }, retry.seconds * 1000);
+        return () => clearTimeout(timer);
+    }, [retry, load]);
 
     useEffect(() => {
         if (!toast) return;
@@ -259,7 +277,10 @@ export default function QuestioniPage() {
                         : decision === "done" ? "Segnata come già fatta."
                         : "Eliminata."
                 );
-                void load(true);
+                // The decision already fenced the server's snapshot: a plain
+                // read is rebuilt from what changed. ?refresh=1 would force a
+                // full crawl of every page and body.
+                void load();
             } catch (err) {
                 setToast(err instanceof Error ? err.message : String(err));
             } finally {
@@ -331,7 +352,7 @@ export default function QuestioniPage() {
                 </div>
             </header>
 
-            {error && <p className="mx-8 mt-4 border border-seal px-4 py-3 text-sm text-seal-bright max-sm:mx-4">{error}</p>}
+            {error && <p className="mx-8 mt-4 border border-seal px-4 py-3 text-sm text-seal-bright max-sm:mx-4">{error}{retry !== null && ` Nuovo tentativo automatico tra ${retry.seconds} s.`}</p>}
             {toast && (
                 <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 border border-plate-rule bg-plate-raised px-4 py-2 text-[13px] text-plate-foreground-strong">
                     {toast}

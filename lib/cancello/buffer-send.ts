@@ -352,6 +352,20 @@ export const liveDeps: SendDeps = {
 export interface SweepResult {
     considered: number;
     rows: RowResult[];
+    /** True only when this run wrote to Sanity or Notion (see rowChangedState). */
+    changed: boolean;
+}
+
+/**
+ * Whether sending a row wrote anything. A hand-off attempted in this run
+ * (a post with an intent, other than one deferred by the budget) locked its
+ * draft at least; a row closed moved its Calendar status. Posts the sweep
+ * merely re-reads — already sent, stuck, failed earlier, missing — write
+ * nothing, and must not discard Il Cancello's snapshot every 15 minutes.
+ */
+export function rowChangedState(row: RowResult): boolean {
+    if (row.calendarStatus || (row.topicsClosed?.length ?? 0) > 0) return true;
+    return row.posts.some((p) => p.intent !== undefined && p.outcome !== "deferred");
 }
 
 export async function sweepOrderedRows(
@@ -364,7 +378,7 @@ export async function sweepOrderedRows(
     for (const row of rows) {
         results.push(await sendRow(row.rowId, deps, { budget, retryFailed: false }));
     }
-    return { considered: rows.length, rows: results };
+    return { considered: rows.length, rows: results, changed: results.some(rowChangedState) };
 }
 
 export async function listApprovedStagedRows(): Promise<CalendarRowFacts[]> {

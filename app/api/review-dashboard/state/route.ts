@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "../../../../lib/auth/api-guard";
 import { warmBriefings } from "../../../../lib/briefing/warm";
 import { getHouseState } from "../../../../lib/house/state";
-import { loadCancelloState } from "../../../../lib/cancello/state";
+import {
+    CancelloStateTimeoutError, loadCancelloState, loadCancelloStateWithin,
+} from "../../../../lib/cancello/state";
 
 /**
  * Il Cancello's state, assembled natively — the resident review-dashboard
@@ -41,11 +43,20 @@ export async function GET(req: NextRequest) {
                 warnings: cancello.warnings.length, errors: house.errors.length },
                 { headers: { "Cache-Control": "private, no-store" } });
         }
-        const state = await loadCancelloState({
+        // An interactive read waits a bounded time: a cold crawl (after a
+        // restart, or "Rileggi") takes minutes, and the page must say so
+        // instead of hanging.
+        const state = await loadCancelloStateWithin(undefined, {
             refresh: req.nextUrl.searchParams.get("refresh") === "1",
         });
         return NextResponse.json(state, { headers: { "Cache-Control": "private, no-store" } });
     } catch (err) {
+        if (err instanceof CancelloStateTimeoutError) {
+            return NextResponse.json(
+                { error: err.message, code: "CANCELLO_STATE_TIMEOUT" },
+                { status: 503, headers: { "Cache-Control": "private, no-store", "Retry-After": "30" } }
+            );
+        }
         return NextResponse.json(
             { error: err instanceof Error ? err.message : String(err) },
             { status: 500 }

@@ -66,4 +66,34 @@ describe("Questioni independent loading", () => {
     view.unmount();
     expect(signals.every((signal) => signal.aborted)).toBe(true);
   });
+
+  it("says the desk is being rebuilt and asks again by itself", async () => {
+    let calls = 0;
+    vi.stubGlobal("fetch", withPipeline((url: string) => {
+      if (url.includes("/house/")) return Promise.resolve(response(house));
+      calls += 1;
+      return Promise.resolve(calls === 1
+        ? { ok: false, status: 503, headers: new Headers({ "retry-after": "1" }),
+            json: async () => ({ code: "CANCELLO_STATE_TIMEOUT", error: "Lo stato del Cancello non è pronto." }) } as Response
+        : response(desk("Rebuilt question")));
+    }));
+    render(<QuestioniPage />);
+    expect(await screen.findByText(/non è pronto\. Nuovo tentativo automatico tra 1 s\./)).toBeTruthy();
+    expect(await screen.findByText("Rebuilt question", undefined, { timeout: 3000 })).toBeTruthy();
+  });
+
+  it("after a decision reads the desk again without forcing a full re-read", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", withPipeline((url: string) => {
+      urls.push(url);
+      if (url.includes("/decision")) return Promise.resolve(response({ ok: true }));
+      return Promise.resolve(response(url.includes("/house/") ? house : desk("Decide me")));
+    }));
+    render(<QuestioniPage />);
+    const title = await screen.findByText("Decide me");
+    await act(async () => { fireEvent.click(title); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Approva" })); });
+    await waitFor(() => expect(urls.filter((u) => u.startsWith("/api/review-dashboard/state")).length).toBe(2));
+    expect(urls.some((u) => u.includes("refresh=1"))).toBe(false);
+  });
 });

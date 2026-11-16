@@ -16,6 +16,12 @@ const registry = root.__ggoCockpitSnapshotsV1 ??= { flights: new Map(), failedAt
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const FAILURE_BACKOFF_MS = 60_000;
 
+/** A read joined a crawl that a mutation fenced: read again to get the replacement. */
+export class SnapshotInvalidatedError extends Error {
+    readonly name = "SnapshotInvalidatedError";
+    constructor() { super("Snapshot invalidated; retry the read"); }
+}
+
 export function snapshotsEnabled(): boolean { return Boolean(process.env.COCKPIT_SNAPSHOT_DIR); }
 function directory(): string {
     const dir = process.env.COCKPIT_SNAPSHOT_DIR;
@@ -86,10 +92,10 @@ export async function snapshot<T extends { generatedAt: string }>(
         // upstream work even when decisions arrive during a long Notion read.
         const promise = (async () => {
             if (current) await current.promise.catch(() => {});
-            if (generation(dir) !== revision) throw new Error("Snapshot invalidated; retry the read");
+            if (generation(dir) !== revision) throw new SnapshotInvalidatedError();
             const data = await fetcher();
             if (!options.valid(data)) throw new Error(`Incomplete ${key} snapshot; keeping the previous complete state`);
-            if (generation(dir) !== revision) throw new Error("Snapshot invalidated; retry the read");
+            if (generation(dir) !== revision) throw new SnapshotInvalidatedError();
             const envelope: Envelope<T> = { version: 1, source: identity, generation: revision,
                 at: Date.now(), checksum: digest(JSON.stringify(data)), data };
             // No await between generation check and atomic rename in the single server process.

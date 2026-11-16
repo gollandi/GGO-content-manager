@@ -7,7 +7,7 @@ vi.mock("../lib/sanity/write-client", () => ({
 }));
 
 import {
-    alreadySent, calendarFactsFromPage, pickIntent, sendRow, sweepOrderedRows,
+    alreadySent, calendarFactsFromPage, pickIntent, rowChangedState, sendRow, sweepOrderedRows,
     type CalendarRowFacts, type SendDeps, type SiteResult, type SocialDoc,
 } from "../lib/cancello/buffer-send";
 
@@ -180,6 +180,46 @@ describe("Buffer hand-off", () => {
         const failed = harness(jj, [draft("social-jj-instagram-story", { buffer: { status: "failed", lastError: "x" } })]);
         await sweepOrderedRows(failed.deps, async () => [jj]);
         expect(failed.calls.site).toEqual([]);
+    });
+
+    it("the sweep reports a change only when it wrote something", async () => {
+        const jj = row({ rowId: "jj", orderedBy: "JJ", sanityIds: ["social-jj-instagram-story"] });
+        const id = jj.sanityIds[0];
+
+        // A post that failed before, one stuck in 'sending', a row half sent:
+        // the sweep reads them every 15 minutes and writes nothing.
+        for (const buffer of [{ status: "failed", lastError: "x" }, { status: "sending" }]) {
+            const idle = harness(jj, [draft(id, { buffer })]);
+            const sweep = await sweepOrderedRows(idle.deps, async () => [jj]);
+            expect(sweep.rows).toHaveLength(1);
+            expect(sweep.changed).toBe(false);
+            expect(idle.calls.lock).toEqual([]);
+        }
+        const half = row({ rowId: "half", orderedBy: "JJ", sanityIds: ["social-half-a", "social-half-b"] });
+        const halfSent = harness(half, [
+            draft("social-half-a", { buffer: { status: "scheduled", postId: "buf-1" } }),
+            draft("social-half-b", { buffer: { status: "failed", lastError: "x" } }),
+        ]);
+        const halfSweep = await sweepOrderedRows(halfSent.deps, async () => [half]);
+        expect(halfSweep.rows[0].outcome).toBe("partial");
+        expect(halfSweep.changed).toBe(false);
+
+        // A post deferred by the one-immediate-row budget writes nothing either.
+        expect(rowChangedState({ rowId: "jj", title: "", outcome: "partial",
+            posts: [{ sanityId: id, outcome: "deferred", intent: "publishNow" }] })).toBe(false);
+        expect(rowChangedState({ rowId: "jj", title: "", outcome: "awaiting-staging", posts: [] })).toBe(false);
+        // The draft changed under the hand-off: the lock failed, nothing written.
+        const raced = harness(jj, [draft(id)]);
+        raced.deps.lock = async () => { throw new Error("revision mismatch"); };
+        const racedSweep = await sweepOrderedRows(raced.deps, async () => [jj]);
+        expect(racedSweep.rows[0].posts.map((p) => p.outcome)).toEqual(["concurrent"]);
+        expect(racedSweep.changed).toBe(false);
+
+        // A hand-off attempted in this run changes state, whatever its result.
+        const sent = harness(jj, [draft(id)]);
+        expect((await sweepOrderedRows(sent.deps, async () => [jj])).changed).toBe(true);
+        const refused = harness(jj, [draft(id)], () => ({ kind: "error", status: 500, message: "boom" }));
+        expect((await sweepOrderedRows(refused.deps, async () => [jj])).changed).toBe(true);
     });
 
     it("does not reopen a topic that is already closed", async () => {

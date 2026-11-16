@@ -1,7 +1,8 @@
 "use client";
 
 import { SnapshotFreshness } from "../../components/SnapshotFreshness";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isTransientStateFailure, retryAfterSeconds, STATE_RETRY_SECONDS } from "../../lib/cancello/state-retry";
 import Link from "next/link";
 import MarkdownBlock from "../../components/MarkdownBlock";
 import AssetSheet from "../../components/cancello/AssetSheet";
@@ -147,18 +148,62 @@ export default function ReviewPage() {
         });
     }, []);
 
+    // Seconds until the next automatic read, set only when the server says
+    // the state is still being rebuilt (503 CANCELLO_STATE_TIMEOUT).
+    // An object, not a number: two equal waits in a row must still re-arm the timer.
+    const [retry, setRetry] = useState<{ seconds: number } | null>(null);
+
+    // Only the latest read may speak: an older one landing late (a retry
+    // overtaken by "Rileggi" or by the read after an act) is ignored.
+    const readSeq = useRef(0);
+
     const load = useCallback(async (refresh = false) => {
+        const mine = ++readSeq.current;
+        const current = () => mine === readSeq.current;
         setError(null);
-        const res = await fetch(`/api/review-dashboard/state${refresh ? "?refresh=1" : ""}`, { cache: "no-store" });
-        const data = await res.json();
-        if (!res.ok) {
-            setError(data.error ?? `Review dashboard non disponibile (${res.status})`);
+        setRetry(null);
+        let res: Response;
+        try {
+            res = await fetch(`/api/review-dashboard/state${refresh ? "?refresh=1" : ""}`, { cache: "no-store" });
+        } catch {
+            if (!current()) return;
+            setError("Review dashboard non raggiungibile.");
+            setRetry({ seconds: STATE_RETRY_SECONDS });
             return;
         }
-        setState(data as ReviewState);
+        if (!res.ok) {
+            // A proxy error page (502/504 while the service restarts) is not JSON.
+            const data = await res.json().catch(() => ({})) as { error?: string; code?: string };
+            if (!current()) return;
+            setError(data.error ?? `Review dashboard non disponibile (${res.status})`);
+            if (isTransientStateFailure(res.status, data)) {
+                setRetry({ seconds: retryAfterSeconds(res.headers.get("retry-after")) });
+            }
+            return;
+        }
+        let data: ReviewState;
+        try {
+            data = await res.json() as ReviewState;
+        } catch {
+            // A body cut off mid-restart: say so and ask again, never render it.
+            if (!current()) return;
+            setError("Review dashboard: risposta incompleta.");
+            setRetry({ seconds: STATE_RETRY_SECONDS });
+            return;
+        }
+        if (!current()) return;
+        // No setError(null) here: an act's own error set while this read was
+        // in flight must stay; the clear at the start of load() is enough.
+        setState(data);
     }, []);
 
     useEffect(() => { void load(); }, [load]);
+
+    useEffect(() => {
+        if (retry === null) return;
+        const timer = setTimeout(() => { void load(); }, retry.seconds * 1000);
+        return () => clearTimeout(timer);
+    }, [retry, load]);
 
     useEffect(() => {
         if (!state) return;
@@ -349,7 +394,9 @@ export default function ReviewPage() {
             setTimeout(() => setToast(null), decision === "send" ? 6000 : 2600);
             setModifyOpen(false);
             // The document stays open: the point of the act is seeing the wax land.
-            await load(true);
+            // No forced full re-read: the act already fenced the server's
+            // snapshot, so this read is rebuilt from what changed.
+            await load();
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
         } finally {
@@ -725,6 +772,7 @@ export default function ReviewPage() {
                 {error && (
                     <div className="relative mx-8 mt-4 border border-seal px-4 py-3 text-[13px] text-seal-bright max-sm:mx-4" role="alert">
                         {error}
+                        {retry !== null && ` Nuovo tentativo automatico tra ${retry.seconds} s.`}
                     </div>
                 )}
 

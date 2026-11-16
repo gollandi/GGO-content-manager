@@ -22,6 +22,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { readState } from "./read-state.mjs";
 
 const HOME = os.homedir();
 const COCKPIT = process.env.COCKPIT_LOCAL_URL || "http://127.0.0.1:3010";
@@ -34,14 +35,16 @@ if (!TOKEN) {
     process.exit(2);
 }
 
-const res = await fetch(`${COCKPIT}/api/review-dashboard/state`, {
-    headers: { authorization: `Bearer ${TOKEN}` },
-});
-if (!res.ok) {
-    console.error(`media-sync: state read failed (HTTP ${res.status})`);
+const STATE_DEADLINE_MS = Number(process.env.MEDIA_SYNC_STATE_DEADLINE_MS) || 15 * 60 * 1000;
+let state;
+try {
+    state = await readState({
+        url: `${COCKPIT}/api/review-dashboard/state`, token: TOKEN, deadlineMs: STATE_DEADLINE_MS,
+    });
+} catch (err) {
+    console.error(`media-sync: ${err.message}`);
     process.exit(1);
 }
-const state = await res.json();
 
 const pathParam = (url) => {
     const m = /[?&]path=([^&]+)/.exec(url || "");
