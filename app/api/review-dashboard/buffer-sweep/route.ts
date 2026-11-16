@@ -26,7 +26,10 @@ export async function POST(req: NextRequest) {
     if (!sweepTokenOk(req)) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     try {
         const result = await sweepOrderedRows();
-        if (result.rows.length > 0) invalidateCancelloCache();
+        // Only a run that wrote something fences the snapshots: a quiet run
+        // re-reads the same stuck or failed rows every 15 minutes, and
+        // invalidating on those kept Il Cancello rebuilding (~10 min) forever.
+        if (result.changed) invalidateCancelloCache();
         // Operational metadata only: ids and outcomes, never captions.
         return NextResponse.json({
             ok: true,
