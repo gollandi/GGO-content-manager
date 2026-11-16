@@ -167,4 +167,20 @@ describe("Cancello request volume and freshness", () => {
     const state = await loadCancelloStateWithin(20_000);
     expect(state.desk).toHaveLength(233);
   });
+
+  it("a decision during the linked-page check makes that crawl read the pages afresh", async () => {
+    await loadCancelloState();
+    vi.advanceTimersByTime(5 * 60_000 + 1);
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    const original = query.getMockImplementation()!;
+    query.mockImplementationOnce(async (args: never) => { await pending; return original(args); });
+    const crawl = loadCancelloState();
+    await vi.advanceTimersByTimeAsync(0);
+    invalidateCancelloCache();
+    release();
+    await crawl;
+    // The check straddled the decision: nothing it vouched for is served.
+    expect(retrieve).toHaveBeenCalledTimes(2);
+  });
 });

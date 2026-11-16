@@ -654,7 +654,8 @@ export class CancelloStateTimeoutError extends Error {
     }
 }
 
-/** Default deadline for an interactive read; below nginx's 60 s proxy timeout. */
+/** Default deadline for an interactive read: long enough for a rebuild from
+ *  what changed, short enough that a cold crawl is reported, not waited out. */
 export const CANCELLO_STATE_TIMEOUT_MS = Number(process.env.COCKPIT_CANCELLO_STATE_TIMEOUT_MS) || 25_000;
 
 export function loadCancelloStateWithin(
@@ -674,11 +675,15 @@ export function loadCancelloStateWithin(
 async function buildCancelloState(refresh: boolean): Promise<CancelloState> {
     const readBody = bodyCache.reader(refresh);
     if (refresh) pageCache.clear();
-    else await pageCache.validate(editedSince);
+    // Bound to this crawl before the check: a decision landing during the
+    // check cuts it off, so pages the check did not finish vouching for are
+    // read afresh instead of served.
+    const linked = pageCache.reader();
+    if (!refresh) await pageCache.validate(editedSince);
     const context: ReadContext = {
         failedReads: 0,
         pages: new Map(),
-        linked: pageCache.reader(),
+        linked,
         body: (row) => readBody(row.id, row.last_edited_time, () => pageBodyText(row.id)),
     };
     const warnings: string[] = [];

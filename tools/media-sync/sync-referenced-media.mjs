@@ -42,10 +42,17 @@ const STATE_DEADLINE_MS = Number(process.env.MEDIA_SYNC_STATE_DEADLINE_MS) || 15
 async function readState() {
     const started = Date.now();
     for (let attempt = 1; ; attempt += 1) {
-        const res = await fetch(`${COCKPIT}/api/review-dashboard/state`, {
-            headers: { authorization: `Bearer ${TOKEN}` },
-            signal: AbortSignal.timeout(120_000),
-        });
+        let res;
+        try {
+            res = await fetch(`${COCKPIT}/api/review-dashboard/state`, {
+                headers: { authorization: `Bearer ${TOKEN}` },
+                signal: AbortSignal.timeout(120_000),
+            });
+        } catch (err) {
+            // Unreachable or silent past 120 s: a cockpit that never answers.
+            console.error(`media-sync: state read failed (${err?.cause?.code ?? err?.name ?? "error"}, attempt ${attempt})`);
+            process.exit(1);
+        }
         if (res.ok) return res.json();
         const body = await res.json().catch(() => ({}));
         const waitS = Number(res.headers.get("retry-after")) || 30;

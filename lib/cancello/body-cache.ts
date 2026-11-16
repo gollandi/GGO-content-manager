@@ -3,6 +3,9 @@
  * returned by each fresh database query; never reuse media locations or status.
  * This is a display cache, not proof of approval or an immutable content hash.
  */
+/** Revisions younger than this are not cached (minute rounding plus clock skew). */
+const SETTLE_MS = 2 * 60_000;
+
 export function createBodyCache({ maxEntries = 512, ttlMs = 30 * 60_000 } = {}) {
     const entries = new Map<string, { revision: string; text: string; at: number }>();
     let generation = 0;
@@ -29,9 +32,13 @@ export function createBodyCache({ maxEntries = 512, ttlMs = 30 * 60_000 } = {}) 
                     return cached.text;
                 }
                 const text = await fetcher();
-                // Never retain failed/unknown reads, oversized bodies or a response
-                // that was in flight when a decision invalidated the cache.
-                if (validRevision && before === generation && text.length <= 20_000) {
+                // Never retain failed/unknown reads, oversized bodies, a response
+                // that was in flight when a decision invalidated the cache, or a
+                // body younger than two minutes: Notion rounds last_edited_time
+                // to the minute, so a later append in that minute keeps the
+                // same revision and a cached copy could stay partial.
+                const settled = validRevision && Date.now() - Date.parse(revision) >= SETTLE_MS;
+                if (settled && before === generation && text.length <= 20_000) {
                     entries.delete(id);
                     entries.set(id, { revision, text, at: Date.now() });
                     while (entries.size > maxEntries) entries.delete(entries.keys().next().value!);

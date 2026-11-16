@@ -25,6 +25,22 @@ describe("versioned Desk body reads", () => {
     expect(await cache.reader()("page", REVISION, fetcher)).toBe("three");
   });
 
+  it("never caches a body whose revision is under two minutes old", async () => {
+    // Notion rounds last_edited_time to the minute: an append later in the
+    // same minute keeps the same revision, so a young body may be partial.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-16T10:01:30.000Z"));
+    const cache = createBodyCache();
+    const fetcher = vi.fn().mockResolvedValueOnce("partial").mockResolvedValueOnce("whole").mockResolvedValue("later");
+    const young = "2026-11-16T10:01:00.000Z";
+    expect(await cache.reader()("page", young, fetcher)).toBe("partial");
+    expect(await cache.reader()("page", young, fetcher)).toBe("whole");
+    vi.setSystemTime(new Date("2026-11-16T10:03:01.000Z"));
+    expect(await cache.reader()("page", young, fetcher)).toBe("later");
+    expect(await cache.reader()("page", young, fetcher)).toBe("later");
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+
   it("never caches a failure or an unknown page revision", async () => {
     const cache = createBodyCache();
     const fetcher = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue("body");
