@@ -28,7 +28,8 @@ export async function POST(req: NextRequest) {
         const result = await sweepOrderedRows();
         // Only a run that wrote something fences the snapshots: a quiet run
         // re-reads the same stuck or failed rows every 15 minutes, and
-        // invalidating on those kept Il Cancello rebuilding (~10 min) forever.
+        // invalidating on those kept Il Cancello rebuilding (~10 min per
+        // rebuild on the VPS, 2026-11-16) almost all the time.
         if (result.changed) invalidateCancelloCache();
         // Operational metadata only: ids and outcomes, never captions.
         return NextResponse.json({

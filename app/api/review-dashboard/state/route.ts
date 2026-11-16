@@ -43,8 +43,9 @@ export async function GET(req: NextRequest) {
                 warnings: cancello.warnings.length, errors: house.errors.length },
                 { headers: { "Cache-Control": "private, no-store" } });
         }
-        // An interactive read waits a bounded time: a fenced snapshot means a
-        // full Notion crawl, and the page must say so instead of hanging.
+        // An interactive read waits a bounded time: a cold crawl (after a
+        // restart, or "Rileggi") takes minutes, and the page must say so
+        // instead of hanging.
         const state = await loadCancelloStateWithin(undefined, {
             refresh: req.nextUrl.searchParams.get("refresh") === "1",
         });

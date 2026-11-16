@@ -226,4 +226,23 @@ describe("Cancello request volume and freshness", () => {
     await loadCancelloState();
     expect(retrieve).toHaveBeenCalledTimes(2);
   });
+
+  it("with persistent snapshots, a read whose crawl a decision invalidated joins the replacement instead of failing", async () => {
+    vi.stubEnv("COCKPIT_SNAPSHOT_DIR", fs.mkdtempSync(path.join(os.tmpdir(), "cancello-snap-")));
+    try {
+      let release!: () => void;
+      const pending = new Promise<void>((resolve) => { release = resolve; });
+      const original = query.getMockImplementation()!;
+      query.mockImplementationOnce(async (args: never) => { await pending; return original(args); });
+      const read = loadCancelloStateWithin(20_000);
+      await vi.advanceTimersByTimeAsync(0);
+      invalidateCancelloCache();
+      rows = [page("after-the-decision")];
+      release();
+      const state = await read;
+      expect(state.desk.map((r) => r.rowId)).toEqual(["after-the-decision"]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });

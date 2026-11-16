@@ -7,7 +7,9 @@
  * the house's disk, patch progress in Sanity. This module only assembles the
  * snapshot; decisions live in ./decision.ts.
  */
-import { snapshot, snapshotsEnabled, invalidateSnapshots, type SnapshotFreshness } from "../cockpit/snapshots";
+import {
+    snapshot, snapshotsEnabled, invalidateSnapshots, SnapshotInvalidatedError, type SnapshotFreshness,
+} from "../cockpit/snapshots";
 import fs from "node:fs";
 import path from "node:path";
 import { notion } from "../notion/client";
@@ -662,10 +664,10 @@ export async function loadCancelloState({ refresh = false, revalidate = false } 
 }
 
 /**
- * Raised when the state is not ready within a reader's deadline — after a
- * decision fences the snapshot, a full Notion crawl takes minutes. The crawl
- * itself carries on and lands in the snapshot; only this wait is abandoned,
- * so the reader can say so plainly instead of hanging.
+ * Raised when the state is not ready within a reader's deadline — a cold
+ * crawl (after a restart, or "Rileggi") takes minutes. The crawl itself
+ * carries on and lands in the snapshot; only this wait is abandoned, so the
+ * reader can say so plainly instead of hanging.
  */
 export class CancelloStateTimeoutError extends Error {
     readonly name = "CancelloStateTimeoutError";
@@ -683,12 +685,26 @@ export function loadCancelloStateWithin(
     timeoutMs: number = CANCELLO_STATE_TIMEOUT_MS,
     options: { refresh?: boolean; revalidate?: boolean } = {},
 ): Promise<CancelloState> {
-    const load = loadCancelloState(options);
+    let expired = false;
+    const load = (async () => {
+        for (;;) {
+            try {
+                return await loadCancelloState(options);
+            } catch (err) {
+                // A decision fenced the crawl this read had joined: the
+                // replacement is the state to wait for, within the same deadline.
+                if (!(err instanceof SnapshotInvalidatedError) || expired) throw err;
+            }
+        }
+    })();
     // The crawl may still fail after the deadline: nobody awaits it then.
     load.catch(() => {});
     let timer: ReturnType<typeof setTimeout> | undefined;
     const deadline = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new CancelloStateTimeoutError(timeoutMs)), timeoutMs);
+        timer = setTimeout(() => {
+            expired = true;
+            reject(new CancelloStateTimeoutError(timeoutMs));
+        }, timeoutMs);
     });
     return Promise.race([load, deadline]).finally(() => clearTimeout(timer));
 }

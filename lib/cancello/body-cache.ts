@@ -28,8 +28,8 @@ export function createBodyCache({ maxEntries = 512, ttlMs = 30 * 60_000 } = {}) 
                 }
                 const text = await fetcher();
                 // Never retain failed/unknown reads, oversized bodies, a response
-                // that was in flight when a decision invalidated the cache, or a
-                // body younger than two minutes: Notion rounds last_edited_time
+                // that was in flight when an explicit full re-read cleared the
+                // cache, or a body younger than two minutes: Notion rounds last_edited_time
                 // to the minute, so a later append in that minute keeps the
                 // same revision and a cached copy could stay partial.
                 const settled = validRevision && Date.now() - Date.parse(revision) >= SETTLE_MS;

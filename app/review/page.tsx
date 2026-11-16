@@ -1,7 +1,7 @@
 "use client";
 
 import { SnapshotFreshness } from "../../components/SnapshotFreshness";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isTransientStateFailure, retryAfterSeconds, STATE_RETRY_SECONDS } from "../../lib/cancello/state-retry";
 import Link from "next/link";
 import MarkdownBlock from "../../components/MarkdownBlock";
@@ -153,27 +153,47 @@ export default function ReviewPage() {
     // An object, not a number: two equal waits in a row must still re-arm the timer.
     const [retry, setRetry] = useState<{ seconds: number } | null>(null);
 
+    // Only the latest read may speak: an older one landing late (a retry
+    // overtaken by "Rileggi" or by the read after an act) is ignored.
+    const readSeq = useRef(0);
+
     const load = useCallback(async (refresh = false) => {
+        const mine = ++readSeq.current;
+        const current = () => mine === readSeq.current;
         setError(null);
         setRetry(null);
         let res: Response;
         try {
             res = await fetch(`/api/review-dashboard/state${refresh ? "?refresh=1" : ""}`, { cache: "no-store" });
         } catch {
+            if (!current()) return;
             setError("Review dashboard non raggiungibile.");
             setRetry({ seconds: STATE_RETRY_SECONDS });
             return;
         }
-        // A proxy error page (502/504 while the service restarts) is not JSON.
-        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
+            // A proxy error page (502/504 while the service restarts) is not JSON.
+            const data = await res.json().catch(() => ({})) as { error?: string; code?: string };
+            if (!current()) return;
             setError(data.error ?? `Review dashboard non disponibile (${res.status})`);
             if (isTransientStateFailure(res.status, data)) {
                 setRetry({ seconds: retryAfterSeconds(res.headers.get("retry-after")) });
             }
             return;
         }
-        setState(data as ReviewState);
+        let data: ReviewState;
+        try {
+            data = await res.json() as ReviewState;
+        } catch {
+            // A body cut off mid-restart: say so and ask again, never render it.
+            if (!current()) return;
+            setError("Review dashboard: risposta incompleta.");
+            setRetry({ seconds: STATE_RETRY_SECONDS });
+            return;
+        }
+        if (!current()) return;
+        setError(null);
+        setState(data);
     }, []);
 
     useEffect(() => { void load(); }, [load]);
