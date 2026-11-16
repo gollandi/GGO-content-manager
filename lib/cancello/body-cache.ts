@@ -14,11 +14,6 @@ export function createBodyCache({ maxEntries = 512, ttlMs = 30 * 60_000 } = {}) 
             generation += 1;
             entries.clear();
         },
-        /** A decision landed: drop what crawls already running would store,
-         *  keep the entries — each is checked against its row's revision. */
-        fence() {
-            generation += 1;
-        },
         reader(fresh = false) {
             // Capture at crawl creation, not at each row: an invalidated crawl
             // may still have rows waiting behind the bounded concurrency gate.

@@ -208,6 +208,12 @@ describe("Buffer hand-off", () => {
         expect(rowChangedState({ rowId: "jj", title: "", outcome: "partial",
             posts: [{ sanityId: id, outcome: "deferred", intent: "publishNow" }] })).toBe(false);
         expect(rowChangedState({ rowId: "jj", title: "", outcome: "awaiting-staging", posts: [] })).toBe(false);
+        // The draft changed under the hand-off: the lock failed, nothing written.
+        const raced = harness(jj, [draft(id)]);
+        raced.deps.lock = async () => { throw new Error("revision mismatch"); };
+        const racedSweep = await sweepOrderedRows(raced.deps, async () => [jj]);
+        expect(racedSweep.rows[0].posts.map((p) => p.outcome)).toEqual(["concurrent"]);
+        expect(racedSweep.changed).toBe(false);
 
         // A hand-off attempted in this run changes state, whatever its result.
         const sent = harness(jj, [draft(id)]);

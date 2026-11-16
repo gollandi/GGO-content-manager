@@ -2,6 +2,7 @@
 
 import { SnapshotFreshness } from "../../components/SnapshotFreshness";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { isTransientStateFailure, retryAfterSeconds, STATE_RETRY_SECONDS } from "../../lib/cancello/state-retry";
 import Link from "next/link";
 import MarkdownBlock from "../../components/MarkdownBlock";
 import AssetSheet from "../../components/cancello/AssetSheet";
@@ -149,17 +150,26 @@ export default function ReviewPage() {
 
     // Seconds until the next automatic read, set only when the server says
     // the state is still being rebuilt (503 CANCELLO_STATE_TIMEOUT).
-    const [retryIn, setRetryIn] = useState<number | null>(null);
+    // An object, not a number: two equal waits in a row must still re-arm the timer.
+    const [retry, setRetry] = useState<{ seconds: number } | null>(null);
 
     const load = useCallback(async (refresh = false) => {
         setError(null);
-        setRetryIn(null);
-        const res = await fetch(`/api/review-dashboard/state${refresh ? "?refresh=1" : ""}`, { cache: "no-store" });
-        const data = await res.json();
+        setRetry(null);
+        let res: Response;
+        try {
+            res = await fetch(`/api/review-dashboard/state${refresh ? "?refresh=1" : ""}`, { cache: "no-store" });
+        } catch {
+            setError("Review dashboard non raggiungibile.");
+            setRetry({ seconds: STATE_RETRY_SECONDS });
+            return;
+        }
+        // A proxy error page (502/504 while the service restarts) is not JSON.
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
             setError(data.error ?? `Review dashboard non disponibile (${res.status})`);
-            if (res.status === 503 && data.code === "CANCELLO_STATE_TIMEOUT") {
-                setRetryIn(Number(res.headers.get("retry-after")) || 30);
+            if (isTransientStateFailure(res.status, data)) {
+                setRetry({ seconds: retryAfterSeconds(res.headers.get("retry-after")) });
             }
             return;
         }
@@ -169,10 +179,10 @@ export default function ReviewPage() {
     useEffect(() => { void load(); }, [load]);
 
     useEffect(() => {
-        if (retryIn === null) return;
-        const timer = setTimeout(() => { void load(); }, retryIn * 1000);
+        if (retry === null) return;
+        const timer = setTimeout(() => { void load(); }, retry.seconds * 1000);
         return () => clearTimeout(timer);
-    }, [retryIn, load]);
+    }, [retry, load]);
 
     useEffect(() => {
         if (!state) return;
@@ -364,7 +374,7 @@ export default function ReviewPage() {
             setModifyOpen(false);
             // The document stays open: the point of the act is seeing the wax land.
             // No forced full re-read: the act already fenced the server's
-            // snapshot, so this read is rebuilt from what changed, in seconds.
+            // snapshot, so this read is rebuilt from what changed.
             await load();
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
@@ -741,7 +751,7 @@ export default function ReviewPage() {
                 {error && (
                     <div className="relative mx-8 mt-4 border border-seal px-4 py-3 text-[13px] text-seal-bright max-sm:mx-4" role="alert">
                         {error}
-                        {retryIn !== null && ` Nuovo tentativo automatico tra ${retryIn} s.`}
+                        {retry !== null && ` Nuovo tentativo automatico tra ${retry.seconds} s.`}
                     </div>
                 )}
 

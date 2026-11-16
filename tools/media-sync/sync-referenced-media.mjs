@@ -22,6 +22,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { readState } from "./read-state.mjs";
 
 const HOME = os.homedir();
 const COCKPIT = process.env.COCKPIT_LOCAL_URL || "http://127.0.0.1:3010";
@@ -34,37 +35,16 @@ if (!TOKEN) {
     process.exit(2);
 }
 
-// The state route answers within ~25 s: when the crawl behind it takes
-// longer it says so (503 CANCELLO_STATE_TIMEOUT) and keeps crawling, and the
-// finished state is cached for a few minutes. So ask again until it lands,
-// instead of one request that outlives Node's 300 s header timeout.
 const STATE_DEADLINE_MS = Number(process.env.MEDIA_SYNC_STATE_DEADLINE_MS) || 15 * 60 * 1000;
-async function readState() {
-    const started = Date.now();
-    for (let attempt = 1; ; attempt += 1) {
-        let res;
-        try {
-            res = await fetch(`${COCKPIT}/api/review-dashboard/state`, {
-                headers: { authorization: `Bearer ${TOKEN}` },
-                signal: AbortSignal.timeout(120_000),
-            });
-        } catch (err) {
-            // Unreachable or silent past 120 s: a cockpit that never answers.
-            console.error(`media-sync: state read failed (${err?.cause?.code ?? err?.name ?? "error"}, attempt ${attempt})`);
-            process.exit(1);
-        }
-        if (res.ok) return res.json();
-        const body = await res.json().catch(() => ({}));
-        const waitS = Number(res.headers.get("retry-after")) || 30;
-        if (res.status !== 503 || body.code !== "CANCELLO_STATE_TIMEOUT" ||
-            Date.now() - started + waitS * 1000 > STATE_DEADLINE_MS) {
-            console.error(`media-sync: state read failed (HTTP ${res.status}${body.code ? ` ${body.code}` : ""}, attempt ${attempt})`);
-            process.exit(1);
-        }
-        await new Promise((resolve) => setTimeout(resolve, waitS * 1000));
-    }
+let state;
+try {
+    state = await readState({
+        url: `${COCKPIT}/api/review-dashboard/state`, token: TOKEN, deadlineMs: STATE_DEADLINE_MS,
+    });
+} catch (err) {
+    console.error(`media-sync: ${err.message}`);
+    process.exit(1);
 }
-const state = await readState();
 
 const pathParam = (url) => {
     const m = /[?&]path=([^&]+)/.exec(url || "");

@@ -42,6 +42,8 @@ export async function POST(req: NextRequest) {
             })),
         });
     } catch (err) {
+        // A run can fail after it wrote (a write-back, a row closed): fence anyway.
+        invalidateCancelloCache();
         return NextResponse.json(
             { ok: false, error: err instanceof Error ? err.message : String(err) },
             { status: 500 }

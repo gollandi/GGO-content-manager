@@ -87,7 +87,7 @@ describe("Cancello request volume and freshness", () => {
     expect(second.warnings).toEqual([]);
   });
 
-  it("a decision fences the caches without emptying them: the next crawl re-reads only what changed", async () => {
+  it("a decision keeps the caches: the next crawl re-reads only what changed", async () => {
     await loadCancelloState();
     invalidateCancelloCache();
     rows[0] = { ...rows[0], last_edited_time: "2026-09-08T10:02:00.000Z", properties: { ...rows[0].properties, Status: select("Approved") } };
@@ -161,6 +161,8 @@ describe("Cancello request volume and freshness", () => {
     const state = await loadCancelloStateWithin(20_000);
     expect(state.desk).toHaveLength(233);
     expect(blocks).toHaveBeenCalledTimes(233);
+    // One crawl in all (desk 3 pages, calendar, website): the retry joined it.
+    expect(query).toHaveBeenCalledTimes(5);
   });
 
   it("a crawl within its deadline returns the state", async () => {
@@ -168,7 +170,7 @@ describe("Cancello request volume and freshness", () => {
     expect(state.desk).toHaveLength(233);
   });
 
-  it("a decision during the linked-page check makes that crawl read the pages afresh", async () => {
+  it("a decision during a crawl leaves it on the caches, so the crawl a fenced snapshot waits for stays quick", async () => {
     await loadCancelloState();
     vi.advanceTimersByTime(5 * 60_000 + 1);
     let release!: () => void;
@@ -180,7 +182,35 @@ describe("Cancello request volume and freshness", () => {
     invalidateCancelloCache();
     release();
     await crawl;
-    // The check straddled the decision: nothing it vouched for is served.
-    expect(retrieve).toHaveBeenCalledTimes(2);
+    await loadCancelloState();
+    expect(retrieve).toHaveBeenCalledOnce();
+    expect(blocks).toHaveBeenCalledTimes(233);
+  });
+
+  it("a desk card reads a linked Calendar row from the fresh Calendar query, not from an older cached copy", async () => {
+    // Assets are attached to a Calendar row from the asset's side; whether
+    // Notion then bumps the row's last_edited_time is not something to rely on.
+    const calendarId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    rows = [page("desk", { Type: select("publish-approval"), "Calendar Row": relations(calendarId) })];
+    const asCalendar = (extra: object) => ({ ...page(calendarId, extra), parent: { type: "database_id", database_id: "calendar" } });
+    let active: ReturnType<typeof asCalendar>[] = [];
+    retrieve.mockResolvedValue(asCalendar({ Status: select("Published") }));
+    query.mockImplementation(async ({ database_id, filter }: { database_id: string; filter?: { timestamp?: string } }) => {
+      if (filter?.timestamp === "last_edited_time") return { results: [], next_cursor: null };
+      // The Calendar query answers last, as the bigger one does in practice.
+      if (database_id === "calendar") await new Promise((resolve) => setTimeout(resolve, 1000));
+      return { results: database_id === "desk" ? rows : database_id === "calendar" ? active : [], next_cursor: null };
+    });
+    const settle = async <T>(work: Promise<T>) => { await vi.advanceTimersByTimeAsync(1000); return work; };
+    const first = await settle(loadCancelloState());
+    expect(first.desk[0].media).toEqual([]);
+    expect(retrieve).toHaveBeenCalledOnce();
+
+    vi.advanceTimersByTime(5 * 60_000 + 1);
+    active = [asCalendar({ Status: select("Review"), "Card URL": { type: "url", url: "https://ggomed.co.uk/fresh-card" } })];
+    const second = await settle(loadCancelloState());
+    expect(second.desk[0].media).toEqual([{ kind: "image", url: "https://ggomed.co.uk/fresh-card" }]);
+    expect(second.calendar[0].media).toEqual(second.desk[0].media);
+    expect(retrieve).toHaveBeenCalledOnce();
   });
 });

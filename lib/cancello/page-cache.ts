@@ -3,7 +3,7 @@
  * points at), kept from one Cancello crawl to the next.
  *
  * Re-reading every linked page one request at a time was ~80% of a crawl
- * (1,052 of 1,286 requests, ~8.5 min at Notion's pace, measured 2026-11-16).
+ * (1,052 of 1,286 requests in a 516 s crawl, measured on the Mac 2026-11-16).
  * Freshness is not traded for it: before each crawl, one "edited since"
  * query per source database returns the pages that changed, and those
  * replace their cached copies. A database that cannot be checked drops its
@@ -23,7 +23,8 @@ export interface PageCacheOptions {
     maxAgeMs?: number;
     /** How long a page Notion does not share (404) is not asked for again. */
     missTtlMs?: number;
-    /** Notion rounds last_edited_time to the minute and indexes with a lag. */
+    /** Overlap between checks: Notion rounds last_edited_time to the minute
+     *  and its query index lags behind writes. */
     marginMs?: number;
     now?: () => number;
 }
@@ -35,9 +36,9 @@ const parentOf = (page: PageObjectResponse): string | null =>
 export function createPageCache({
     maxEntries = 5000,
     maxAgeMs = 6 * 60 * 60_000,
-    missTtlMs = 30 * 60_000,
-    marginMs = 5 * 60_000,
-    now = Date.now,
+    missTtlMs = 10 * 60_000,
+    marginMs = 15 * 60_000,
+    now = () => Date.now(),
 }: PageCacheOptions = {}) {
     const entries = new Map<string, Entry>();
     /** Per source database: when its pages were last confirmed current. */
@@ -56,10 +57,6 @@ export function createPageCache({
             generation += 1;
             entries.clear();
             checkedAt.clear();
-        },
-        /** A decision landed: crawls already running may neither read nor write. */
-        fence() {
-            generation += 1;
         },
         async validate(changedSince: ChangedSince): Promise<void> {
             const before = generation;
@@ -90,7 +87,9 @@ export function createPageCache({
                     checkedAt.delete(db);
                     return;
                 }
-                // A check that straddles a decision may describe the world before it.
+                // A clear() during the check wins: it asked for everything afresh.
+                // (A decision needs nothing here: whatever it writes is edited
+                // after `started`, so the next check's window still covers it.)
                 if (generation !== before) return;
                 for (const page of changed) {
                     const key = bare(page.id);
@@ -99,7 +98,7 @@ export function createPageCache({
                 checkedAt.set(db, started);
             }));
         },
-        /** Bound to the crawl that creates it: a fence cuts it off. */
+        /** Bound to the crawl that creates it: a clear() cuts it off. */
         reader() {
             const before = generation;
             return {

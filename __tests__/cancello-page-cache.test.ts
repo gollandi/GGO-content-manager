@@ -27,8 +27,8 @@ describe("Cancello page cache", () => {
         await cache.validate(changedSince);
 
         expect(changedSince).toHaveBeenCalledTimes(2);
-        // Since the page was fetched, less a margin for Notion's minute-rounded timestamps.
-        expect(changedSince).toHaveBeenCalledWith("assetsdb", "2026-11-16T09:55:00.000Z");
+        // Since the page was fetched, less a margin for minute rounding and query lag.
+        expect(changedSince).toHaveBeenCalledWith("assetsdb", "2026-11-16T09:45:00.000Z");
         expect(cache.reader().get("a")).toMatchObject({ id: "a" });
     });
 
@@ -46,7 +46,7 @@ describe("Cancello page cache", () => {
         c.advance(10 * MIN);
         const changedSince = vi.fn(async () => [] as PageObjectResponse[]);
         await cache.validate(changedSince);
-        expect(changedSince).toHaveBeenCalledWith("assetsdb", "2026-11-16T10:05:00.000Z");
+        expect(changedSince).toHaveBeenCalledWith("assetsdb", "2026-11-16T09:55:00.000Z");
     });
 
     it("drops a database's pages when it cannot be checked", async () => {
@@ -56,12 +56,12 @@ describe("Cancello page cache", () => {
         expect(cache.reader().get("a")).toBeUndefined();
     });
 
-    it("remembers a page Notion does not share for a while, then asks again", async () => {
+    it("remembers a page Notion does not share for ten minutes, then asks again", async () => {
         const c = clock();
-        const cache = createPageCache({ now: c.now, missTtlMs: 30 * MIN });
+        const cache = createPageCache({ now: c.now });
         cache.reader().storeMissing("gone");
         expect(cache.reader().get("gone")).toBe("missing");
-        c.advance(31 * MIN);
+        c.advance(10 * MIN + 1);
         expect(cache.reader().get("gone")).toBeUndefined();
     });
 
@@ -74,25 +74,20 @@ describe("Cancello page cache", () => {
         expect(cache.reader().get("a")).toBeUndefined();
     });
 
-    it("a fenced crawl neither reads nor writes the cache, and an interrupted check does not count", async () => {
+    it("a clear cuts running crawls off, and a check it interrupts does not count", async () => {
         const c = clock();
         const cache = createPageCache({ now: c.now });
         const before = cache.reader();
-        cache.reader().store(page("a"), c.now());
-        cache.fence();
+        before.store(page("a"), c.now());
+        cache.clear();
         before.store(page("late"), c.now());
         expect(before.get("a")).toBeUndefined();
         expect(cache.reader().get("late")).toBeUndefined();
-        expect(cache.reader().get("a")).toMatchObject({ id: "a" });
 
+        cache.reader().store(page("b"), c.now());
         c.advance(10 * MIN);
-        await cache.validate(async () => { cache.fence(); return [page("a", "assets-db", "file:///stale.png")]; });
-        const kept = cache.reader().get("a") as PageObjectResponse;
-        expect((kept.properties["File Location"] as { rich_text: { plain_text: string }[] }).rich_text[0].plain_text)
-            .toBe("file:///a.png");
-        const changedSince = vi.fn(async () => [] as PageObjectResponse[]);
-        await cache.validate(changedSince);
-        expect(changedSince).toHaveBeenCalledWith("assetsdb", "2026-11-16T09:55:00.000Z");
+        await cache.validate(async () => { cache.clear(); return [page("b", "assets-db", "file:///stale.png")]; });
+        expect(cache.reader().get("b")).toBeUndefined();
     });
 
     it("does not cache pages that live outside a database", () => {
