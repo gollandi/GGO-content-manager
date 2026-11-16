@@ -34,14 +34,30 @@ if (!TOKEN) {
     process.exit(2);
 }
 
-const res = await fetch(`${COCKPIT}/api/review-dashboard/state`, {
-    headers: { authorization: `Bearer ${TOKEN}` },
-});
-if (!res.ok) {
-    console.error(`media-sync: state read failed (HTTP ${res.status})`);
-    process.exit(1);
+// The state route answers within ~25 s: when the crawl behind it takes
+// longer it says so (503 CANCELLO_STATE_TIMEOUT) and keeps crawling, and the
+// finished state is cached for a few minutes. So ask again until it lands,
+// instead of one request that outlives Node's 300 s header timeout.
+const STATE_DEADLINE_MS = Number(process.env.MEDIA_SYNC_STATE_DEADLINE_MS) || 15 * 60 * 1000;
+async function readState() {
+    const started = Date.now();
+    for (let attempt = 1; ; attempt += 1) {
+        const res = await fetch(`${COCKPIT}/api/review-dashboard/state`, {
+            headers: { authorization: `Bearer ${TOKEN}` },
+            signal: AbortSignal.timeout(120_000),
+        });
+        if (res.ok) return res.json();
+        const body = await res.json().catch(() => ({}));
+        const waitS = Number(res.headers.get("retry-after")) || 30;
+        if (res.status !== 503 || body.code !== "CANCELLO_STATE_TIMEOUT" ||
+            Date.now() - started + waitS * 1000 > STATE_DEADLINE_MS) {
+            console.error(`media-sync: state read failed (HTTP ${res.status}${body.code ? ` ${body.code}` : ""}, attempt ${attempt})`);
+            process.exit(1);
+        }
+        await new Promise((resolve) => setTimeout(resolve, waitS * 1000));
+    }
 }
-const state = await res.json();
+const state = await readState();
 
 const pathParam = (url) => {
     const m = /[?&]path=([^&]+)/.exec(url || "");
