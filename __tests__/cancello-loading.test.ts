@@ -245,4 +245,29 @@ describe("Cancello request volume and freshness", () => {
       vi.unstubAllEnvs();
     }
   });
+
+  it("with persistent snapshots, two decisions during one read still end in the latest state", async () => {
+    vi.stubEnv("COCKPIT_SNAPSHOT_DIR", fs.mkdtempSync(path.join(os.tmpdir(), "cancello-snap-")));
+    try {
+      const gates: (() => void)[] = [];
+      const original = query.getMockImplementation()!;
+      const held = () => query.mockImplementationOnce(async (args: never) => {
+        await new Promise<void>((resolve) => gates.push(resolve));
+        return original(args);
+      });
+      held(); held();
+      const read = loadCancelloStateWithin(20_000);
+      await vi.advanceTimersByTimeAsync(0);
+      invalidateCancelloCache();
+      gates.shift()!();
+      await vi.advanceTimersByTimeAsync(0);
+      invalidateCancelloCache();
+      rows = [page("after-both")];
+      gates.shift()!();
+      const state = await read;
+      expect(state.desk.map((r) => r.rowId)).toEqual(["after-both"]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });

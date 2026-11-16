@@ -65,6 +65,15 @@ describe("Cancello page cache", () => {
         expect(cache.reader().get("gone")).toBeUndefined();
     });
 
+    it("forgets a 'not shared' mark when the page turns up among the edited pages", async () => {
+        const c = clock();
+        const cache = createPageCache({ now: c.now });
+        cache.reader().store(page("asset"), c.now());
+        cache.reader().storeMissing("now-shared");
+        await cache.validate(async () => [page("now-shared")]);
+        expect(cache.reader().get("now-shared")).toBeUndefined();
+    });
+
     it("never keeps a page past its maximum age, checked or not", async () => {
         const c = clock();
         const cache = createPageCache({ now: c.now, maxAgeMs: 60 * MIN });

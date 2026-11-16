@@ -94,7 +94,10 @@ export function createPageCache({
                 for (const page of changed) {
                     const key = bare(page.id);
                     const entry = entries.get(key);
-                    if (entry && !("missingUntil" in entry)) put(key, { page, fetchedAt: started, maxAgeMs: entry.maxAgeMs });
+                    if (!entry) continue;
+                    // Remembered as not shared, yet Notion lists it: read it again.
+                    if ("missingUntil" in entry) entries.delete(key);
+                    else put(key, { page, fetchedAt: started, maxAgeMs: entry.maxAgeMs });
                 }
                 checkedAt.set(db, started);
             }));

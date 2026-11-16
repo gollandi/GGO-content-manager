@@ -192,7 +192,8 @@ export default function ReviewPage() {
             return;
         }
         if (!current()) return;
-        setError(null);
+        // No setError(null) here: an act's own error set while this read was
+        // in flight must stay; the clear at the start of load() is enough.
         setState(data);
     }, []);
 

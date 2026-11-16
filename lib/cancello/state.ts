@@ -221,8 +221,10 @@ function readPage(id: string, context: ReadContext): Promise<PageObjectResponse>
  */
 const CALENDAR_PAGE_MAX_AGE_MS = 10 * 60_000;
 function isCalendarPage(page: PageObjectResponse): boolean {
-    return page.parent?.type === "database_id" &&
-        bareId(page.parent.database_id) === bareId(notionConfig.dbs.contentCalendar());
+    if (page.parent?.type !== "database_id") return false;
+    let calendarDb: string;
+    try { calendarDb = notionConfig.dbs.contentCalendar(); } catch { return false; }
+    return bareId(page.parent.database_id) === bareId(calendarDb);
 }
 
 /** Every page of `databaseId` edited on or after `sinceIso`. */
