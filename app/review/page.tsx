@@ -147,18 +147,32 @@ export default function ReviewPage() {
         });
     }, []);
 
+    // Seconds until the next automatic read, set only when the server says
+    // the state is still being rebuilt (503 CANCELLO_STATE_TIMEOUT).
+    const [retryIn, setRetryIn] = useState<number | null>(null);
+
     const load = useCallback(async (refresh = false) => {
         setError(null);
+        setRetryIn(null);
         const res = await fetch(`/api/review-dashboard/state${refresh ? "?refresh=1" : ""}`, { cache: "no-store" });
         const data = await res.json();
         if (!res.ok) {
             setError(data.error ?? `Review dashboard non disponibile (${res.status})`);
+            if (res.status === 503 && data.code === "CANCELLO_STATE_TIMEOUT") {
+                setRetryIn(Number(res.headers.get("retry-after")) || 30);
+            }
             return;
         }
         setState(data as ReviewState);
     }, []);
 
     useEffect(() => { void load(); }, [load]);
+
+    useEffect(() => {
+        if (retryIn === null) return;
+        const timer = setTimeout(() => { void load(); }, retryIn * 1000);
+        return () => clearTimeout(timer);
+    }, [retryIn, load]);
 
     useEffect(() => {
         if (!state) return;
@@ -349,7 +363,9 @@ export default function ReviewPage() {
             setTimeout(() => setToast(null), decision === "send" ? 6000 : 2600);
             setModifyOpen(false);
             // The document stays open: the point of the act is seeing the wax land.
-            await load(true);
+            // No forced full re-read: the act already fenced the server's
+            // snapshot, so this read is rebuilt from what changed, in seconds.
+            await load();
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
         } finally {
@@ -725,6 +741,7 @@ export default function ReviewPage() {
                 {error && (
                     <div className="relative mx-8 mt-4 border border-seal px-4 py-3 text-[13px] text-seal-bright max-sm:mx-4" role="alert">
                         {error}
+                        {retryIn !== null && ` Nuovo tentativo automatico tra ${retryIn} s.`}
                     </div>
                 )}
 

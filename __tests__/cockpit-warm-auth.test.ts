@@ -6,7 +6,9 @@ const { requireAuth, requireWriter, load, house, decide, warm } = vi.hoisted(() 
 }));
 vi.mock("../lib/auth/api-guard", () => ({ requireAuth, requireWriter }));
 vi.mock("../lib/briefing/warm", () => ({ warmBriefings: warm }));
-vi.mock("../lib/cancello/state", () => ({ loadCancelloState: load }));
+vi.mock("../lib/cancello/state", () => ({
+    loadCancelloState: load, loadCancelloStateWithin: vi.fn(), CancelloStateTimeoutError: class extends Error {},
+}));
 vi.mock("../lib/house/state", () => ({ getHouseState: house }));
 vi.mock("../lib/cancello/decision", () => ({ applyCancelloDecision: decide }));
 import { GET } from "../app/api/review-dashboard/state/route";

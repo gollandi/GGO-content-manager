@@ -15,6 +15,7 @@ import { notionConfig } from "../config";
 import { ggomedRawClient } from "../sanity/clients";
 import { selectCalendarRowsForGate } from "../notion/story-policy";
 import { createBodyCache } from "./body-cache";
+import { createPageCache, type PageCacheReader } from "./page-cache";
 import {
     extractVideoPaths, isPathWithinRoots, resolveLocalMediaPath, IMAGE_EXTS, VIDEO_EXTS,
 } from "./paths";
@@ -168,23 +169,50 @@ const VIDEO_URL = (p: string) => `/video?path=${encodeURIComponent(p)}`;
 type ReadContext = {
     failedReads: number;
     pages: Map<string, Promise<PageObjectResponse>>;
+    /** Linked pages kept from the previous crawl, checked before this one. */
+    linked: PageCacheReader;
     body: (row: PageObjectResponse) => Promise<string>;
 };
 
 const bodyCache = createBodyCache();
+const pageCache = createPageCache();
+
+const notShared = () => Object.assign(new Error("object_not_found (remembered)"), { status: 404 });
 
 function readPage(id: string, context: ReadContext): Promise<PageObjectResponse> {
     const key = id.replace(/-/g, "").toLowerCase();
     const existing = context.pages.get(key);
     if (existing) return existing;
-    const task = (notion.pages.retrieve({ page_id: id }) as Promise<PageObjectResponse>).catch((err) => {
+    const kept = context.linked.get(id);
+    if (kept === "missing") {
+        const task = Promise.reject(notShared());
+        task.catch(() => {});
+        context.pages.set(key, task);
+        return task;
+    }
+    if (kept) {
+        const task = Promise.resolve(kept);
+        context.pages.set(key, task);
+        return task;
+    }
+    const sentAt = Date.now();
+    const task = (notion.pages.retrieve({ page_id: id }) as Promise<PageObjectResponse>).then((page) => {
+        context.linked.store(page, sentAt);
+        return page;
+    }, (err) => {
         // A dangling relation may legitimately point at a removed page. A
         // timeout/rate limit must not silently erase media from a durable snapshot.
-        if ((err as { status?: number }).status !== 404) context.failedReads += 1;
+        if ((err as { status?: number }).status === 404) context.linked.storeMissing(id);
+        else context.failedReads += 1;
         throw err;
     });
     context.pages.set(key, task);
     return task;
+}
+
+/** Every page of `databaseId` edited on or after `sinceIso`. */
+async function editedSince(databaseId: string, sinceIso: string): Promise<PageObjectResponse[]> {
+    return queryAll(databaseId, { timestamp: "last_edited_time", last_edited_time: { on_or_after: sinceIso } });
 }
 
 function rememberPages(rows: PageObjectResponse[], context: ReadContext): void {
@@ -564,7 +592,18 @@ export function invalidateCancelloCache(): void {
     invalidateSnapshots();
     stateCache = null;
     stateInflight = null;
+    // Fence, do not empty: bodies are checked against each row's revision and
+    // linked pages against Notion's "edited since" before every crawl, so the
+    // crawl after a decision re-reads only what changed (seconds, not minutes).
+    bodyCache.fence();
+    pageCache.fence();
+}
+
+/** Forget every read this process holds (tests; an operator's clean slate). */
+export function resetCancelloCaches(): void {
+    invalidateCancelloCache();
     bodyCache.clear();
+    pageCache.clear();
 }
 
 export async function loadCancelloState({ refresh = false, revalidate = false } = {}): Promise<CancelloState> {
@@ -601,11 +640,45 @@ export async function loadCancelloState({ refresh = false, revalidate = false } 
     return promise;
 }
 
+/**
+ * Raised when the state is not ready within a reader's deadline — after a
+ * decision fences the snapshot, a full Notion crawl takes minutes. The crawl
+ * itself carries on and lands in the snapshot; only this wait is abandoned,
+ * so the reader can say so plainly instead of hanging.
+ */
+export class CancelloStateTimeoutError extends Error {
+    readonly name = "CancelloStateTimeoutError";
+    constructor(readonly timeoutMs: number) {
+        super(`Lo stato del Cancello non è pronto entro ${Math.round(timeoutMs / 1000)} s: ` +
+            "la lettura di Notion è ancora in corso e continua in background. Riprova tra poco.");
+    }
+}
+
+/** Default deadline for an interactive read; below nginx's 60 s proxy timeout. */
+export const CANCELLO_STATE_TIMEOUT_MS = Number(process.env.COCKPIT_CANCELLO_STATE_TIMEOUT_MS) || 25_000;
+
+export function loadCancelloStateWithin(
+    timeoutMs: number = CANCELLO_STATE_TIMEOUT_MS,
+    options: { refresh?: boolean; revalidate?: boolean } = {},
+): Promise<CancelloState> {
+    const load = loadCancelloState(options);
+    // The crawl may still fail after the deadline: nobody awaits it then.
+    load.catch(() => {});
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new CancelloStateTimeoutError(timeoutMs)), timeoutMs);
+    });
+    return Promise.race([load, deadline]).finally(() => clearTimeout(timer));
+}
+
 async function buildCancelloState(refresh: boolean): Promise<CancelloState> {
     const readBody = bodyCache.reader(refresh);
+    if (refresh) pageCache.clear();
+    else await pageCache.validate(editedSince);
     const context: ReadContext = {
         failedReads: 0,
         pages: new Map(),
+        linked: pageCache.reader(),
         body: (row) => readBody(row.id, row.last_edited_time, () => pageBodyText(row.id)),
     };
     const warnings: string[] = [];
