@@ -27,7 +27,7 @@ describe("a brief becomes a board event", () => {
     it("routes a specialist with no slot through Ernesto, and a strategy to Ernesto always", () => {
         expect(routeRecipients(["samantha"], "brief", ALLOWED)).toEqual(["ernesto", "samantha"]);
         expect(routeRecipients(["ginevra"], "brief", ALLOWED)).toEqual(["ginevra"]);
-        expect(routeRecipients(["natascia"], "strategy", ALLOWED)).toEqual(["ernesto", "natascia"]);
+        expect(routeRecipients(["natascia"], "strategy", ALLOWED)).toEqual(["ernesto", "natascia", "jj"]);
         expect(() => routeRecipients(["house"], "brief", ALLOWED)).toThrow(BriefError);
         expect(() => routeRecipients(["ambrogio"], "brief", ALLOWED)).toThrow(/cannot address/);
         expect(() => routeRecipients([], "brief", ALLOWED)).toThrow(/at least one/);
@@ -36,9 +36,12 @@ describe("a brief becomes a board event", () => {
     it("makes a valid thread id and tags a strategy", () => {
         expect(slugify("Décembre: reels — varicocele!")).toBe("decembre-reels-varicocele");
         const c = toCompose({ mode: "open", kind: "strategy", title: "Q1 growth", to: [], body: STRATEGY_OUTLINE }, "diletta", ALLOWED, NOW);
-        expect(c.threadId).toMatch(/^strategy-diletta-q1-growth-20261126$/);
+        expect(c.threadId).toMatch(/^strategy-diletta-q1-growth-20261126100000$/);
         expect(c.tags).toEqual(["strategy", "social"]);
-        expect(c.to).toEqual(["ernesto"]);
+        expect(c.to).toEqual(["ernesto", "jj"]);
+        const a = toCompose({ mode: "reply", threadId: "t", to: ["ernesto"], body: BODY }, "diletta", ALLOWED, NOW);
+        const b = toCompose({ mode: "reply", threadId: "t", to: ["ernesto"], body: BODY }, "diletta", ALLOWED, NOW);
+        expect(a.id).not.toBe(b.id);
         expect(c.lang).toBe("en");
         expect(() => toCompose({ mode: "open", title: "x", to: ["ernesto"], body: BODY }, "diletta", ALLOWED, NOW)).toThrow(/title/);
         expect(() => toCompose({ mode: "open", title: "Reels", to: ["ernesto"], body: " " }, "diletta", ALLOWED, NOW)).toThrow(/Write/);
@@ -88,9 +91,30 @@ describe("what a collaborator reads", () => {
         ] }, NOW);
         await submit(open(), NOW, "diletta");
         const mine = readBoardFor("diletta").threads.map((t) => t.threadId).sort();
-        expect(mine).toEqual(["brief-diletta-december-reels-20261126", "to-diletta"]);
+        expect(mine).toEqual(["brief-diletta-december-reels-20261126100000", "to-diletta"]);
         expect(readBoard().threads).toHaveLength(4);
         expect(readBoardFor("diletta").roster).toEqual([]);
+    });
+});
+
+describe("a thread she was added to later", () => {
+    it("shows her the thread from the message that addressed her, not before", async () => {
+        await applySync({ events: [
+            agent({ id: "a1", threadId: "jj-ernesto", from: "jj", to: "ernesto", body: "Internal note for the screenshot: the draft for the page is clinically sensitive." }),
+            agent({ id: "a2", threadId: "jj-ernesto", date: "2026-11-25T09:00:00.000Z", to: ["jj", "diletta"], body: "Diletta, could you suggest a caption angle for the December reels please?" }),
+        ] }, NOW);
+        const t = readBoardFor("diletta").threads[0];
+        expect(t.events.map((e) => e.id)).toEqual(["a2"]);
+        expect(t.earlierHidden).toBe(1);
+    });
+});
+
+describe("/api/collaborators/handle", () => {
+    it("is the owner's alone", async () => {
+        vi.doMock("../lib/auth/api-guard", () => ({ requireAdmin: async () => ({ authenticated: false, response: new Response(null, { status: 403 }) }) }));
+        const route = await import("../app/api/collaborators/handle/route");
+        expect((await route.GET()).status).toBe(403);
+        expect((await route.POST(new Request("http://x", { method: "POST", body: "{}" }) as never)).status).toBe(403);
     });
 });
 

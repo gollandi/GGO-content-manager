@@ -64,6 +64,12 @@ export default function GuidePage() {
             </section>
 
             <section className={section}>
+                <h2 className={h2}>Comments</h2>
+                <p><a className="underline" href="/comments">Comments</a> lists the YouTube comments waiting for a reply, each with Samantha&apos;s draft. <strong>Suggest reply</strong> gives her your wording or what the reply should say: she drafts again from it at the next run, and the new draft goes through the house&apos;s clinical and compliance check like every other. <strong>Ready for JJ</strong> tells him you have checked the draft on screen. A reply is posted only when JJ approves it — approving is publishing — and exactly the draft he approved is posted. If a draft failed the compliance check, only JJ can ask for another.</p>
+                <p className="mt-2">Instagram and Facebook comments are not read by the house yet.</p>
+            </section>
+
+            <section className={section}>
                 <h2 className={h2}>Numbers and the website</h2>
                 <p><a className="underline" href="/performance">Performance</a> shows Natascia&apos;s weekly reading and the numbers the house collects every Sunday (search, the website, Instagram and Facebook, YouTube, the newsletter). <a className="underline" href="/website">Website</a> lists every page of ggomed.co.uk with its state. Both are read-only; if something there should change, send a brief.</p>
             </section>

@@ -28,6 +28,7 @@ import { isOrderedByJJ, liveDeps, sendRow } from "./buffer-send";
 import { invalidateCancelloCache } from "./state";
 import { appendNote, formatNote, type NoteKind } from "./notes";
 import { mayAct, type CancelloAct } from "../auth/permissions";
+import { stampLatestIfReply } from "../social/comments-notion";
 import type { Role } from "../auth/roles";
 
 export type Decision = CancelloAct;
@@ -247,6 +248,11 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor):
 
         const status = map[decision];
         if (!status) throw new Error(`unknown decision: ${decision}`);
+        // Approving a YouTube reply row is posting it: name the draft that is
+        // there now, so the house's dispatcher posts that one or nothing.
+        if (target === "desk" && decision === "approve") {
+            await stampLatestIfReply(rowId, { label: actorLabel(actor) });
+        }
 
         const properties: Record<string, unknown> = { Status: { select: { name: status } } };
         let notesText: string | undefined;

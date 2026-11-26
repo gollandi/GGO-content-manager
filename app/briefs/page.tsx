@@ -46,6 +46,7 @@ function Thread({ t, handle, recipients, act, busy }: {
                     {t.closed ? `closed by ${t.closedBy}` : "open"}{t.pending ? " · waiting for the house to sync" : ""}
                 </span>
             </header>
+            {t.earlierHidden ? <p className="mt-1 text-[12px] text-paper-foreground-soft">You were added to this thread later; its earlier messages are not shown.</p> : null}
             <ol className="mt-2 space-y-2">
                 {t.events.map((e) => (
                     <li key={e.id} className={e.from === handle ? "pl-0" : "pl-4"}>
@@ -136,7 +137,7 @@ export default function BriefsPage() {
                             <label><input type="radio" name="kind" checked={kind === "strategy"} onChange={() => switchKind("strategy")} /> A social strategy</label>
                         </div>
                         {kind === "strategy" && (
-                            <p className="mb-3 text-[13px]">A strategy goes to Ernesto and governs every plan he makes until you close it or open a new one. If JJ has a strategy open, his comes first.</p>
+                            <p className="mb-3 text-[13px]">A strategy goes to Ernesto, with a copy to JJ, and governs every plan Ernesto makes until you close it or open a new one. If JJ has a strategy open, his comes first.</p>
                         )}
                         <input aria-label="Title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short title, e.g. December reels on varicocele"
                             className="mb-2 w-full border border-paper-edge bg-transparent px-2 py-1" />

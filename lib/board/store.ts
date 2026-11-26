@@ -350,9 +350,16 @@ export async function collaboratorRecipients(): Promise<string[]> {
 export function readBoardFor(handle: string): BoardView {
     const all = readBoard();
     const mine = (thread: BoardThreadView) => thread.opener === handle || thread.recipients.includes(handle);
+    // An agent may add her to a thread that began without her: she reads it
+    // from the message that first addressed her, not its earlier history.
+    const fromJoining = (thread: BoardThreadView): BoardThreadView => {
+        const at = thread.events.findIndex((event) => event.from === handle
+            || (Array.isArray(event.to) ? event.to.includes(handle) : event.to === handle));
+        return at <= 0 ? thread : { ...thread, events: thread.events.slice(at), earlierHidden: at } as BoardThreadView;
+    };
     return {
         syncedAt: all.syncedAt,
-        threads: all.threads.filter(mine),
+        threads: all.threads.filter(mine).map(fromJoining),
         rejected: all.rejected.filter((entry) => entry.event.from === handle),
         roster: [],
     };

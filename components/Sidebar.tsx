@@ -68,6 +68,7 @@ const ROLE_LABELS: Record<string, string> = {
 const SOCIAL_LINKS = [
   { href: "/review", label: "Social queue", hint: "Posts waiting for review" },
   { href: "/carico", label: "Upload media", hint: "Footage and audio for the team" },
+  { href: "/comments", label: "Comments", hint: "YouTube comments and replies" },
   { href: "/briefs", label: "Briefs", hint: "Direct the agents; set the strategy" },
   { href: "/performance", label: "Performance", hint: "Natascia's readings and the numbers" },
   { href: "/website", label: "Website", hint: "Every page and its state" },

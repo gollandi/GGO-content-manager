@@ -1,9 +1,9 @@
 {
   "note": "Verbatim copies from ernesto-agents-house. Never edit here: change the house repo, then run `node tools/board/sync-vendor.mjs`. __tests__/board-vendor.test.ts fails if these drift.",
   "repo": "GGO-Med/ernesto-agents-house",
-  "commit": "60d213a8f408c359c25bcd75912f01130ef74381",
+  "commit": "29ae3b1b775e242e41da6efb73375ba0b3fe8266",
   "files": {
-    "operations/house-board.js": "fba015a7c1700e93aad750e57481bf4e7eff5135d18bdae63831cf8c0bee794b",
+    "operations/house-board.js": "366a9d7713445d4bc459faaaa7a1549c28f43635b520a6044c46be46c3548eda",
     "core/closure-marker.js": "6cfe8a36cd79902da875388f995a7192ab342deae2500d8a4c3117b0ee8ea380"
   }
 }
