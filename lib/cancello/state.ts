@@ -54,6 +54,28 @@ export interface CalendarRow {
     orderedBy: string | null;
     /** `Sanity Sync` — non-empty once the house has staged the row's drafts. */
     sanitySync: string;
+    /**
+     * Approved, staged rows: the posts exactly as staged in Sanity, one per
+     * platform — the text and media the Buffer hand-off will send.
+     */
+    staged?: StagedPost[];
+    /** Registered assets the cockpit could not show (missing file, unreadable page, unsupported host). */
+    mediaUnavailable?: number;
+    /** Registered assets staging will leave out: their Format is neither an image nor a video it takes. */
+    mediaIgnored?: number;
+    /** An approved row whose staged posts could not be read: the preview is the calendar's version. */
+    stagedUnreadable?: boolean;
+}
+
+/** One staged socialPost, as the publish route will read it. */
+export interface StagedPost {
+    platform: string;
+    format: string | null;
+    caption: string;
+    hashtags: string[];
+    storyLinkUrl: string | null;
+    images: MediaRef[];
+    video: MediaRef | null;
 }
 export interface WebsiteArticle {
     rowId: string; title: string; status: string | null; category: string | null;
@@ -280,27 +302,14 @@ async function resolveRowMedia(props: Props, context: ReadContext): Promise<Medi
     return media;
 }
 
-/**
- * The media of an approved, staged row, read from the Sanity drafts the
- * house staged — the very images and video the Buffer hand-off will send,
- * so what JJ judges before "Invia a Buffer" is what goes out. Every
- * platform of the row is read, de-duplicated by URL.
- */
-async function approvedRowMedia(props: Props, context: ReadContext): Promise<MediaRef[]> {
-    try {
-        const staged = await stagedRowMedia(propText(props, "Sanity Sync") || "");
-        if (staged.length > 0) return staged;
-    } catch { /* fall back to the registered files */ }
-    return resolveRowMedia(props, context);
-}
-
 export async function stagedRowMedia(sanitySync: string): Promise<MediaRef[]> {
     const ids = sanitySync.split(",").map((s) => s.trim().replace(/^drafts\./, "")).filter(Boolean);
     if (ids.length === 0) return [];
-    const docs = await ggomedRawClient.fetch<{ images: (string | null)[] | null; video: string | null }[]>(
-        `*[_id in $ids]{ "images": mediaItems[].asset->url, "video": videoUrl }`,
+    const fetched = await ggomedRawClient.fetch<{ _id: string; images: (string | null)[] | null; video: string | null }[]>(
+        `*[_id in $ids]{ _id, "images": mediaItems[].asset->url, "video": videoUrl }`,
         { ids: ids.flatMap((id) => [`drafts.${id}`, id]) }
     );
+    const docs = preferDrafts(fetched, ids);
     const seen = new Set<string>();
     const media: MediaRef[] = [];
     for (const doc of docs) {
@@ -310,6 +319,109 @@ export async function stagedRowMedia(sanitySync: string): Promise<MediaRef[]> {
         if (doc.video && !seen.has(doc.video)) { seen.add(doc.video); media.push({ kind: "video", url: doc.video }); }
     }
     return media;
+}
+
+/**
+ * One version per staged post: the draft where there is one (what the
+ * publish route reads first), otherwise the published document — never both,
+ * which would mix a re-staged row's new images with its old ones. In the
+ * order the row's `Sanity Sync` lists them.
+ */
+export function preferDrafts<T extends { _id: string }>(docs: T[], ids: string[]): T[] {
+    const byId = new Map(docs.map((d) => [d._id, d]));
+    return ids.map((id) => byId.get(`drafts.${id}`) ?? byId.get(id)).filter((d): d is T => Boolean(d));
+}
+
+/** The staged posts of an approved row, exactly as the publish route will read them. */
+export async function stagedPosts(sanitySync: string): Promise<StagedPost[]> {
+    const ids = sanitySync.split(",").map((s) => s.trim().replace(/^drafts\./, "")).filter(Boolean);
+    if (ids.length === 0) return [];
+    const fetched = await ggomedRawClient.fetch<{
+        _id: string; platform: string | null; format: string | null; caption: string | null;
+        hashtags: string[] | null; storyLinkUrl: string | null; images: (string | null)[] | null; video: string | null;
+    }[]>(
+        `*[_id in $ids]{ _id, platform, format, caption, hashtags, storyLinkUrl, "images": mediaItems[].asset->url, "video": videoUrl }`,
+        { ids: ids.flatMap((id) => [`drafts.${id}`, id]) }
+    );
+    return preferDrafts(fetched, ids).map((d) => ({
+        platform: d.platform ?? "",
+        format: d.format,
+        caption: d.caption ?? "",
+        hashtags: Array.isArray(d.hashtags) ? d.hashtags : [],
+        storyLinkUrl: d.storyLinkUrl,
+        images: (d.images ?? []).filter((u): u is string => Boolean(u)).map((url) => ({ kind: "image" as const, url })),
+        video: d.video ? { kind: "video" as const, url: d.video } : null,
+    }));
+}
+
+/** Staging's `classifyMediaFormat`, by the Media Asset's Format select. */
+export function classifyMediaFormat(format: string | null): "image" | "video" | "other" {
+    const f = (format ?? "").toLowerCase();
+    if (f === ".mov" || f === ".mp4") return "video";
+    if (f === ".png" || f === ".jpg" || f === ".jpeg" || f === ".svg") return "image";
+    return "other";
+}
+
+/**
+ * The media a Review row will be staged with, chosen as staging chooses
+ * them (ernesto-agents-house operations/notion-to-sanity-sync.js): every
+ * registered Media Asset in order, kept or left out by its Format select,
+ * read from its File Location; a story with no image takes its card. What
+ * the cockpit cannot show is counted, not silently dropped.
+ */
+async function resolvePostMedia(props: Props, context: ReadContext): Promise<{
+    media: MediaRef[]; unavailable: number; ignored: number;
+}> {
+    const media: MediaRef[] = [];
+    let unavailable = 0;
+    let ignored = 0;
+    const assets = await mapLimit(relationIds(props, "Media Assets"), NOTION_CONCURRENCY, async (id) => {
+        try {
+            const page = await readPage(id, context);
+            return { location: propText(page.properties, "File Location"), format: propText(page.properties, "Format") };
+        } catch { return null; }
+    });
+    for (const asset of assets) {
+        if (!asset) { unavailable += 1; continue; }
+        const kind = classifyMediaFormat(asset.format);
+        if (kind === "other") { ignored += 1; continue; }
+        const url = previewableUrl(asset.location, kind);
+        if (!url) { unavailable += 1; continue; }
+        media.push({ kind, url });
+    }
+    // Staging uses the card for stories only (notion-to-sanity-sync.js).
+    if (propText(props, "Content Type") === "Story" && !media.some((m) => m.kind === "image")) {
+        const cardUrl = propText(props, "Card URL");
+        if (cardUrl) {
+            try {
+                const host = new URL(cardUrl).hostname;
+                if (host === "ggomed.co.uk" || host.endsWith(".ggomed.co.uk")) media.push({ kind: "image", url: cardUrl });
+                else unavailable += 1;
+            } catch { unavailable += 1; }
+        }
+    }
+    return { media, unavailable, ignored };
+}
+
+/** A File Location the page can show: a local file in the media roots, or a hosted copy on a trusted host. */
+function previewableUrl(location: string | null, kind: "image" | "video"): string | null {
+    if (!location) return null;
+    const local = /^file:\/\/(\/.+)$/i.exec(location.trim());
+    if (local) {
+        let p = local[1];
+        try { p = decodeURIComponent(p); } catch { /* keep raw */ }
+        const resolved = resolveLocalMediaPath(p);
+        if (!isPathWithinRoots(resolved) || !fs.existsSync(resolved)) return null;
+        // The media route serves only these types; anything else would show broken.
+        const ext = path.extname(p).toLowerCase();
+        if (kind === "image" ? !IMAGE_EXTS.has(ext) : !VIDEO_EXTS.has(ext)) return null;
+        return kind === "image" ? MEDIA_URL(p) : VIDEO_URL(p);
+    }
+    try {
+        const u = new URL(location.trim());
+        if (u.protocol === "https:" && HOSTED_MEDIA_HOSTS.some((h) => u.hostname === h || u.hostname.endsWith("." + h))) return u.toString();
+    } catch { /* not a URL */ }
+    return null;
 }
 
 /** Desk types whose body is scanned for the calendar row it speaks of. */
@@ -513,11 +625,33 @@ async function loadCalendarRows(rows: PageObjectResponse[], context: ReadContext
             // Draft row was most of the old load time. Review rows show the
             // files the team registered; approved, staged rows show what
             // Buffer will receive, falling back to the registered files.
-            media: status === "Review"
-                ? await resolveRowMedia(row.properties, context)
+            ...(status === "Review"
+                ? await (async () => {
+                    const r = await resolvePostMedia(row.properties, context);
+                    return { media: r.media, mediaUnavailable: r.unavailable, mediaIgnored: r.ignored };
+                })()
                 : status === "Approved"
-                    ? await approvedRowMedia(row.properties, context)
-                    : [],
+                    ? await (async () => {
+                        // What Buffer will receive, read once from the staged posts;
+                        // the registered files only if Sanity cannot be read.
+                        try {
+                            const staged = await stagedPosts(propText(row.properties, "Sanity Sync") || "");
+                            if (staged.length > 0) {
+                                const seen = new Set<string>();
+                                const media: MediaRef[] = [];
+                                for (const p of staged) for (const m of [...p.images, ...(p.video ? [p.video] : [])]) {
+                                    if (!seen.has(m.url)) { seen.add(m.url); media.push(m); }
+                                }
+                                return { media, staged };
+                            }
+                        } catch { /* reported below */ }
+                        // The staged version cannot be read: show the row as staging
+                        // would compose it, and say plainly that this is not the
+                        // staged copy, so nobody mistakes it for what Buffer sends.
+                        const r = await resolvePostMedia(row.properties, context);
+                        return { media: r.media, mediaUnavailable: r.unavailable, mediaIgnored: r.ignored, stagedUnreadable: true };
+                    })()
+                    : { media: [] as MediaRef[] }),
             url: row.url,
             orderedBy: propText(row.properties, "Ordered By"),
             sanitySync: propText(row.properties, "Sanity Sync") || "",

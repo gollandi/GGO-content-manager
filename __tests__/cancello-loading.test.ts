@@ -135,7 +135,7 @@ describe("Cancello request volume and freshness", () => {
   it("keeps a linked calendar preview while reusing a page already returned by its query", async () => {
     const calendarId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
     rows = [page("desk", { "Calendar Row": relations(calendarId) })];
-    const calendar = { ...page(calendarId, { Status: select("Review"), "Card URL": { type: "url", url: "https://ggomed.co.uk/fixture-card" } }),
+    const calendar = { ...page(calendarId, { Status: select("Review"), "Content Type": select("Story"), "Card URL": { type: "url", url: "https://ggomed.co.uk/fixture-card" } }),
       parent: { type: "database_id", database_id: "calendar" } };
     query.mockImplementation(async ({ database_id }: { database_id: string }) => ({ results: database_id === "desk" ? rows : database_id === "calendar" ? [calendar] : [], next_cursor: null }));
     const result = await loadCancelloState();
@@ -207,7 +207,7 @@ describe("Cancello request volume and freshness", () => {
     expect(retrieve).toHaveBeenCalledOnce();
 
     vi.advanceTimersByTime(5 * 60_000 + 1);
-    active = [asCalendar({ Status: select("Review"), "Card URL": { type: "url", url: "https://ggomed.co.uk/fresh-card" } })];
+    active = [asCalendar({ Status: select("Review"), "Content Type": select("Story"), "Card URL": { type: "url", url: "https://ggomed.co.uk/fresh-card" } })];
     const second = await settle(loadCancelloState());
     expect(second.desk[0].media).toEqual([{ kind: "image", url: "https://ggomed.co.uk/fresh-card" }]);
     expect(second.calendar[0].media).toEqual(second.desk[0].media);

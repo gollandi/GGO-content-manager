@@ -6,6 +6,8 @@ import { isTransientStateFailure, retryAfterSeconds, STATE_RETRY_SECONDS } from 
 import Link from "next/link";
 import MarkdownBlock from "../../components/MarkdownBlock";
 import AssetSheet from "../../components/cancello/AssetSheet";
+import PostPreview from "../../components/cancello/PostPreview";
+import { composePosts } from "../../lib/cancello/post-preview";
 import { deskFamily, gateCalendarIds, shadowedByCalendar } from "../../lib/house/families";
 import { Guilloche, Socket, Mark, AgeBar, type MarkTone } from "../../components/Registro";
 import { useSession } from "next-auth/react";
@@ -39,6 +41,12 @@ interface CalendarRow {
     date: string | null; variant: string | null; caption: string; hashtags: string; notes: string;
     canva: string | null; hasAssets: boolean; media: MediaRef[]; url: string;
     orderedBy?: string | null; sanitySync?: string;
+    /** A story's link destination. */
+    sourceUrl?: string | null;
+    staged?: { platform: string; format: string | null; caption: string; hashtags: string[];
+        storyLinkUrl: string | null; images: MediaRef[]; video: MediaRef | null }[];
+    mediaUnavailable?: number;
+    mediaIgnored?: number;
 }
 interface WebsiteArticle {
     rowId: string; title: string; status: string | null; category: string | null; reviewDue: string | null;
@@ -105,6 +113,15 @@ function daysUntil(due: string | null): number | null {
     return Math.floor((Date.now() - t) / 86_400_000);
 }
 
+/** A social post's line in the queue: where and when, in words — no internal labels. */
+function socialLine(row: { platforms: string | null; date: string | null }): string {
+    const when = row.date
+        ? new Date(row.date.length === 10 ? `${row.date}T12:00:00` : row.date)
+            .toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })
+        : "no date yet";
+    return [row.platforms, when].filter(Boolean).join(" · ");
+}
+
 function stateTone(value: string): MarkTone {
     if (/Urgent|Blocked|Rejected|FALLITA/i.test(value)) return "pending";
     if (/Review|Pending|Needs|Draft|Modify/i.test(value)) return "ageing";
@@ -126,6 +143,10 @@ export default function ReviewPage() {
     const isSocial = session?.user?.role === "social";
     /** The register speaks Italian to JJ and English to the social media manager. */
     const tr = useCallback((it: string, en: string) => (isSocial ? en : it), [isSocial]);
+    // load() reads the language through a ref, so a session resolving after
+    // the first read does not trigger a second one.
+    const trRef = useRef(tr);
+    trRef.current = tr;
     const [state, setState] = useState<ReviewState | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -179,7 +200,7 @@ export default function ReviewPage() {
             res = await fetch(`/api/review-dashboard/state${refresh ? "?refresh=1" : ""}`, { cache: "no-store" });
         } catch {
             if (!current()) return;
-            setError("Review dashboard non raggiungibile.");
+            setError(trRef.current("Review dashboard non raggiungibile.", "The queue cannot be reached."));
             setRetry({ seconds: STATE_RETRY_SECONDS });
             return;
         }
@@ -187,7 +208,7 @@ export default function ReviewPage() {
             // A proxy error page (502/504 while the service restarts) is not JSON.
             const data = await res.json().catch(() => ({})) as { error?: string; code?: string };
             if (!current()) return;
-            setError(data.error ?? `Review dashboard non disponibile (${res.status})`);
+            setError(trRef.current(data.error ?? `Review dashboard non disponibile (${res.status})`, "The queue is not available right now."));
             if (isTransientStateFailure(res.status, data)) {
                 setRetry({ seconds: retryAfterSeconds(res.headers.get("retry-after")) });
             }
@@ -199,7 +220,7 @@ export default function ReviewPage() {
         } catch {
             // A body cut off mid-restart: say so and ask again, never render it.
             if (!current()) return;
-            setError("Review dashboard: risposta incompleta.");
+            setError(trRef.current("Review dashboard: risposta incompleta.", "The queue answered incompletely; trying again."));
             setRetry({ seconds: STATE_RETRY_SECONDS });
             return;
         }
@@ -392,7 +413,13 @@ export default function ReviewPage() {
                 }),
             });
             const result = await res.json();
-            if (!res.ok || !result.ok) throw new Error(result.error ?? (isSocial ? "Not saved" : "Decisione non salvata"));
+            if (!res.ok || !result.ok) {
+                // The social view says what happened in plain words; a raw
+                // server or Notion message is for JJ's register only.
+                throw new Error(isSocial
+                    ? (res.status === 403 && result.error ? result.error : "Not saved. Please try again in a moment.")
+                    : result.error ?? "Decisione non salvata");
+            }
             // A note is not a decision: the row stays open for more acts.
             if (decision === "comment" || decision === "ready" || decision === "request") {
                 setNote(entry.key, "");
@@ -447,6 +474,14 @@ export default function ReviewPage() {
         const history = isSocial
             ? rawHistory.split("\n").filter((l) => /^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2} · /.test(l)).join("\n")
             : rawHistory;
+        const notesBlock = (
+            <details className="mb-4 border border-paper-edge px-3 py-2" open={isSocial}>
+                <summary className="column-label column-label-paper cursor-pointer">
+                    {isSocial ? "Notes on this post" : "Note sulla riga"}
+                </summary>
+                <pre className="mt-2 whitespace-pre-wrap font-sans text-[12px] leading-relaxed text-paper-foreground">{history}</pre>
+            </details>
+        );
         const mark = entry.mark ?? null;
         const busy = busyKey === entry.key;
         const act = acted[entry.key];
@@ -462,7 +497,7 @@ export default function ReviewPage() {
                 <div className="border-b-[3px] border-double border-paper-edge px-5 pb-4 pt-5">
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                            <p className="column-label column-label-paper">{isSocial ? "Social · waiting for review" : `${entry.family} · atto in attesa`}</p>
+                            <p className="column-label column-label-paper">{isSocial ? "Waiting for review" : `${entry.family} · atto in attesa`}</p>
                             <h2 className="document-title mt-1.5 text-[22px] text-paper-foreground">{entry.title}</h2>
                         </div>
                         <Socket
@@ -473,9 +508,11 @@ export default function ReviewPage() {
                         />
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <Mark tone={stateTone(entry.stateLabel)} onPaper>{entry.stateLabel}</Mark>
+                        {/* The post preview below says what and when; the social view
+                            carries no internal labels up here. */}
+                        {!isSocial && <Mark tone={stateTone(entry.stateLabel)} onPaper>{entry.stateLabel}</Mark>}
                         {d?.due && <Mark tone="quiet" onPaper>entro {d.due}</Mark>}
-                        {c?.date && <Mark tone="quiet" onPaper>{c.date}</Mark>}
+                        {c?.date && !isSocial && <Mark tone="quiet" onPaper>{c.date}</Mark>}
                         {mark && (
                             <Mark tone={mark.kind === "ready" ? "sealed" : "ageing"} onPaper>
                                 {`${mark.kind === "ready" ? tr("Controllato da", "Checked by") : tr("Modifiche chieste da", "Changes requested by")} ${mark.by} · ${mark.at}`}
@@ -494,36 +531,23 @@ export default function ReviewPage() {
 
                 {/* The document body — caption and assets at document scale. */}
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-                    {history && (
-                        <details className="mb-4 border border-paper-edge px-3 py-2" open={isSocial}>
-                            <summary className="column-label column-label-paper cursor-pointer">
-                                {isSocial ? "Notes on this post" : "Note sulla riga"}
-                            </summary>
-                            <pre className="mt-2 whitespace-pre-wrap font-sans text-[12px] leading-relaxed text-paper-foreground">{history}</pre>
-                        </details>
-                    )}
+                    {history && !isSocial && notesBlock}
                     {c && (
-                        <>
-                            {c.caption ? (
-                                <div className="border-l-2 border-engraving pl-3 text-[14px] leading-relaxed text-paper-foreground whitespace-pre-wrap">
-                                    {c.caption}
-                                </div>
-                            ) : (
-                                <p className="font-condensed text-[11px] uppercase tracking-[0.14em] text-paper-foreground-soft">
-                                    Caption non ancora scritta
-                                </p>
-                            )}
-                            {c.hashtags && (
-                                <p className="mt-2 break-words text-[12px] text-engraving-ink">{c.hashtags}</p>
-                            )}
-                            <AssetSheet media={c.media} />
-                            {!c.hasAssets && c.canva && (
-                                <p className="mt-3 border border-sepia px-3 py-2 text-[12px] text-sepia">
+                        // The post as it will go out — media in order, the exact text,
+                        // where and when — composed the way the pipeline composes it.
+                        <div className="flex flex-col gap-8">
+                            {composePosts(c).map((post, i) => (
+                                <PostPreview key={`${c.rowId}-${i}`} post={post} date={c.date} lang={isSocial ? "en" : "it"} />
+                            ))}
+                            {!isSocial && !c.hasAssets && c.canva && (
+                                <p className="border border-sepia px-3 py-2 text-[12px] text-sepia">
                                     Solo vecchio link Canva, nessun asset locale visibile.
                                 </p>
                             )}
-                        </>
+                        </div>
                     )}
+                    {/* The social view reads the post first, then what people said about it. */}
+                    {history && isSocial && <div className="mt-5">{notesBlock}</div>}
 
                     {d && (
                         <>
@@ -843,7 +867,7 @@ export default function ReviewPage() {
                             })()}
                             {state && (
                                 <p className="mt-1.5 font-condensed text-[10px] uppercase tracking-[0.14em] text-plate-foreground-soft">
-                                    {tr("aggiornato", "updated")} {new Date(state.generatedAt).toLocaleTimeString(isSocial ? "en-GB" : "it-IT")}{state.cached ? " · cache" : ""}<SnapshotFreshness value={state.readModel} />
+                                    {tr("aggiornato", "updated")} {new Date(state.generatedAt).toLocaleTimeString(isSocial ? "en-GB" : "it-IT")}{!isSocial && state.cached ? " · cache" : ""}{!isSocial && <SnapshotFreshness value={state.readModel} />}
                                 </p>
                             )}
                         </div>
@@ -882,7 +906,7 @@ export default function ReviewPage() {
                     >
                         <div className="flex items-baseline justify-between border-b-[3px] border-double border-paper-edge px-4 py-2.5">
                             <span className="column-label column-label-paper">{tr("Atto", "Post")}</span>
-                            <span className="column-label column-label-paper">{tr("Sigillo", "JJ's seal")}</span>
+                            <span className="column-label column-label-paper">{tr("Sigillo", "")}</span>
                         </div>
                         <div className="min-h-0 flex-1 overflow-y-auto">
                             {!state ? (
@@ -930,11 +954,11 @@ export default function ReviewPage() {
                                                             act?.decision === "reject" ? "text-paper-foreground-soft line-through" : "text-paper-foreground"
                                                         ].join(" ")}>{entry.title}</p>
                                                         <div className="mt-1 flex flex-wrap items-center gap-2">
-                                                            <Mark tone={stateTone(entry.stateLabel)} onPaper>{entry.family}</Mark>
+                                                            {!isSocial && <Mark tone={stateTone(entry.stateLabel)} onPaper>{entry.family}</Mark>}
                                                             <span className="font-condensed text-[10px] uppercase tracking-[0.12em] text-paper-foreground-soft">
-                                                                {entry.stateLabel}
+                                                                {isSocial && entry.calendar ? socialLine(entry.calendar) : entry.stateLabel}
                                                             </span>
-                                                            {entry.hasMedia && (
+                                                            {entry.hasMedia && !isSocial && (
                                                                 <span className="font-condensed text-[10px] uppercase tracking-[0.12em] text-engraving-ink">
                                                                     · asset
                                                                 </span>
@@ -1029,7 +1053,7 @@ export default function ReviewPage() {
                     <div className="fixed inset-0 z-[60] hidden max-lg:flex flex-col bg-plate-deep/80">
                         <button
                             type="button"
-                            aria-label="Chiudi il documento"
+                            aria-label={tr("Chiudi il documento", "Close the post")}
                             className="h-14 flex-none"
                             onClick={() => setOpenKey(null)}
                         />
@@ -1040,7 +1064,7 @@ export default function ReviewPage() {
                                     onClick={() => setOpenKey(null)}
                                     className="absolute -top-10 right-2 z-10 border border-plate-rule bg-plate px-3 py-1.5 font-condensed text-[11px] font-bold uppercase tracking-[0.14em] text-plate-foreground"
                                 >
-                                    Chiudi
+                                    {tr("Chiudi", "Close")}
                                 </button>
                                 <DocumentLeaf entry={open} />
                             </div>
