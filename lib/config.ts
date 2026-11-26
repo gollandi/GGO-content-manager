@@ -65,6 +65,12 @@ export const notionConfig = {
             process.env.NOTION_CONTENT_ASSET_DB || required("NOTION_CONTENT_ASSETS_DB"),
         agentsActivityLog: lazyDb("NOTION_AGENTS_ACTIVITY_LOG_DB"),
         performanceSnapshot: lazyDb("NOTION_PERFORMANCE_SNAPSHOT_DB"),
+        // Natascia's weekly readings. The house names it
+        // NOTION_NATASCIA_WEEKLY_REPORTS_DB; the id is not a secret, so the
+        // cockpit carries it as a default (as it does the Sanity project id)
+        // and works without a server env change.
+        natasciaWeeklyReports: (): string =>
+            process.env.NOTION_NATASCIA_WEEKLY_REPORTS_DB || "c0ffc16e-8c4c-43e0-aa15-50a869404482",
 
         // ── Ambrogio (READ-ONLY in the Shell — independence by
         //    construction; asserted by ambrogio-no-write test) ───────────

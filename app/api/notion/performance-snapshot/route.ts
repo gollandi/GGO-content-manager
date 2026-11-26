@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { getPerformanceSnapshot } from "../../../../lib/notion/editorial";
+import { requireAuth } from "../../../../lib/auth/api-guard";
 
 export async function GET() {
+    // The middleware admits any session here; the route re-reads the store so
+    // a switched-off collaborator is refused at once.
+    const auth = await requireAuth();
+    if (!auth.authenticated) return auth.response;
     try {
         const data = await getPerformanceSnapshot();
         return NextResponse.json(data, {
-            headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400" },
+            headers: { "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400" },
         });
     } catch (error: unknown) {
         console.error(
