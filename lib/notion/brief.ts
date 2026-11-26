@@ -45,7 +45,7 @@ function inline(rich: RichText[] | undefined): string {
 }
 
 /** One Notion block → one Markdown line (unknown block types are skipped). */
-function blockToMarkdown(block: BlockObjectResponse): string | null {
+export function blockToMarkdown(block: BlockObjectResponse): string | null {
     const b = block as unknown as Record<string, { rich_text?: RichText[]; checked?: boolean }> & { type: string };
     const body = b[block.type];
     switch (block.type) {

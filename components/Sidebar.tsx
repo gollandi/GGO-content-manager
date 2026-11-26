@@ -61,13 +61,15 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 /**
- * The margin for the social media manager: three places and nothing
- * else. In English — they work in it daily and the rooms' Italian names
+ * The margin for the social media manager: the places of the role and
+ * nothing else. In English — they work in it daily and the rooms' Italian names
  * would mean little to a newcomer.
  */
 const SOCIAL_LINKS = [
   { href: "/review", label: "Social queue", hint: "Posts waiting for review" },
   { href: "/carico", label: "Upload media", hint: "Footage and audio for the team" },
+  { href: "/performance", label: "Performance", hint: "Natascia's readings and the numbers" },
+  { href: "/website", label: "Website", hint: "Every page and its state" },
   { href: "/guida", label: "Guide", hint: "How this works" },
 ];
 

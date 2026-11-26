@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import { canReach, mayAct, allowedActs, type CancelloAct } from "../lib/auth/permissions";
+import { canReach, mayAct, allowedActs, mayPublish, PUBLISH_AUTHORITY, type CancelloAct } from "../lib/auth/permissions";
 import { getRoleForEmail } from "../lib/auth/roles";
 
 /** Every page and API path the app serves, read from the app/ tree. */
@@ -36,13 +36,18 @@ describe("the social role's fence", () => {
             "/api/media/jobs",
             "/api/media/uploads",
             "/api/media/uploads/x",
+            "/api/natascia/weekly",
+            "/api/notion/performance-snapshot",
             "/api/review-dashboard/decision",
             "/api/review-dashboard/media",
             "/api/review-dashboard/state",
             "/api/review-dashboard/video",
+            "/api/social/pages",
             "/carico",
             "/guida",
+            "/performance",
             "/review",
+            "/website",
         ]);
         // (/invito is opened by the gate before the fence: auth-gate.test.ts.)
         // Sanity: the walk found the whole app, not an empty tree.
@@ -52,7 +57,7 @@ describe("the social role's fence", () => {
     it("is refused the routes the middleware otherwise exempts or leaves to the session", () => {
         for (const p of ["/api/views/editorial-content", "/api/llm/guard", "/api/board", "/api/board/sync",
             "/api/cache/invalidate", "/api/notion/patient-journeys", "/api/house/state", "/api/collaborators",
-            "/api/review-dashboard/buffer-sweep", "/api/ernesto/directives"]) {
+            "/api/review-dashboard/buffer-sweep", "/api/ernesto/directives", "/api/notion/content", "/api/notion/content-needs", "/api/house/state"]) {
             expect(canReach("social", p)).toEqual({ ok: false });
         }
     });
@@ -109,5 +114,31 @@ describe("the owner is admin whatever ADMIN_EMAIL says", () => {
         } finally {
             process.env = before;
         }
+    });
+});
+
+describe("publish authority", () => {
+    it("is JJ's alone today, and nobody's for the gates outside the cockpit", () => {
+        expect(PUBLISH_AUTHORITY["social-post"]).toEqual(["admin"]);
+        expect(PUBLISH_AUTHORITY["comment-reply"]).toEqual(["admin"]);
+        expect(PUBLISH_AUTHORITY["website-page"]).toEqual([]);
+        expect(PUBLISH_AUTHORITY.newsletter).toEqual([]);
+        expect(mayPublish("social", "social-post")).toBe(false);
+        expect(mayPublish(undefined, "social-post")).toBe(false);
+    });
+
+    it("drives who may release a social post in the Cancello", () => {
+        const widened = { ...PUBLISH_AUTHORITY, "social-post": ["admin", "social"] as const };
+        expect(allowedActs("social", "calendar", widened)).toEqual(expect.arrayContaining(["approve", "send", "comment"]));
+        expect(allowedActs("viewer", "calendar", widened)).not.toContain("approve");
+        const closed = { ...PUBLISH_AUTHORITY, "social-post": [] as const };
+        expect(allowedActs("admin", "calendar", closed)).not.toContain("approve");
+        expect(allowedActs("admin", "calendar", closed)).not.toContain("send");
+        expect(allowedActs("admin", "calendar")).toEqual(expect.arrayContaining(["approve", "send"]));
+    });
+
+    it("is frozen against accidental runtime widening", () => {
+        expect(Object.isFrozen(PUBLISH_AUTHORITY)).toBe(true);
+        for (const roles of Object.values(PUBLISH_AUTHORITY)) expect(Object.isFrozen(roles)).toBe(true);
     });
 });
