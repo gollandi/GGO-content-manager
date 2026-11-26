@@ -73,6 +73,8 @@ interface Entry {
     dueDays: number | null;
     hasMedia: boolean;
     notionUrl: string;
+    /** A collaborator's latest "ready for JJ" mark, read once from the row's notes. */
+    ready?: { at: string; by: string } | null;
     desk?: DeskRow;
     calendar?: CalendarRow;
     website?: WebsiteArticle;
@@ -271,6 +273,7 @@ export default function ReviewPage() {
                     dueDays: daysUntil(row.date),
                     hasMedia: row.media.length > 0,
                     notionUrl: row.url,
+                    ready: latestReadyMark(row.notes ?? ""),
                     calendar: row
                 })),
             // Approved and staged, not yet in Buffer: the team's rows wait for
@@ -438,7 +441,7 @@ export default function ReviewPage() {
         const history = isSocial
             ? rawHistory.split("\n").filter((l) => /^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2} · /.test(l)).join("\n")
             : rawHistory;
-        const ready = entry.calendar ? latestReadyMark(entry.calendar.notes ?? "") : null;
+        const ready = entry.ready ?? null;
         const busy = busyKey === entry.key;
         const act = acted[entry.key];
         const c = entry.calendar;
@@ -919,16 +922,12 @@ export default function ReviewPage() {
                                                                     · asset
                                                                 </span>
                                                             )}
-                                                            {(() => {
-                                                                // A collaborator's pre-check, visible on the line itself so
-                                                                // JJ can take the checked posts first.
-                                                                const mark = entry.calendar ? latestReadyMark(entry.calendar.notes ?? "") : null;
-                                                                return mark ? (
-                                                                    <span className="font-condensed text-[10px] uppercase tracking-[0.12em] text-engraving-ink">
-                                                                        · {tr("controllato da", "checked by")} {mark.by}
-                                                                    </span>
-                                                                ) : null;
-                                                            })()}
+                                                            {/* A collaborator's pre-check, on the line itself so JJ can take the checked posts first. */}
+                                                            {entry.ready && (
+                                                                <span className="font-condensed text-[10px] uppercase tracking-[0.12em] text-engraving-ink">
+                                                                    · {tr("controllato da", "checked by")} {entry.ready.by}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         {entry.dueDays !== null && entry.dueDays > 0 && (
                                                             <div className="mt-1.5"><AgeBar days={entry.dueDays} /></div>
