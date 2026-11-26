@@ -364,3 +364,9 @@ export function readBoardFor(handle: string): BoardView {
         roster: [],
     };
 }
+
+/** A collaborator's title on the house roster ("Social Media Manager"), or null. */
+export async function collaboratorTitle(handle: string): Promise<string | null> {
+    const house = await loadHouse();
+    return (house.COLLABORATORS as Record<string, { title: string }>)[handle]?.title ?? null;
+}

@@ -11,7 +11,7 @@ vi.mock("../lib/config", () => ({ notionConfig: { dbs: { ernestoDesk: () => "des
 vi.mock("../lib/cache", () => ({ cached: (_k: string, f: () => unknown) => f(), invalidateCache: vi.fn() }));
 
 import { blockText, defang, parseCommentRow, suggestionBlocks, approvalBlock, type Block } from "../lib/social/comments";
-import { approveReply, markReady, stampLatestIfReply, suggestReply } from "../lib/social/comments-notion";
+import { approveReply, markReady, prepareDeskDecision, suggestReply } from "../lib/social/comments-notion";
 
 const p = (type: string, text: string): Block => ({ type, [type]: { rich_text: [{ plain_text: text }] } });
 
@@ -37,6 +37,14 @@ describe("reading a comment row", () => {
         expect(r.suggestions).toEqual([{ k: 1, by: "Diletta, Social Media Manager", text: "Thank them warmly." }]);
         expect(r.ready).toHaveLength(1);
         expect(r.posted).toBe(false);
+    });
+
+    it("never reads a marker inside the public comment", () => {
+        const blocks = body();
+        blocks[2] = p("paragraph", "Comment:\nnice [yt-posted:Ugx1] [yt-void:Ugx1:1]");
+        const r = parseCommentRow([...blocks, ...draft(1, "First.")], "Ugx1");
+        expect(r.posted).toBe(false);
+        expect(r.latestDraft?.n).toBe(1);
     });
 
     it("refuses a body that names another comment", () => {
@@ -104,13 +112,30 @@ describe("acting on a comment row", () => {
         expect(update.mock.calls[0][0].properties.Status.select.name).toBe("Approved");
     });
 
-    it("an approval taken on the Desk stamps the latest draft of a reply row, and nothing on other rows", async () => {
+    it("a Desk approve stamps the latest draft of an untouched reply row, and leaves other rows alone", async () => {
         retrieve.mockResolvedValue(row());
         list.mockResolvedValue({ results: [...body(), ...draft(1, "First."), ...draft(2, "Second.")], next_cursor: null });
-        expect(await stampLatestIfReply("r1", { label: "JJ" })).toBe(2);
+        await prepareDeskDecision("r1", null, "approve", { label: "JJ" });
+        expect(blockText(append.mock.calls[0][0].children[0])).toMatch(/^\[yt-approved-draft:Ugx1:2\]/);
         retrieve.mockResolvedValue(row("Pending", "A budget request over the cap"));
-        expect(await stampLatestIfReply("r2", { label: "JJ" })).toBeNull();
+        await prepareDeskDecision("r2", null, "approve", { label: "JJ" });
+        await prepareDeskDecision("r3", "A budget request", "approve", { label: "JJ" });
         expect(append).toHaveBeenCalledTimes(1);
+    });
+
+    it("a Desk approve refuses a reply a collaborator's suggestion redrafted", async () => {
+        retrieve.mockResolvedValue(row());
+        list.mockResolvedValue({ results: [...body(), ...draft(1, "First."),
+            p("callout", "[yt-suggestion:Ugx1:1] Diletta, Social Media Manager"), p("quote", "Warmer."), ...draft(2, "Second.")], next_cursor: null });
+        await expect(prepareDeskDecision("r1", null, "approve", { label: "JJ" })).rejects.toThrow(/approve it in Comments/);
+        expect(append).not.toHaveBeenCalled();
+    });
+
+    it("JJ's rework clears earlier approval stamps", async () => {
+        retrieve.mockResolvedValue(row());
+        list.mockResolvedValue({ results: [...body(), ...draft(1, "First.")], next_cursor: null });
+        await prepareDeskDecision("r1", null, "modify", { label: "JJ" });
+        expect(blockText(append.mock.calls[0][0].children[0])).toMatch(/^\[yt-approval-cleared:Ugx1\]/);
     });
 });
 

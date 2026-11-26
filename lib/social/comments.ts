@@ -26,6 +26,7 @@ export const markers = {
     suggestion: (id: string, k: number) => `[yt-suggestion:${id}:${k}]`,
     ready: (id: string) => `[yt-ready:${id}]`,
     approvedDraft: (id: string, n: number) => `[yt-approved-draft:${id}:${n}]`,
+    approvalCleared: (id: string) => `[yt-approval-cleared:${id}]`,
 };
 
 export interface Draft { n: number; text: string }
@@ -63,7 +64,10 @@ export function parseCommentRow(blocks: Block[], commentId: string): ParsedComme
     const comment = start === -1 ? "" : [texts[start].replace(/^Comment:\n?/, ""), ...texts.slice(start + 1, end === -1 ? start + 1 : end)].join("\n\n").trim();
 
     const id = escape(commentId);
-    const notQuote = (i: number) => blocks[i]?.type !== "quote";
+    // House notes come after the ingest's body (which ends with the id line);
+    // the comment itself is public text and must never count as a marker.
+    const bodyEnd = texts.findIndex((t) => t.includes("youtube-comment-id:"));
+    const notQuote = (i: number) => i > bodyEnd && blocks[i]?.type !== "quote";
     const voided = new Set<number>();
     texts.forEach((t, i) => { if (notQuote(i)) for (const m of t.matchAll(new RegExp(`\\[yt-void:${id}:(\\d+)\\]`, "g"))) voided.add(Number(m[1])); });
     const drafts: Draft[] = [];
@@ -150,4 +154,11 @@ export function approvalBlock(commentId: string, n: number, byLabel: string, at:
     return { object: "block", type: "callout", callout: {
         rich_text: [{ type: "text", text: { content: `${markers.approvedDraft(commentId, n)} ${defang(byLabel)} approved draft ${n}, ${stamp}.` } }],
         icon: { type: "emoji", emoji: "✅" } } };
+}
+
+export function approvalClearedBlock(commentId: string, byLabel: string, at: Date) {
+    const stamp = at.toISOString().slice(0, 16).replace("T", " ") + " UTC";
+    return { object: "block", type: "callout", callout: {
+        rich_text: [{ type: "text", text: { content: `${markers.approvalCleared(commentId)} ${defang(byLabel)} sent this reply back for a new draft, ${stamp}.` } }],
+        icon: { type: "emoji", emoji: "↩️" } } };
 }

@@ -14,7 +14,7 @@ import { notion } from "../notion/client";
 import { notionConfig } from "../config";
 import { cached, invalidateCache } from "../cache";
 import * as x from "../notion/extract";
-import { approvalBlock, commentIdFromTitle, parseCommentRow, readyBlock, suggestionBlocks, type Block, type ParsedComment } from "./comments";
+import { approvalBlock, approvalClearedBlock, commentIdFromTitle, parseCommentRow, readyBlock, suggestionBlocks, type Block, type ParsedComment } from "./comments";
 
 const DESK_TYPE = "publish-approval";
 const OPEN_STATUSES = ["Pending", "Approved", "In production"];
@@ -145,20 +145,33 @@ export async function stampApproval(rowId: string, commentId: string, n: number,
 }
 
 /**
- * For an approval taken elsewhere (the Desk in Il Cancello): stamp the latest
- * draft if the row is a `[yt:…]` reply row, so the dispatcher posts the draft
- * that was there at the click. Returns the draft stamped, or null.
+ * JJ decides a Desk row in Il Cancello. For a YouTube reply row:
+ *  - approve: the Desk does not show which draft is on the row, so the
+ *    latest is stamped — as posted before this change. A row a collaborator's
+ *    suggestion has redrafted is refused here: its draft may have changed
+ *    under JJ's eyes, and the Comments room pins the draft on screen.
+ *  - modify: earlier approval stamps are cleared, so a hand approval of the
+ *    new draft later keeps the old rule.
+ * Any other Desk row is left alone. Only rows titled `[yt:` are read.
  */
-export async function stampLatestIfReply(rowId: string, actor: CommentActor, now = new Date()): Promise<number | null> {
+export async function prepareDeskDecision(rowId: string, title: string | null, decision: string, actor: CommentActor, now = new Date()): Promise<void> {
+    if (decision !== "approve" && decision !== "modify") return;
+    if (title !== null && !commentIdFromTitle(title)) return;
     let loaded;
     try {
         loaded = await loadRow(rowId);
     } catch (err) {
-        if (err instanceof CommentActError) return null; // not a reply row
+        if (err instanceof CommentActError) return; // not a reply row
         throw err;
     }
-    if (!loaded.row.latestDraft) return null;
-    await stampApproval(rowId, loaded.row.commentId, loaded.row.latestDraft.n, actor, now);
+    const { row } = loaded;
+    if (decision === "modify") {
+        await notion.blocks.children.append({ block_id: rowId, children: [approvalClearedBlock(row.commentId, actor.label, now)] as never });
+    } else {
+        if (row.suggestions.length > 0) {
+            throw new CommentActError("A collaborator's suggestion has redrafted this reply: approve it in Comments, where the draft you read is the one posted.");
+        }
+        if (row.latestDraft) await stampApproval(rowId, row.commentId, row.latestDraft.n, actor, now);
+    }
     invalidateCache(CACHE_KEY);
-    return loaded.row.latestDraft.n;
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "../../../../lib/auth/api-guard";
 import { mayPublish } from "../../../../lib/auth/permissions";
 import { approveReply, CommentActError, listComments, markReady, suggestReply } from "../../../../lib/social/comments-notion";
+import { collaboratorTitle } from "../../../../lib/board/store";
 
 /**
  * Comments — the YouTube comments waiting for a reply, with Samantha's draft.
@@ -42,7 +43,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Body must be JSON" }, { status: 400 });
     }
     if (typeof body.rowId !== "string" || !body.rowId) return NextResponse.json({ error: "rowId is required" }, { status: 400 });
-    const actor = { label: auth.role === "admin" ? "JJ" : `${auth.name}, Social Media Manager` };
+    const title = auth.houseHandle ? await collaboratorTitle(auth.houseHandle) : null;
+    const actor = { label: auth.role === "admin" ? "JJ" : title ? `${auth.name}, ${title}` : auth.name };
     const draftSeen = Number(body.draftSeen);
     try {
         switch (body.act) {
