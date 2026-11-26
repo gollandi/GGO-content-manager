@@ -69,10 +69,9 @@ describe("acceptance records", () => {
         const p = path.join(dir, "contract-records.jsonl");
         writeFileSync(p, readFileSync(p, "utf8").replace("203.0.113.7", "198.51.100.1"));
         expect(store.verifyChain()).not.toBeNull();
-        installContract(dir, "e@example.com");
-        const e = store.contractStanding("e@example.com");
-        if (e.kind !== "required") throw new Error("setup");
-        await expect(accept.acceptContract(acceptanceFor(e.view), { ...ctx, email: "e@example.com" })).rejects.toThrow(/do not verify/);
+        // Everyone's standing fails closed, and nothing more can be signed.
+        expect(() => store.contractStanding("d@example.com")).toThrow(/do not verify/);
+        await expect(accept.acceptContract(acceptanceFor(s.view), ctx)).rejects.toThrow(/do not verify/);
     });
 
     it("a new FINAL version asks again; a newer draft does not take access away", async () => {
@@ -107,6 +106,42 @@ describe("acceptance records", () => {
         const standing = store.contractStanding("d@example.com");
         expect(standing.kind === "accepted" && standing.countersigned).toBe(true);
         expect(store.verifyChain()).toBeNull();
+    });
+
+    it("a truncated log no longer matches its head, and access stops", async () => {
+        installContract(dir, "d@example.com");
+        const s = store.contractStanding("d@example.com");
+        if (s.kind !== "required") throw new Error("setup");
+        await accept.acceptContract(acceptanceFor(s.view), ctx);
+        writeFileSync(path.join(dir, "contract-records.jsonl"), "");
+        expect(store.integrityProblem()).toMatch(/head/);
+        expect(() => store.contractStanding("d@example.com")).toThrow(/head/);
+    });
+
+    it("a version edited in place after signing is refused, not signed under the old label", async () => {
+        installContract(dir, "d@example.com");
+        installContract(dir, "e@example.com");
+        // One assignment file: put both people on it.
+        writeFileSync(path.join(dir, "contracts", "assignments.json"), JSON.stringify({
+            "d@example.com": { contract_id: CONTRACT_ID, signatory_name: "Test Contractor" },
+            "e@example.com": { contract_id: CONTRACT_ID, signatory_name: "Test Contractor" },
+        }));
+        const s = store.contractStanding("d@example.com");
+        if (s.kind !== "required") throw new Error("setup");
+        await accept.acceptContract(acceptanceFor(s.view), ctx);
+        const p = path.join(dir, "contracts", CONTRACT_ID, "v1.0.md");
+        writeFileSync(p, readFileSync(p, "utf8").replace("100 example units", "90 example units"));
+        const e = store.contractStanding("e@example.com");
+        if (e.kind !== "required") throw new Error("setup");
+        await expect(accept.acceptContract(acceptanceFor(e.view), { ...ctx, email: "e@example.com" })).rejects.toThrow(/new version number/);
+    });
+
+    it("a first name alone is not a signature", async () => {
+        installContract(dir, "d@example.com");
+        const s = store.contractStanding("d@example.com");
+        if (s.kind !== "required") throw new Error("setup");
+        await expect(accept.acceptContract(acceptanceFor(s.view, "Diletta"), { ...ctx, storeName: "Diletta" })).rejects.toThrow(/full name/);
+        await expect(accept.acceptContract(acceptanceFor(s.view, "Test"), ctx)).rejects.toThrow(/full name/);
     });
 
     it("refuses to sign when the archived copy would not match", async () => {

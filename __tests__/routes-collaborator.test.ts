@@ -137,6 +137,7 @@ describe("collaborator management and the invitation", () => {
         expect((await redeem(json("http://x/api/auth-invite/redeem", { token, password: "a long enough pass" }))).status).toBe(422);
         expect((await redeem(json("http://x/api/auth-invite/redeem", { token, password: "a long enough pass", acceptance: acceptanceFor(final, "Someone Else") }))).status).toBe(422);
         expect((await redeem(json("http://x/api/auth-invite/redeem", { token, password: "a long enough pass", acceptance: { ...acceptanceFor(final), sha256: "0".repeat(64) } }))).status).toBe(422);
+        expect((await redeem(json("http://x/api/auth-invite/redeem", { token, password: "short", acceptance: acceptanceFor(final) }))).status).toBe(400);
         expect(readRecords()).toHaveLength(0);
         // The link still works once the agreement is signed.
         const ok = await redeem(json("http://x/api/auth-invite/redeem", { token, password: "a long enough pass", acceptance: acceptanceFor(final, "test contractor") }));

@@ -10,9 +10,8 @@
  * The output, like the contract, belongs on the server beside the user
  * store, never in git: it names the contractor's business.
  *
- * One deliberate change to the copy: the "Done" screen promised that a
- * signed copy "has been emailed". The cockpit has no email service, so the
- * screen says where the copy can be downloaded instead.
+ * The Done text and the countersignature wording come from the copy (v1.2
+ * on); older copies without them get the cockpit's own wording.
  */
 import fs from 'node:fs';
 
@@ -49,7 +48,7 @@ const acceptance = {
   heading: strip(quote[0]),
   checkboxes: quote.filter((l) => l.startsWith('☐')).map((l) => l.replace(/^☐\s*/, '').trim()),
   namePrompt: quote.find((l) => l.startsWith('Type your full name')).replace(/\[[\s_]*\]/, '').trim(),
-  intent: quote.find((l) => l.startsWith('By selecting')),
+  intent: quote.find((l) => l.startsWith('By selecting') && !l.includes('on behalf of GGO Med Ltd')),
   button: quote.find((l) => /^\[ .* \]$/.test(l)).replace(/^\[\s*|\s*\]$/g, ''),
 };
 if (acceptance.checkboxes.length !== 3 || !acceptance.intent) throw new Error('acceptance block not understood');
@@ -59,9 +58,10 @@ const out = {
   howWeWork,
   cards,
   acceptance,
-  done: 'Thank you. Your tools are now unlocked. Your signed copy is in the Guide, to download whenever you need it; GGO Med keeps one too.',
+  done: (flow[4] && quoted(flow[4])) || 'Thank you. Your tools are now unlocked. Your signed copy is in the Guide, to download whenever you need it.',
   countersign: {
-    intent: 'By selecting "I accept and sign on behalf of GGO Med Ltd", I agree that GGO Med Ltd is legally bound by this agreement and I intend my typed name and this action to be my electronic signature as its director.',
+    intent: quote.find((l) => l.includes('on behalf of GGO Med Ltd') && l.startsWith('By selecting'))
+      || 'By selecting "I accept and sign on behalf of GGO Med Ltd", I agree that GGO Med Ltd is legally bound by this agreement and I intend my typed name and this action to be my electronic signature as its director.',
     button: 'I accept and sign on behalf of GGO Med Ltd as its director',
   },
 };

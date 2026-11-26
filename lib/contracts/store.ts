@@ -7,6 +7,7 @@
  *   contracts/<id>/v<version>.copy.json   the onboarding copy (tools/contracts/copy-to-json.mjs)
  *   contract-records.jsonl                append-only acceptance records, hash-chained
  *   contract-copies/<sha256>.md           the exact rendered text each record names
+ *   contract-downloads.jsonl              each download of a signed copy (who, which, when, where)
  *
  * The version in force for a person is the newest FINAL version of their
  * contract. A newer draft is shown to read but cannot be signed; a newer
@@ -30,7 +31,12 @@ export interface Assignment { contract_id: string; signatory_name: string }
 export function assignmentFor(email: string): Assignment | null {
     const p = path.join(dir(), "assignments.json");
     if (!existsSync(p)) return null;
-    const all = JSON.parse(readFileSync(p, "utf8")) as Record<string, Assignment>;
+    let all: Record<string, Assignment>;
+    try {
+        all = JSON.parse(readFileSync(p, "utf8")) as Record<string, Assignment>;
+    } catch {
+        throw new ContractError("contracts/assignments.json is unreadable");
+    }
     const a = all[norm(email)];
     if (!a) return null;
     if (!a.contract_id || !a.signatory_name) throw new ContractError(`assignment for this person is incomplete`);
@@ -72,6 +78,8 @@ export interface ContractView {
     cards: CardView[];
     acceptance: OnboardingCopy["acceptance"];
     acceptanceSha256: string;
+    /** Hash of the onboarding copy shown (welcome, how we work, cards): it changes only with a new version. */
+    copySha256: string;
     done: string;
 }
 
@@ -97,6 +105,7 @@ function toView(c: ContractFile, a: Assignment): ContractView {
         text, sha256: sha256(text), variables: values(c), signatoryName: a.signatory_name,
         welcome: copy.welcome, howWeWork: copy.howWeWork, cards: cardViews(copy, c, text),
         acceptance, acceptanceSha256: sha256(acceptanceText(acceptance)), done: copy.done,
+        copySha256: sha256(JSON.stringify({ welcome: copy.welcome, howWeWork: copy.howWeWork, cards: copy.cards })),
     };
 }
 
@@ -127,15 +136,39 @@ export interface ContractRecord {
     ip_address: string;
     user_agent: string;
     acceptance_statement_sha256: string;
-    confirmation_email_ids: string[];
+    /** Hash of the onboarding copy (summaries) shown with the text. */
+    onboarding_copy_sha256?: string;
     notes: string[];
     previous_record_sha256: string | null;
     record_sha256: string;
 }
 
+const headPath = () => path.join(authDir(), "contract-records.head");
+
 export function readRecords(): ContractRecord[] {
     if (!existsSync(recordsPath())) return [];
-    return readFileSync(recordsPath(), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as ContractRecord);
+    return readFileSync(recordsPath(), "utf8").split("\n").filter(Boolean).map((l, i) => {
+        try {
+            return JSON.parse(l) as ContractRecord;
+        } catch {
+            // Never echo the line: it holds names and addresses.
+            throw new ContractError(`acceptance record ${i + 1} is unreadable`);
+        }
+    });
+}
+
+/**
+ * The chain's head is also kept apart from the log, and printed on every
+ * signed copy both parties download: a truncated or rewritten log no longer
+ * matches it. Returns null when log and head agree.
+ */
+export function integrityProblem(records = readRecords()): string | null {
+    const broken = verifyChain(records);
+    if (broken) return `the acceptance records do not verify from ${broken}`;
+    const head = existsSync(headPath()) ? readFileSync(headPath(), "utf8").trim() : "";
+    const last = records.at(-1)?.record_sha256 ?? "";
+    if (head !== last) return "the acceptance records do not match their recorded head";
+    return null;
 }
 
 /** Recompute the chain; null when intact, else the first broken record. */
@@ -153,7 +186,10 @@ export function verifyChain(records = readRecords()): string | null {
 export function acceptedRecord(email: string): ContractRecord | null {
     const view = viewFor(email);
     if (!view || !view.signable) return null;
-    return readRecords().find((r) => r.signatory_role === "contractor" && r.signatory_email === norm(email)
+    const records = readRecords();
+    const problem = integrityProblem(records);
+    if (problem) throw new ContractError(problem);
+    return records.find((r) => r.signatory_role === "contractor" && r.signatory_email === norm(email)
         && r.contract_id === view.contractId && r.contract_version === view.version && r.contract_sha256 === view.sha256) ?? null;
 }
 
@@ -181,11 +217,19 @@ function serialise<T>(task: () => T | Promise<T>): Promise<T> {
     return run;
 }
 
-export function appendRecord(fields: Omit<ContractRecord, "record_id" | "previous_record_sha256" | "record_sha256">, text: string): Promise<ContractRecord> {
+export function appendRecord(
+    fields: Omit<ContractRecord, "record_id" | "previous_record_sha256" | "record_sha256">,
+    text: string,
+    /** Inside the write queue: return an existing record to use instead, or throw to refuse. */
+    precheck?: (records: ContractRecord[]) => ContractRecord | null,
+): Promise<ContractRecord> {
     return serialise(() => {
         if (sha256(text) !== fields.contract_sha256) throw new ContractError("the archived text does not match the hash");
         const records = readRecords();
-        if (verifyChain(records) !== null) throw new ContractError("the acceptance records do not verify; refusing to append");
+        const problem = integrityProblem(records);
+        if (problem) throw new ContractError(`${problem}; refusing to append`);
+        const existing = precheck?.(records);
+        if (existing) return existing;
         const previous = records.at(-1)?.record_sha256 ?? null;
         const body = { record_id: `${fields.contract_id}-${fields.contract_version}-${fields.signatory_role}-${Date.parse(fields.accepted_at_utc)}`, ...fields, previous_record_sha256: previous };
         const record: ContractRecord = { ...body, record_sha256: sha256(JSON.stringify(body)) };
@@ -196,7 +240,14 @@ export function appendRecord(fields: Omit<ContractRecord, "record_id" | "previou
             writeFileSync(tmp, text, { mode: 0o600 });
             renameSync(tmp, copy);
         }
-        appendFileSync(recordsPath(), JSON.stringify(record) + "\n", { mode: 0o600 });
+        // Whole-file write and rename: a crash leaves the old log, never a torn line.
+        const all = [...records, record].map((r) => JSON.stringify(r)).join("\n") + "\n";
+        const tmp = `${recordsPath()}.tmp`;
+        writeFileSync(tmp, all, { mode: 0o600 });
+        renameSync(tmp, recordsPath());
+        const htmp = `${headPath()}.tmp`;
+        writeFileSync(htmp, record.record_sha256 + "\n", { mode: 0o600 });
+        renameSync(htmp, headPath());
         return record;
     });
 }
@@ -220,5 +271,19 @@ export function signedCopy(contractorEmail: string, contractSha: string): string
         `  signed ${r.accepted_at_utc} from ${r.ip_address}; version ${r.contract_version}; contract SHA-256 ${r.contract_sha256}; record ${r.record_sha256}`,
     ].join("\n"));
     const pending = records.some((r) => r.signatory_role === "company") ? "" : "\n\nAwaiting GGO Med's signature.";
-    return `${text}\n---\n\n## Electronic signatures\n\n${lines.join("\n") || "None yet."}${pending}\n`;
+    const head = readRecords().at(-1)?.record_sha256 ?? "none";
+    return `${text}\n---\n\n## Electronic signatures\n\n${lines.join("\n") || "None yet."}${pending}\n\nRecord chain head when this copy was made: ${head}\n`;
+}
+
+/** Log one download of a signed copy (records are immutable, so downloads live beside them). */
+export function logDownload(entry: { by: string; contractor: string; contract_sha256: string; at: string; ip: string }): void {
+    mkdirSync(authDir(), { recursive: true });
+    appendFileSync(path.join(authDir(), "contract-downloads.jsonl"), JSON.stringify(entry) + "\n", { mode: 0o600 });
+}
+
+export function downloadsOf(contractor: string): { by: string; at: string }[] {
+    const p = path.join(authDir(), "contract-downloads.jsonl");
+    if (!existsSync(p)) return [];
+    return readFileSync(p, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l))
+        .filter((e: { contractor: string }) => e.contractor === norm(contractor)).map((e: { by: string; at: string }) => ({ by: e.by, at: e.at }));
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "../../../../lib/auth/api-guard";
-import { readRecords, signedCopy } from "../../../../lib/contracts/store";
+import { logDownload, readRecords, signedCopy } from "../../../../lib/contracts/store";
+import { clientIp } from "../../../../lib/auth/credentials";
 
 /**
  * Download a signed agreement: the exact text accepted, then the signature
@@ -18,9 +19,16 @@ export async function GET(req: NextRequest) {
     if (auth.role !== "admin" && asked && asked.trim().toLowerCase() !== email) {
         return NextResponse.json({ error: "Not yours" }, { status: 403 });
     }
-    const mine = readRecords().filter((r) => r.signatory_role === "contractor" && r.signatory_email === email).at(-1);
-    if (!mine) return NextResponse.json({ error: "No signed agreement yet" }, { status: 404 });
-    const body = signedCopy(email, mine.contract_sha256);
+    let mine, body: string;
+    try {
+        mine = readRecords().filter((r) => r.signatory_role === "contractor" && r.signatory_email === email).at(-1);
+        if (!mine) return NextResponse.json({ error: "No signed agreement yet" }, { status: 404 });
+        body = signedCopy(email, mine.contract_sha256);
+    } catch (err) {
+        console.error("[contract/signed]", (err as Error).message);
+        return NextResponse.json({ error: "The signed copy could not be prepared." }, { status: 503 });
+    }
+    logDownload({ by: auth.email.trim().toLowerCase(), contractor: email, contract_sha256: mine.contract_sha256, at: new Date().toISOString(), ip: clientIp(req) });
     return new NextResponse(body, {
         headers: {
             "Content-Type": "text/markdown; charset=utf-8",

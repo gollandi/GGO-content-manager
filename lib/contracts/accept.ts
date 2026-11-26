@@ -45,12 +45,12 @@ export async function acceptContract(input: AcceptanceInput, ctx: SigningContext
     const reached = iso(input.reachedEndAt);
     if (!reached) throw new ContractError("Read the agreement to the end before signing.");
     const typed = String(input.typedName ?? "").trim();
-    if (!sameName(typed, view.signatoryName) && !sameName(typed, ctx.storeName)) {
+    // The full name only: a first name alone is weak evidence of an intent
+    // to sign (contract copy v1.2).
+    if (!sameName(typed, view.signatoryName)) {
         throw new ContractError(`Type your full name as it appears in the agreement (${view.signatoryName}).`);
     }
     const email = ctx.email.trim().toLowerCase();
-    const already = readRecords().find((r) => r.signatory_role === "contractor" && r.signatory_email === email && r.contract_sha256 === view.sha256);
-    if (already) return already;
     const now = ctx.now ?? new Date();
     const sections = Array.isArray(input.viewedSections) ? input.viewedSections : [];
     return appendRecord({
@@ -71,12 +71,20 @@ export async function acceptContract(input: AcceptanceInput, ctx: SigningContext
         ip_address: ctx.ip,
         user_agent: ctx.userAgent.slice(0, 400),
         acceptance_statement_sha256: view.acceptanceSha256,
-        confirmation_email_ids: [],
+        onboarding_copy_sha256: view.copySha256,
         notes: [
             "Times in checkbox_states, viewed_sections, reached_end_at and pdf_downloaded_at are the browser's; accepted_at_utc is the server's.",
-            "The cockpit has no second factor and no email service: mfa is false and no confirmation email was sent; both parties download the signed copy from the cockpit.",
+            "The cockpit has no second factor and no email service: mfa is false; both parties download the signed copy from the cockpit, and each download is logged in contract-downloads.jsonl.",
         ],
-    }, view.text);
+    }, view.text, (records) => {
+        // Gate 3: one version number, one text, one copy. A version edited in
+        // place is refused rather than signed under a label it no longer means.
+        const same = records.filter((r) => r.contract_id === view.contractId && r.contract_version === view.version);
+        if (same.some((r) => r.contract_sha256 !== view.sha256 || (r.onboarding_copy_sha256 && r.onboarding_copy_sha256 !== view.copySha256))) {
+            throw new ContractError("This version was changed after it was signed; GGO Med must issue it under a new version number.");
+        }
+        return records.find((r) => r.signatory_role === "contractor" && r.signatory_email === email && r.contract_sha256 === view.sha256) ?? null;
+    });
 }
 
 /** JJ countersigns a contractor's accepted version, for GGO Med Ltd. */
@@ -84,11 +92,13 @@ export async function countersign(contractorEmail: string, typedName: string, ct
     const email = contractorEmail.trim().toLowerCase();
     const theirs = readRecords().filter((r) => r.signatory_role === "contractor" && r.signatory_email === email).at(-1);
     if (!theirs) throw new ContractError("There is no signed agreement from this person to countersign.");
-    if (readRecords().some((r) => r.signatory_role === "company" && r.countersigns === email && r.contract_sha256 === theirs.contract_sha256)) {
-        throw new ContractError("Already countersigned.");
+    const inForce = viewFor(email);
+    if (!inForce?.signable || inForce.sha256 !== theirs.contract_sha256) {
+        throw new ContractError("The version this person signed is no longer the one in force; they sign the current one first.");
     }
+
     const t = String(typedName ?? "").trim();
-    if (!sameName(t, ctx.name) && !/ollandini/i.test(t)) throw new ContractError("Type your full name as GGO Med's director.");
+    if (!sameName(t, "Giangiacomo Ollandini")) throw new ContractError("Type your full name as GGO Med's director (Giangiacomo Ollandini).");
     const wording = countersignWording(theirs.contract_id, theirs.contract_version);
     const now = ctx.now ?? new Date();
     return appendRecord({
@@ -110,7 +120,11 @@ export async function countersign(contractorEmail: string, typedName: string, ct
         ip_address: ctx.ip,
         user_agent: ctx.userAgent.slice(0, 400),
         acceptance_statement_sha256: sha256(`${wording.intent}\n${wording.button}`),
-        confirmation_email_ids: [],
         notes: ["The cockpit has no second factor and no email service."],
-    }, archivedText(theirs.contract_sha256));
+    }, archivedText(theirs.contract_sha256), (records) => {
+        if (records.some((r) => r.signatory_role === "company" && r.countersigns === email && r.contract_sha256 === theirs.contract_sha256)) {
+            throw new ContractError("Already countersigned.");
+        }
+        return null;
+    });
 }

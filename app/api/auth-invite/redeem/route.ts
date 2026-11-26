@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
-import { describeInvite, findUser, MIN_PASSWORD_LENGTH, redeemInvite } from "../../../../lib/auth/users";
+import { describeInvite, findUser, MIN_PASSWORD_LENGTH, redeemInvite, validatePassword } from "../../../../lib/auth/users";
 import { clientIp } from "../../../../lib/auth/credentials";
 import { acceptContract, type AcceptanceInput } from "../../../../lib/contracts/accept";
 import { ContractError } from "../../../../lib/contracts/contract";
@@ -47,6 +47,9 @@ export async function POST(req: NextRequest) {
         if (!invite) {
             return NextResponse.json({ error: "This link is not valid any more. Ask for a new one." }, { status: 404, headers: noStore });
         }
+        // A password that would be refused is refused before anything is signed.
+        const problem = validatePassword(body.password);
+        if (problem) return NextResponse.json({ error: problem }, { status: 400, headers: noStore });
         const stored = findUser(invite.email);
         await acceptContract(body.acceptance as AcceptanceInput, {
             email: invite.email,
@@ -61,6 +64,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, email: user.email }, { headers: noStore });
     } catch (err) {
         if (err instanceof ContractError) return NextResponse.json({ error: err.message, code: "CONTRACT" }, { status: 422, headers: noStore });
-        return NextResponse.json({ error: (err as Error).message }, { status: 400, headers: noStore });
+        const message = (err as Error).message;
+        // The user store's own refusals are written for the invitee; anything
+        // else stays in the server log (it can quote a file).
+        if (/password|link|not valid/i.test(message) && !/[{}\/]/.test(message)) return NextResponse.json({ error: message }, { status: 400, headers: noStore });
+        console.error("[auth-invite/redeem]", message);
+        return NextResponse.json({ error: "Something went wrong on our side. Nothing was changed; try again later." }, { status: 500, headers: noStore });
     }
 }

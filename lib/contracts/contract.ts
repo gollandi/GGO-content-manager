@@ -191,7 +191,7 @@ export function acceptanceText(w: OnboardingCopy["acceptance"]): string {
 
 /** Case- and accent-insensitive comparison of a typed signature with a name. */
 export function sameName(a: string, b: string): boolean {
-    const n = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z]+/g, " ").trim();
+    const n = (s: string) => s.normalize("NFD").replace(/\p{M}+/gu, "").toLowerCase().replace(/[^\p{L}]+/gu, " ").trim();
     return n(a).length > 1 && n(a) === n(b);
 }
 

@@ -59,7 +59,7 @@ function Agreements() {
   return (
     <section className="paper mt-6 border border-paper-edge p-5 text-sm text-paper-foreground">
       <h2 className="column-label column-label-paper mb-3">Agreements</h2>
-      {broken && <p role="alert" className="mb-2">The signature records do not verify from {broken} on. Nothing new can be signed until this is looked at.</p>}
+      {broken && <p role="alert" className="mb-2">The signature records need attention: {broken}. Nothing new can be signed until they are looked at.</p>}
       {error && <p role="alert" className="mb-2">{error}</p>}
       {rows === null ? <p>Reading…</p> : contractors.length === 0 ? <p>No agreement signed yet. A collaborator signs during their invitation.</p> : (
         <ul className="divide-y divide-paper-edge">
