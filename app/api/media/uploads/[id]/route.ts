@@ -25,7 +25,8 @@ type Ctx = { params: Promise<{ id: string }> };
 
 /**
  * A writer may act on any upload (today's behaviour); the social media
- * manager only on their own, so they cannot abandon or complete JJ's.
+ * manager only on their own — reading included — so they can neither see
+ * nor abandon nor complete JJ's.
  */
 async function mayTouch(id: string, auth: { email: string; role: string }): Promise<NextResponse | null> {
     if (auth.role === "admin" || auth.role === "editor") return null;
@@ -42,6 +43,12 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     if (!auth.authenticated) return auth.response;
 
     const { id } = await params;
+    try {
+        const refused = await mayTouch(id, auth);
+        if (refused) return refused;
+    } catch (err) {
+        return fail(err, "Could not read the upload");
+    }
     try {
         const manifest = await readManifest(id);
         if (!manifest) return NextResponse.json({ error: "Unknown upload" }, { status: 404 });

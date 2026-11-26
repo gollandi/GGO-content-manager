@@ -26,7 +26,7 @@ import { findPatchForAsset } from "./patches";
 import { runHouseScript } from "./house";
 import { isOrderedByJJ, liveDeps, sendRow } from "./buffer-send";
 import { invalidateCancelloCache } from "./state";
-import { appendNote, formatNote, readRichText, type NoteKind } from "./notes";
+import { appendNote, formatNote, type NoteKind } from "./notes";
 import { mayAct, type CancelloAct } from "../auth/permissions";
 import type { Role } from "../auth/roles";
 
@@ -138,17 +138,25 @@ async function createDeskRow(input: {
     return { rowId: page.id };
 }
 
-/** The row's notes property with one attributed line appended. */
+/**
+ * The row's notes property with one attributed line appended (calendar).
+ * The Desk's `Correction` keeps its old meaning — JJ's latest instruction,
+ * overwritten — because the house reads it whole as that (desk-reader,
+ * youtube-reply-drafts); only JJ acts on Desk rows.
+ */
 async function appendedNotes(
     rowId: string, target: "desk" | "calendar", actor: Actor, kind: NoteKind, text: string,
     page?: { properties?: Record<string, unknown> },
-): Promise<{ prop: string; value: ReturnType<typeof appendNote>; text: string }> {
+): Promise<{ prop: string; value: unknown; text: string }> {
     const prop = COMMENT_PROP[target];
+    if (target === "desk") {
+        const content = text.slice(0, 1900);
+        return { prop, value: { rich_text: [{ text: { content } }] }, text: content };
+    }
     const current = page ?? await notion.pages.retrieve({ page_id: rowId }) as { properties?: Record<string, unknown> };
-    const existing = readRichText(current.properties?.[prop]);
     const line = formatNote({ label: actorLabel(actor) }, kind, text);
-    const value = appendNote(existing, line);
-    return { prop, value, text: existing ? `${existing}\n${line}` : line };
+    const { rich_text, text: full } = appendNote(current.properties?.[prop], line);
+    return { prop, value: { rich_text }, text: full };
 }
 
 export async function applyCancelloDecision(input: DecisionInput, actor: Actor = OWNER): Promise<DecisionResult> {
@@ -177,8 +185,9 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor =
         if (actor.role !== "admin") {
             collaboratorPage = await assertRowOf(rowId, target);
             const current = statusOf(collaboratorPage);
-            if (decision === "modify" && current !== "Review") {
-                throw new DecisionForbiddenError(`only a row in Review can be sent back (this one is ${current ?? "without a status"})`);
+            if ((decision === "modify" || decision === "ready") && current !== "Review") {
+                throw new DecisionForbiddenError(
+                    `only a post in Review can be ${decision === "modify" ? "sent back" : "marked ready"} (this one is ${current ?? "without a status"})`);
             }
         }
 

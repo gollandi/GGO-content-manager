@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { requireAuth } from "../../../../lib/auth/api-guard";
+import { loadCancelloStateWithin } from "../../../../lib/cancello/state";
+import { calendarMediaPaths } from "../../../../lib/cancello/view";
 import {
     IMAGE_EXTS, IMAGE_MIME, VIDEO_EXTS, VIDEO_MIME, isPathWithinRoots, resolveLocalMediaPath,
 } from "../../../../lib/cancello/paths";
@@ -25,6 +27,16 @@ async function serveLocalMedia(req: NextRequest): Promise<NextResponse> {
 
     const recorded = req.nextUrl.searchParams.get("path");
     if (!recorded) return new NextResponse("path required", { status: 400 });
+    if (auth.role === "social") {
+        // Only what the social register shows (lib/cancello/view.ts).
+        let shown: Set<string>;
+        try {
+            shown = calendarMediaPaths(await loadCancelloStateWithin());
+        } catch {
+            return new NextResponse("media list unavailable, try again", { status: 503 });
+        }
+        if (!shown.has(recorded)) return new NextResponse("forbidden", { status: 403 });
+    }
     // Recorded paths are Mac-absolute; on the VPS they land under the synced
     // media tree. The guard applies to the path actually read.
     const p = resolveLocalMediaPath(recorded);

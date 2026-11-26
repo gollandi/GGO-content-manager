@@ -122,7 +122,7 @@ export default function ReviewPage() {
     // (comment, ready for JJ, send back); the seal and every closing act stay
     // JJ's. The server enforces this; the page only stops offering what
     // would be refused.
-    const { data: session } = useSession();
+    const { data: session, status: sessionStatus } = useSession();
     const isSocial = session?.user?.role === "social";
     /** The register speaks Italian to JJ and English to the social media manager. */
     const tr = useCallback((it: string, en: string) => (isSocial ? en : it), [isSocial]);
@@ -787,6 +787,13 @@ export default function ReviewPage() {
     }
 
     /* ── Render ───────────────────────────────────────────────────────────── */
+
+    // Until the session is known the page cannot tell JJ's register from the
+    // social queue; showing JJ's (with its seal) to a collaborator, even for
+    // a moment, would offer acts the server then refuses.
+    if (sessionStatus === "loading") {
+        return <p className="column-label p-8">…</p>;
+    }
 
     return (
         <>

@@ -21,13 +21,17 @@ function serviceTokenOk(req: NextRequest): boolean {
 }
 
 export async function GET(req: NextRequest) {
+    let onlyFor: string | null = null;
     if (!serviceTokenOk(req)) {
         const auth = await requireAuth();
         if (!auth.authenticated) return auth.response;
+        // The social media manager sees their own uploads, not JJ's.
+        if (auth.role === "social") onlyFor = auth.email.toLowerCase();
     }
 
     try {
-        const uploads = await listInbox();
+        const all = await listInbox();
+        const uploads = onlyFor ? all.filter((u) => u.operator?.toLowerCase() === onlyFor) : all;
         return NextResponse.json(
             { count: uploads.length, uploads },
             { headers: { "Cache-Control": "private, no-store" } }

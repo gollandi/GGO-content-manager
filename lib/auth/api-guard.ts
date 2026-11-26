@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "./config";
 import { canAdmin, canUpload, canWrite, type Role } from "./roles";
 import { storeStanding } from "./users";
+import { effectiveRole } from "./gate";
 
 interface AuthResult {
     authenticated: true;
@@ -36,7 +37,7 @@ export async function requireAuth(): Promise<AuthResult | AuthError> {
     const email = session?.user?.email;
     if (!email) return deny("Authentication required", 401);
 
-    let role: Role = session.user.role ?? "viewer";
+    let role: Role = effectiveRole(session.user) ?? "viewer";
     let name = session.user.name || email;
     if (role !== "admin") {
         const standing = storeStanding(email);

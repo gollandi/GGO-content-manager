@@ -55,7 +55,9 @@ export async function GET(req: NextRequest) {
         // restart, or "Rileggi") takes minutes, and the page must say so
         // instead of hanging.
         const state = await loadCancelloStateWithin(undefined, {
-            refresh: req.nextUrl.searchParams.get("refresh") === "1",
+            // A full re-crawl takes minutes against Notion: JJ's (and the
+            // machine's) to ask for, not a collaborator's to repeat.
+            refresh: req.nextUrl.searchParams.get("refresh") === "1" && (role === null || role === "admin"),
         });
         return NextResponse.json(viewFor(state, role), { headers: { "Cache-Control": "private, no-store" } });
     } catch (err) {

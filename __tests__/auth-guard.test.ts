@@ -12,9 +12,11 @@ import { noteSignInFailure, resetSignInThrottle, signInThrottled } from "../lib/
 const session = (user: Record<string, unknown>) => ({ user });
 
 beforeEach(() => { auth.mockReset(); standing.mockReset(); });
+afterEach(() => vi.unstubAllEnvs());
 
 describe("requireAuth asks the store again on every call", () => {
     it("never consults the store for the admin, so a broken store cannot lock the owner out", async () => {
+        vi.stubEnv("COCKPIT_USER_EMAIL", "owner@example.com");
         auth.mockResolvedValue(session({ email: "owner@example.com", name: "Operator", role: "admin" }));
         standing.mockImplementation(() => { throw new Error("must not be called"); });
         const r = await requireAdmin();
@@ -81,5 +83,21 @@ describe("the sign-in brake", () => {
         expect(signInThrottled("d@example.com", t0 + 10)).toBe(true);
         expect(signInThrottled("other@example.com", t0 + 10)).toBe(false);
         expect(signInThrottled("d@example.com", t0 + 15 * 60 * 1000 + 10)).toBe(false);
+    });
+});
+
+describe("media a role may fetch", () => {
+    it("lists the recorded paths of the calendar rows shown, and nothing else", async () => {
+        const { calendarMediaPaths } = await import("../lib/cancello/view");
+        const paths = calendarMediaPaths({
+            wall: [], desk: [{ media: [{ kind: "image", url: "/media?path=%2Fsrv%2Fdesk.jpg" }] }], website: [],
+            calendar: [{ media: [
+                { kind: "image", url: "/media?path=%2Fsrv%2Fggomed-media%2Fa%20b.png" },
+                { kind: "video", url: "/video?path=%2Fsrv%2Fggomed-media%2Fc.mp4" },
+                { kind: "image", url: "https://cdn.sanity.io/x.png" },
+            ] }],
+            generatedAt: "t", cached: false, warnings: [],
+        } as never);
+        expect([...paths].sort()).toEqual(["/srv/ggomed-media/a b.png", "/srv/ggomed-media/c.mp4"]);
     });
 });

@@ -48,7 +48,7 @@ describe("Cancello decisions", () => {
             page_id: "desk-row",
             archived: true,
             properties: {
-                Correction: { rich_text: [{ text: { content: expect.stringMatching(/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2} · JJ · deleted\] Duplicato$/) } }] },
+                Correction: { rich_text: [{ text: { content: "Duplicato" } }] },
             },
         }));
     });

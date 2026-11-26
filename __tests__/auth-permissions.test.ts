@@ -13,9 +13,11 @@ function appRoutes(): string[] {
         for (const name of readdirSync(dir)) {
             const full = path.join(dir, name);
             if (statSync(full).isDirectory()) {
-                const seg = name.startsWith("[") ? "x" : name;
-                walk(full, `${prefix}/${seg}`);
-            } else if (name === "page.tsx" || name === "route.ts") {
+                if (name.startsWith("_")) continue; // private folders are not routes
+                // Route groups do not appear in the URL; dynamic segments do.
+                const seg = name.startsWith("(") ? null : name.startsWith("[") ? "x" : name;
+                walk(full, seg === null ? prefix : `${prefix}/${seg}`);
+            } else if (/^(page|route)\.(js|jsx|ts|tsx)$/.test(name)) {
                 out.push(prefix || "/");
             }
         }
@@ -42,6 +44,9 @@ describe("the social role's fence", () => {
             "/guida",
             "/review",
         ]);
+        // (/invito is opened by the gate before the fence: auth-gate.test.ts.)
+        // Sanity: the walk found the whole app, not an empty tree.
+        expect(routes.length).toBeGreaterThan(60);
     });
 
     it("is refused the routes the middleware otherwise exempts or leaves to the session", () => {

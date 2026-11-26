@@ -163,3 +163,81 @@ Deferred, with reasons: email notifications (finding 4); a PWA manifest
 (nice to have, not blocking); per-channel analytics for the role (Natascia's
 domain, read-only access can follow once the role is in use).
 
+## 6. Independent review of v2, and the plan as built (v3)
+
+v2 was handed to a reviewer who had not written it, with the code. Sixteen
+findings; each is listed with what was done.
+
+| # | Finding (severity) | Disposition |
+|---|--------------------|-------------|
+| 1 | Trimming notes "from the oldest end" would delete the house's machine markers (`[page-story:`, `[story-attempt:`), which sit at the oldest end and drive the page-story dedup (blocker) | **Fixed.** Notes are never trimmed: split across Notion's 2,000-character elements as `operations/calendar-reschedule.js` does; a full field refuses the note instead. The same finding exposed that today's code already *erases* those markers by overwriting `Notes` on every Cancello comment — fixed by appending |
+| 2 | A comment could forge a marker or another person's line (blocker) | **Fixed.** Square brackets in human text become parentheses; the author label loses `·` |
+| 3 | The note box was pre-filled with the existing notes, so appending would duplicate history (should-fix) | **Fixed.** The box starts empty; the history is shown read-only above |
+| 4 | The route checked the act, not the target or the row: a collaborator could commission website work, undo an approval by sending an Approved row back, move a date, or write to any page the integration reaches (blocker) | **Fixed.** Acts keyed on role × target × act; for a collaborator the page must belong to the Content Calendar, "send back" only from Review, no date |
+| 5 | Middleware-exempt routes (`/api/views`, `/api/llm/guard`, …) skip the allow-list (blocker) | **Fixed.** The fence runs before the exemptions; a test walks every route in `app/` against the role |
+| 6 | The JWT role came from `getRoleForEmail`, so a store user would land as a viewer of everything; unfenced roles see all; Google would admit any account (blocker) | **Fixed.** `authorize` returns the stored role; only `social` can be assigned; a `signIn` callback admits Google accounts only for the owner or an active collaborator |
+| 7 | Revocation and role changes do not reach the middleware (should-fix) | **Mitigated.** Every route the `social` role can reach re-reads the store (disabled ⇒ 401, changed role applies at once); a collaborator's token whose record vanished is refused. Pages still render for a revoked session until the JWT expires, but show no data. Node-runtime middleware was not adopted: untested on this Next version |
+| 8 | A bad store would lock JJ out (blocker) | **Fixed.** The owner is checked before the store at sign-in and never consults it afterwards; store errors return "no" for collaborators only |
+| 9 | The invitation page was not exempt and would be wrapped in the shell (should-fix) | **Fixed.** `/invito` and its API are exempt and render bare; the token is in the `#fragment` and travels only in a POST body; `Referrer-Policy: no-referrer` |
+| 10 | Uploads: the role needs `requireUploader`, and must not abandon JJ's uploads (should-fix) | **Fixed.** `requireUploader`; a collaborator may complete, add to or abandon only their own uploads |
+| 11 | No brake on password guessing (should-fix) | **Fixed in-process** for collaborators (8 failures / 15 minutes). The owner is not throttled — anyone knowing his address could lock him out. An nginx `limit_req` is recorded as a server follow-up |
+| 12 | The sidebar fetched the house state and showed every room (should-fix) | **Fixed.** A social margin with three places; the house count is not fetched for that role |
+| 13 | The in-process write queue assumes one module instance (nit) | **Mitigated.** The queue lives on `globalThis`; writes are tmp-then-rename |
+| 14 | The store location in v2 was wrong (nit) | **Fixed.** On the VPS it resolves to `/var/lib/ggo-cockpit/auth/` (OBSERVED: `tools/vps/install-cockpit-warm.py:27` sets `COCKPIT_SNAPSHOT_DIR` for the service); outside the rsync tree |
+| 15 | A new link re-enables a disabled collaborator (nit) | **Kept, confirmed in the UI.** The button asks first |
+| 16 | `PRODUCT.md` must change; the Notion link is useless to a collaborator (nit) | **Fixed.** `PRODUCT.md` amended; the Notion link is hidden for the role |
+
+What was built (v3) is v2 with the corrections above, plus the English copy
+the collaborator sees in Il Cancello and Il Carico (JJ keeps the Italian),
+and the Settings placeholder — invented controls claiming "keys are
+encrypted at rest" — replaced by the real Collaborators panel.
+
+## 7. Verification
+
+- Unit tests: `npm test` — the existing suite plus five new files (user
+  store, permissions with a walk of every route in `app/`, guard and
+  revocation, collaborator acts in the Cancello, the social view of the
+  page). Two guards were broken on purpose (letting `social` approve;
+  removing the bracket defang) and the tests failed for the right reason;
+  the page test fails when the role is switched to admin.
+- `npx tsc --noEmit` and `next build`: clean. `eslint` reports three
+  errors, all pre-existing in files this change does not touch.
+- Live, against a local server with generated test credentials and a
+  scratch store: invite → link → password set → link refused on reuse →
+  sign-in as `social`; `/review`, `/carico`, `/guida` reachable; `/`,
+  `/questioni`, `/settings`, `/bacheca` redirect to the queue;
+  `/api/views/*`, `/api/llm/guard`, `/api/house/state`,
+  `/api/collaborators`, `/api/board`, `/api/cache/invalidate`,
+  `/api/notion/patient-journeys` answer 403; approve answers 403; switched
+  off ⇒ 401 on the next request, switched on ⇒ 200; the owner keeps every
+  room. Store file mode 0600. Screenshots: `docs/screenshots/2026-11-collaborators/`.
+- Not verified here: the decision acts against real Notion rows (no Notion
+  credentials in a worktree, by rule). The unit tests cover them with the
+  Notion client mocked; the first real "Ready for JJ" on the VPS is the
+  live check, for a fresh session after the merge.
+
+## 8. What JJ has to do for Diletta to be working
+
+1. Nothing for the merge: the pull request is merged when CI is green and
+   the deploy to the VPS follows on `main`.
+2. In the cockpit, Settings → Collaborators → Diletta's name and email →
+   *Create link*, and send the link (valid 72 hours).
+3. Diletta opens it, sets a password, signs in and lands on the guide.
+
+No server edit, no env change, and no password passes through JJ or an agent.
+
+## 9. Residual risks and follow-ups
+
+- **Notifications (N12).** None yet: Diletta opens the queue to see what is
+  waiting. Email needs a provider, a sender and a secret — a decision with a
+  cost, so its own task.
+- **Photos in Il Carico.** It accepts video and audio only; a social media
+  manager will want stills. The worker would need a path for images.
+- **nginx `limit_req`** on the credentials callback: a server change, not in
+  this repository's deploy.
+- **Media served by path.** `/api/review-dashboard/media` serves any file
+  under the media root to any signed-in role, the collaborator included;
+  paths are not guessable from the collaborator screens, and the root holds the house's
+  production media only. Accepted.
+- **Revoked sessions keep page shells** until the JWT expires (they get no
+  data). Accepted; see finding 7.

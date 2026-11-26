@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "../../../../lib/auth/api-guard";
 import { listJobs } from "../../../../lib/media/jobs";
+import { listInbox } from "../../../../lib/media/inbox";
 
 /**
  * Il Carico — what the worker made of the material.
@@ -21,13 +22,21 @@ function serviceTokenOk(req: NextRequest): boolean {
 }
 
 export async function GET(req: NextRequest) {
+    let onlyFor: string | null = null;
     if (!serviceTokenOk(req)) {
         const auth = await requireAuth();
         if (!auth.authenticated) return auth.response;
+        if (auth.role === "social") onlyFor = auth.email.toLowerCase();
     }
 
     try {
-        const jobs = await listJobs();
+        let jobs = await listJobs();
+        // The social media manager sees what the worker made of their own
+        // uploads only (a job carries its upload's id).
+        if (onlyFor) {
+            const mine = new Set((await listInbox()).filter((u) => u.operator?.toLowerCase() === onlyFor).map((u) => u.id));
+            jobs = jobs.filter((job) => mine.has(job.id));
+        }
         return NextResponse.json(
             { count: jobs.length, jobs },
             { headers: { "Cache-Control": "private, no-store" } }

@@ -173,7 +173,7 @@ export default function SettingsPage() {
                   <button type="button" disabled={busy} className="act-void" style={onPaper}
                     onClick={() => invite({ email: u.email, name: u.name },
                       u.status === "disabled"
-                        ? `${u.name}'s access is switched off. A new link switches it back on. Continue?`
+                        ? `${u.name}'s access is switched off. A new link lets them back in once they use it to set a new password. Continue?`
                         : `Create a new link for ${u.name}? Their current password keeps working until the new link is used.`)}>
                     New link
                   </button>

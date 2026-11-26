@@ -88,13 +88,20 @@ describe("the social media manager in the Cancello", () => {
         update.mockReset();
         retrieve.mockResolvedValue(calendarRow("Approved"));
         await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "modify", comment: "x" }, diletta))
-            .rejects.toThrow(/only a row in Review/);
+            .rejects.toThrow(/only a post in Review/);
         expect(update).not.toHaveBeenCalled();
     });
 
     it("requires a note to send back or comment", async () => {
         await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "modify" }, diletta)).rejects.toThrow(/requires a note/);
         await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "comment", comment: "  " }, diletta)).rejects.toThrow(/requires a note/);
+    });
+
+    it("marks ready only a post in Review", async () => {
+        retrieve.mockResolvedValue(calendarRow("Approved"));
+        await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "ready" }, diletta))
+            .rejects.toThrow(/only a post in Review/);
+        expect(update).not.toHaveBeenCalled();
     });
 
     it("cannot move a publish date", async () => {
@@ -120,17 +127,33 @@ describe("JJ's acts are attributed and keep the history", () => {
         expect(notes).toMatch(/· JJ · approved\] Good$/);
     });
 
-    it("splits long notes across Notion's 2,000-character elements and refuses rather than trims when full", async () => {
-        retrieve.mockResolvedValue(calendarRow("Review", "x".repeat(4500)));
-        await applyCancelloDecision({ rowId: "r", target: "calendar", decision: "comment", comment: "y" });
-        const elements = update.mock.calls[0][0].properties.Notes.rich_text;
-        expect(elements.every((e: { text: { content: string } }) => e.text.content.length <= 2000)).toBe(true);
-        expect(writtenNotes().startsWith("x".repeat(4500))).toBe(true);
-
-        update.mockReset();
-        retrieve.mockResolvedValue(calendarRow("Review", "x".repeat(200_000)));
-        await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "comment", comment: "y" }))
+    it("keeps the field within the house's 2,000 characters and refuses rather than trims", async () => {
+        retrieve.mockResolvedValue(calendarRow("Review", "x".repeat(1990)));
+        await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "comment", comment: "a note that does not fit" }))
             .rejects.toThrow(/notes are full/);
         expect(update).not.toHaveBeenCalled();
+    });
+
+    it("keeps the existing elements as they are, links included, and adds the line after them", async () => {
+        retrieve.mockResolvedValue({
+            parent: { type: "database_id", database_id: "calendar-db" },
+            properties: {
+                Status: { type: "select", select: { name: "Review" } },
+                Notes: { type: "rich_text", rich_text: [
+                    { type: "text", plain_text: "see ", text: { content: "see ", link: null } },
+                    { type: "text", plain_text: "the page", text: { content: "the page", link: { url: "https://ggomed.co.uk/x" } }, annotations: { bold: true } },
+                ] },
+            },
+        });
+        await applyCancelloDecision({ rowId: "r", target: "calendar", decision: "comment", comment: "ok" }, diletta);
+        const elements = update.mock.calls[0][0].properties.Notes.rich_text;
+        expect(elements[1]).toEqual({ type: "text", text: { content: "the page", link: { url: "https://ggomed.co.uk/x" } }, annotations: { bold: true } });
+        expect(elements[2].text.content).toMatch(/^\n\[.* · Diletta\] ok$/);
+    });
+
+    it("leaves the Desk's Correction as JJ's latest instruction, as the house reads it", async () => {
+        retrieve.mockResolvedValue({ properties: {} });
+        await applyCancelloDecision({ rowId: "d", target: "desk", decision: "modify", comment: "Recut the intro" });
+        expect(update.mock.calls[0][0].properties.Correction).toEqual({ rich_text: [{ text: { content: "Recut the intro" } }] });
     });
 });

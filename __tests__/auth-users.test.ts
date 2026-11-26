@@ -79,6 +79,23 @@ describe("collaborators — the user store", () => {
         expect(users.storeStanding("nobody@example.com")).toEqual({ kind: "absent" });
     });
 
+    it("a switched-off collaborator stays out after a new link until they use it", async () => {
+        const first = await users.inviteUser({ email: "d@example.com", name: "D", role: "social", by: "o" });
+        await users.redeemInvite(first.token, PASSWORD);
+        await users.setDisabled("d@example.com", true);
+        const second = await users.inviteUser({ email: "d@example.com", name: "D", role: "social", by: "o" });
+        expect(users.storeStanding("d@example.com")).toEqual({ kind: "revoked" });
+        expect(await users.verifyStoredCredentials("d@example.com", PASSWORD)).toBeNull();
+        await users.redeemInvite(second.token, "the brand new password");
+        expect(users.storeStanding("d@example.com").kind).toBe("active");
+    });
+
+    it("reserves the owner's signature", async () => {
+        for (const name of ["JJ", "jj", " J.J. "]) {
+            await expect(users.inviteUser({ email: "x@example.com", name, role: "social", by: "o" })).rejects.toThrow(/reserved/);
+        }
+    });
+
     it("a new link resets the password without locking the current one out", async () => {
         const first = await users.inviteUser({ email: "d@example.com", name: "D", role: "social", by: "o" });
         await users.redeemInvite(first.token, PASSWORD);

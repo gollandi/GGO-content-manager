@@ -19,3 +19,22 @@ export function viewFor(state: CancelloState, role: Role | null): CancelloState 
         warnings: show.desk && show.website ? state.warnings : [],
     };
 }
+
+/**
+ * The recorded media paths of the calendar rows a role is shown. The media
+ * route serves any file under the media root by path; for the social media
+ * manager it serves only these, so Desk, wall and website assets hidden
+ * from the register cannot be fetched by guessing a path.
+ */
+export function calendarMediaPaths(state: CancelloState): Set<string> {
+    const out = new Set<string>();
+    for (const row of state.calendar) {
+        for (const m of row.media ?? []) {
+            const q = m.url.indexOf("?");
+            if (q < 0) continue;
+            const p = new URLSearchParams(m.url.slice(q + 1)).get("path");
+            if (p) out.add(p);
+        }
+    }
+    return out;
+}

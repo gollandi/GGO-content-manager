@@ -10,9 +10,15 @@
  * (operations/calendar-reschedule.js).
  */
 
-/** Notion caps one rich_text element at 2,000 characters and a property at 100 elements. */
-const CHUNK = 2000;
-const MAX_ELEMENTS = 100;
+/**
+ * The whole field stays within 2,000 characters. Notion would take more
+ * (100 elements of 2,000), but five house writers rewrite `Notes` as one
+ * element through `truncateText(…, 2000)` (ernesto-agents-house
+ * core/notion-client.js), which keeps the head and drops the tail — the
+ * marker they have just appended included. A longer field would cost the
+ * house its attempt counts and dedup markers, so the cockpit refuses first.
+ */
+export const NOTES_LIMIT = 2000;
 export const NOTE_MAX = 1900;
 
 export interface NoteAuthor {
@@ -60,25 +66,40 @@ export function latestReadyMark(notes: string): { at: string; by: string } | nul
     return last;
 }
 
-export function toRichText(text: string): { text: { content: string } }[] {
-    const out: { text: { content: string } }[] = [];
-    for (let i = 0; i < text.length; i += CHUNK) out.push({ text: { content: text.slice(i, i + CHUNK) } });
-    return out;
-}
+type RichElement = {
+    type?: string;
+    plain_text?: string;
+    text?: { content: string; link?: { url: string } | null };
+    annotations?: Record<string, unknown>;
+};
+export type RichTextRequest = { type: "text"; text: { content: string; link?: { url: string } | null }; annotations?: Record<string, unknown> };
 
 /**
- * The new value of a notes property: everything already there, then the
- * new line. Throws rather than trimming: dropping old content would drop
- * the house's markers, and a silent truncation is exactly the defect this
- * module exists to remove.
+ * The new value of a notes property: the existing elements exactly as they
+ * are (links and formatting kept), then the new line. Throws rather than
+ * trimming: dropping old content would drop the house's markers, and a
+ * silent truncation is exactly the defect this module exists to remove.
  */
-export function appendNote(existing: string, line: string): { rich_text: { text: { content: string } }[] } {
-    const value = existing ? `${existing}\n${line}` : line;
-    const rich = toRichText(value);
-    if (rich.length > MAX_ELEMENTS) {
-        throw new Error("the row's notes are full (Notion limit); archive old notes in Notion before adding more");
+export function appendNote(existingProp: unknown, line: string): { rich_text: RichTextRequest[]; text: string } {
+    const elements = richElements(existingProp);
+    const kept: RichTextRequest[] = elements.map((e) => e.type === "text" && e.text
+        ? { type: "text", text: { content: e.text.content, link: e.text.link ?? null }, ...(e.annotations ? { annotations: e.annotations } : {}) }
+        // A mention or equation cannot be written back as it was; its text is kept.
+        : { type: "text", text: { content: e.plain_text ?? "" } });
+    const existing = elements.map((e) => e.plain_text ?? e.text?.content ?? "").join("");
+    const addition = existing ? `\n${line}` : line;
+    if (existing.length + addition.length > NOTES_LIMIT) {
+        throw new Error(
+            `this post's notes are full (${NOTES_LIMIT} characters, the house's limit); `
+            + "shorten the note, or ask JJ to tidy the row's notes in Notion",
+        );
     }
-    return { rich_text: rich };
+    return { rich_text: [...kept, { type: "text", text: { content: addition } }], text: existing + addition };
+}
+
+function richElements(prop: unknown): RichElement[] {
+    const p = prop as { type?: string; rich_text?: RichElement[] } | undefined;
+    return p && p.type === "rich_text" && Array.isArray(p.rich_text) ? p.rich_text : [];
 }
 
 /** Plain text of a Notion rich_text property, as the house's readProp joins it. */

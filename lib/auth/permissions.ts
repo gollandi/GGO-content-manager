@@ -60,7 +60,7 @@ export function canReach(role: Role | undefined, pathname: string): Reach {
  */
 const ACTS: Record<Role, Partial<Record<CancelloTarget, CancelloAct[]>>> = {
     admin: {
-        desk: ["approve", "modify", "reject", "done", "delete", "comment"],
+        desk: ["approve", "modify", "reject", "done", "delete"],
         calendar: ["approve", "modify", "reject", "done", "delete", "send", "comment"],
         website: ["approve", "modify"],
     },

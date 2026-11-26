@@ -1,77 +1,39 @@
 import { auth } from "./lib/auth/edge-config";
 import { NextResponse } from "next/server";
-import { canReach } from "./lib/auth/permissions";
+import { gate } from "./lib/auth/gate";
 
 /**
- * Protect all routes except login, static files, and auth API.
- * Unauthenticated users are redirected to /login.
+ * Every request passes the gate in lib/auth/gate.ts: framework paths and the
+ * invitation are open; restricted roles (the social media manager) reach an
+ * allow-list only; machine routes that check their own bearer are exempt;
+ * anyone else without a session is sent to sign in.
+ *
+ * Exempt routes (their reasons, kept from the old inline list):
+ *  - /api/views, /api/review-dashboard/state: session OR service token for
+ *    headless consumers (the media-sync job); a redirect breaks machine calls.
+ *  - /api/llm/guard: service-token GET; POST is admin-session only in the route.
+ *  - /api/media/uploads, /api/media/jobs: session OR service token so the
+ *    worker and ernesto poll headlessly. Per path, not per method: POST
+ *    /api/media/uploads is guarded by requireUploader() in the route.
+ *  - /api/board/sync: the Mac bridge's service token, checked in the route.
+ *  - /api/review-dashboard/buffer-sweep: its own bearer, the VPS timer only.
  */
 export default auth((req) => {
     const { pathname } = req.nextUrl;
-
-    // Restricted roles (the social media manager) reach an allow-list only,
-    // and this runs BEFORE the exemptions below: several exempt routes accept
-    // any session (views, the LLM ledger), and several guarded ones rely on
-    // this middleware alone. The routes it does reach check the role again.
-    const framework = pathname.startsWith("/_next") || pathname.startsWith("/favicon")
-        || pathname.startsWith("/api/auth/") || pathname === "/login";
-    if (req.auth && !framework) {
-        const reach = canReach(req.auth.user?.role, pathname);
-        if (!reach.ok) {
-            if (pathname.startsWith("/api/")) {
-                return NextResponse.json({ error: "Not available for your role" }, { status: 403 });
-            }
-            return NextResponse.redirect(new URL(reach.redirect ?? "/login", req.url));
+    const decision = gate(pathname, req.auth?.user ?? null);
+    switch (decision.kind) {
+        case "forbidden":
+            return NextResponse.json({ error: "Not available for your role" }, { status: 403 });
+        case "redirect":
+            return NextResponse.redirect(new URL(decision.to, req.url));
+        case "login": {
+            const loginUrl = new URL("/login", req.url);
+            loginUrl.searchParams.set("callbackUrl", pathname);
+            return NextResponse.redirect(loginUrl);
         }
+        default:
+            return NextResponse.next();
     }
-
-    // Allow auth routes and login page through
-    if (
-        pathname.startsWith("/api/auth") ||
-        pathname === "/login" ||
-        // A collaborator redeems an invitation before having a session.
-        // The page and its API check the one-time token themselves.
-        pathname === "/invito" ||
-        pathname === "/api/auth-invite/redeem" ||
-        pathname.startsWith("/_next") ||
-        pathname.startsWith("/favicon") ||
-        // View API does its own auth (NextAuth session OR service token for
-        // headless consumers) — a login redirect would break machine calls.
-        pathname.startsWith("/api/views") ||
-        // Same contract for the Cancello state read: the route accepts the
-        // service token (read-only) and otherwise enforces the session
-        // itself — the redirect would break the media-sync job.
-        pathname === "/api/review-dashboard/state" ||
-        // Il Guardiano's ledger read: service token (read-only GET) or
-        // session; POST (lifting a block) is admin-session only in the route.
-        pathname === "/api/llm/guard" ||
-        // Il Carico's two listing endpoints do their own auth (session OR
-        // service token) so the worker and ernesto can poll the inbox and
-        // the worker's output headlessly. The exemption is per path, not
-        // per method, so POST /api/media/uploads passes through here too —
-        // it is guarded by requireWriter() in the route, which answers 401
-        // rather than redirecting. Chunk deposit (…/uploads/<id>) is not
-        // exempted at all.
-        pathname === "/api/media/uploads" ||
-        pathname === "/api/media/jobs" ||
-        // The house board's Mac bridge: service token only, checked in the
-        // route on both methods. /api/board itself stays session-gated.
-        pathname === "/api/board/sync" ||
-        // The Buffer sweep: its own bearer (COCKPIT_BUFFER_SWEEP_TOKEN),
-        // checked in the route; the VPS timer is its only caller.
-        pathname === "/api/review-dashboard/buffer-sweep"
-    ) {
-        return NextResponse.next();
-    }
-
-    // Redirect unauthenticated users to login
-    if (!req.auth) {
-        const loginUrl = new URL("/login", req.url);
-        loginUrl.searchParams.set("callbackUrl", pathname);
-        return NextResponse.redirect(loginUrl);
-    }
-
-    return NextResponse.next();
 });
 
 export const config = {

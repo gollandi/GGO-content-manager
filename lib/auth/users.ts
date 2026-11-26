@@ -130,8 +130,9 @@ export function validatePassword(password: string): string | null {
 
 /**
  * Create a collaborator, or issue a fresh link to an existing one (a
- * password reset). A reset leaves the current password working until the
- * new link is redeemed, so a lost email cannot lock anyone out.
+ * password reset). For an active collaborator the current password keeps
+ * working until the link is redeemed, so a lost email locks nobody out; a
+ * switched-off one stays off until then.
  */
 export async function inviteUser(input: {
     email: string; name: string; role: AssignableRole; by: string;
@@ -141,6 +142,8 @@ export async function inviteUser(input: {
     if (!EMAIL_RE.test(email)) throw new Error("A valid email is required.");
     if (!name) throw new Error("A name is required.");
     if (name.length > 80) throw new Error("The name is too long.");
+    // Notes are signed by name; "JJ" is the owner's signature and only his.
+    if (/^jj$/i.test(name.replace(/[\s.]/g, ""))) throw new Error("That name is reserved for the owner.");
     if (!isAssignableRole(input.role)) throw new Error("Unknown role.");
     // The owner's sign-in never enters the store: it would compete with the
     // env operator and could be disabled from the UI.
@@ -161,7 +164,8 @@ export async function inviteUser(input: {
         }
         u.name = name;
         u.role = input.role;
-        u.disabled = false;
+        // A switched-off collaborator stays off until the new link is used:
+        // re-inviting must not bring the old password back to life.
         u.invite = { tokenHash: sha256(token), expiresAt };
         u.updatedAt = at;
         return toPublic(u);
@@ -179,7 +183,7 @@ function matchToken(store: StoreFile, token: string): StoredUser | null {
         const have = Buffer.from(u.invite.tokenHash, "hex");
         // Compare every candidate in constant time; no early exit on a match.
         if (have.length === want.length && timingSafeEqual(have, want)
-            && Date.parse(u.invite.expiresAt) > at && !u.disabled) {
+            && Date.parse(u.invite.expiresAt) > at) {
             found = u;
         }
     }
@@ -201,6 +205,7 @@ export async function redeemInvite(token: string, password: string): Promise<Pub
         if (!u) throw new Error("This link is not valid any more. Ask for a new one.");
         u.hash = hash;
         u.invite = null;
+        u.disabled = false;
         u.updatedAt = now();
         return toPublic(u);
     });
