@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { proxyUrl } from "./AssetSheet";
 import type { PostPreview as Preview, Problem } from "../../lib/cancello/post-preview";
 
@@ -16,7 +16,7 @@ const T = {
     goesTo: { it: "Esce su", en: "Goes to" },
     planned: { it: "Previsto per", en: "Planned for" },
     noDate: { it: "Data non ancora fissata", en: "No date set yet" },
-    elsewhere: { it: "anche su {x}, pubblicato a parte", en: "also on {x}, published separately" },
+    elsewhere: { it: "{x}: non si pubblica da qui", en: "{x}: not published from here" },
     slide: { it: "Immagine {n} di {t}", en: "Image {n} of {t}" },
     text: { it: "Il testo, esattamente come esce", en: "The text, exactly as it goes out" },
     noText: { it: "Il testo non c'è ancora.", en: "There is no text yet." },
@@ -41,7 +41,12 @@ function problemText(p: Problem, lang: Lang): string {
         case "kind-not-published": return en ? `A "${p.kind}" is not published from here.` : `Un "${p.kind}" non si pubblica da qui.`;
         case "channel-refuses": return en ? `${p.channel} does not take this kind of post.` : `${p.channel} non accetta questo tipo di post.`;
         case "reel-no-video": return en ? "The reel has no video yet." : "Il reel non ha ancora il video.";
-        case "no-image": return en ? "The post has no image yet." : "Il post non ha ancora l'immagine.";
+        case "carousel-count": return en ? `A carousel needs 2 to 10 images; this one has ${p.count}.` : `Un carosello vuole da 2 a 10 immagini; questo ne ha ${p.count}.`;
+        case "post-too-many": return en ? `An image post takes one image; this one has ${p.count}. Make it a carousel.` : `Un post immagine ne prende una; questo ne ha ${p.count}. Va fatto carosello.`;
+        case "story-one-frame": return en ? `A story takes exactly one image; this one has ${p.count}.` : `Una storia prende una sola immagine; questa ne ha ${p.count}.`;
+        case "video-unused": return en ? "A video is attached but this kind of post does not carry it: it will not go out." : "C'è un video allegato ma questo tipo di post non lo porta: non uscirà.";
+        case "assets-unavailable": return en ? `${p.count} attached file(s) cannot be shown here yet, so what you see may be incomplete.` : `${p.count} file allegati non si vedono qui, quindi quello che vedi può essere incompleto.`;
+        case "assets-ignored": return en ? `${p.count} attached file(s) are not an image or video the post can carry: they will not go out.` : `${p.count} file allegati non sono immagini o video che il post può portare: non usciranno.`;
         case "story-no-card": return en ? "The story has no card yet." : "La storia non ha ancora la card.";
         case "story-no-link": return en ? "The story has no link to send people to." : "La storia non ha il link a cui portare le persone.";
     }
@@ -60,6 +65,12 @@ function longDate(iso: string | null, lang: Lang): string | null {
 
 export default function PostPreview({ post, date, lang }: { post: Preview; date: string | null; lang: Lang }) {
     const [zoomed, setZoomed] = useState<string | null>(null);
+    useEffect(() => {
+        if (!zoomed) return;
+        const close = (e: KeyboardEvent) => { if (e.key === "Escape") setZoomed(null); };
+        window.addEventListener("keydown", close);
+        return () => window.removeEventListener("keydown", close);
+    }, [zoomed]);
     const when = longDate(date, lang);
     const kind = post.format ? T.kinds[post.format][lang] : null;
     const portrait = post.format === "story" || post.format === "reel";
@@ -137,7 +148,7 @@ export default function PostPreview({ post, date, lang }: { post: Preview; date:
                 <div className="border border-seal px-3 py-2 text-[13px] text-seal" role="note">
                     <p className="column-label mb-1" style={{ color: "var(--seal)" }}>{T.stops[lang]}</p>
                     <ul className="list-disc pl-5">
-                        {post.problems.map((p) => <li key={p.code + ("channel" in p ? p.channel : "")}>{problemText(p, lang)}</li>)}
+                        {post.problems.map((p) => <li key={JSON.stringify(p)}>{problemText(p, lang)}</li>)}
                     </ul>
                 </div>
             )}

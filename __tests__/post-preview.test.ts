@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { buildPostText, composePost, parseHashtags } from "../lib/cancello/post-preview";
+import { buildPostText, composePost, composePosts, parseHashtags } from "../lib/cancello/post-preview";
 
 const img = (n: number) => ({ kind: "image" as const, url: `/media?path=%2Fsrv%2Fggomed-media%2Fslide-${n}.png` });
 const vid = { kind: "video" as const, url: "/video?path=%2Fsrv%2Fggomed-media%2Freel.mp4" };
@@ -28,7 +28,8 @@ describe("what it shows", () => {
         const p = composePost(row({ media: [img(1), vid, img(2)] }));
         expect(p.images.map((m) => m.url)).toEqual([img(1).url, img(2).url]);
         expect(p.video).toBeNull();
-        expect(p.problems).toEqual([]);
+        // The video is not carried by a carousel, and the reviewer is told so.
+        expect(p.problems).toEqual([{ code: "video-unused" }]);
     });
     it("a reel shows its first video only", () => {
         const p = composePost(row({ contentType: "Reel", media: [img(1), vid] }));
@@ -53,11 +54,36 @@ describe("where it goes, and what would stop it", () => {
         expect(composePost(row({ caption: "  " })).problems).toContainEqual({ code: "no-text" });
         expect(composePost(row({ caption: "  " })).text).toBe("");
         expect(composePost(row({ contentType: "Reel", media: [img(1)] })).problems).toContainEqual({ code: "reel-no-video" });
-        expect(composePost(row({ media: [] })).problems).toContainEqual({ code: "no-image" });
+        expect(composePost(row({ media: [img(1)] })).problems).toContainEqual({ code: "carousel-count", count: 1 });
+        expect(composePost(row({ media: Array.from({ length: 11 }, (_, i) => img(i)) })).problems).toContainEqual({ code: "carousel-count", count: 11 });
+        expect(composePost(row({ contentType: "Static", media: [img(1), img(2)] })).problems).toContainEqual({ code: "post-too-many", count: 2 });
+        expect(composePost(row({ contentType: "Static", media: [] })).problems).toEqual([]);
+        expect(composePost(row({ contentType: "Story", platforms: "Instagram", media: [img(1), img(2)], sourceUrl: "https://ggomed.co.uk/x" })).problems)
+            .toContainEqual({ code: "story-one-frame", count: 2 });
+        expect(composePost(row({ media: [img(1), img(2), vid] })).problems).toContainEqual({ code: "video-unused" });
+        expect(composePost(row({ mediaUnavailable: 2, mediaIgnored: 1 })).problems)
+            .toEqual(expect.arrayContaining([{ code: "assets-unavailable", count: 2 }, { code: "assets-ignored", count: 1 }]));
         expect(composePost(row({ contentType: "Story", platforms: "Instagram", media: [] })).problems)
             .toEqual(expect.arrayContaining([{ code: "story-no-card" }, { code: "story-no-link" }]));
         expect(composePost(row({ platforms: "LinkedIn" })).problems).toContainEqual({ code: "channel-refuses", channel: "LinkedIn" });
         expect(composePost(row({ contentType: "Explainer" })).problems).toContainEqual({ code: "kind-not-published", kind: "Explainer" });
         expect(composePost(row({ platforms: null })).problems).toContainEqual({ code: "no-channel" });
+    });
+});
+
+describe("an approved row shows what was staged, not what Notion says now", () => {
+    const staged = (over: Record<string, unknown> = {}) => ({
+        platform: "instagram", format: "carousel", caption: "Staged words.", hashtags: ["a", "b"], storyLinkUrl: null,
+        images: [img(1), img(2)], video: null, ...over,
+    });
+    it("composes from the staged post even when the Notion caption was edited later", () => {
+        const posts = composePosts(row({ caption: "Edited in Notion after staging.", staged: [staged()] }));
+        expect(posts).toHaveLength(1);
+        expect(posts[0].text).toBe("Staged words.\n\n#a #b");
+        expect(posts[0].channels).toEqual(["Instagram"]);
+    });
+    it("shows identical platforms once and different ones apart", () => {
+        expect(composePosts(row({ staged: [staged(), staged({ platform: "facebook" })] }))[0].channels).toEqual(["Instagram", "Facebook"]);
+        expect(composePosts(row({ staged: [staged(), staged({ platform: "facebook", caption: "Other." })] }))).toHaveLength(2);
     });
 });

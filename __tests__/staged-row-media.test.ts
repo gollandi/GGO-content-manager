@@ -8,10 +8,12 @@ vi.mock("../lib/notion/client", () => ({ notion: {} }));
 import { stagedRowMedia } from "../lib/cancello/state";
 
 describe("staged row media", () => {
-    it("shows what Buffer will receive: every platform's images once, drafts included", async () => {
+    it("shows what Buffer will receive: every platform's images once, the draft preferred over the published copy", async () => {
         fetch.mockResolvedValue([
-            { images: ["https://cdn.sanity.io/a.png", "https://cdn.sanity.io/b.png"], video: null },
-            { images: ["https://cdn.sanity.io/a.png"], video: "https://cdn.sanity.io/r.mp4" },
+            { _id: "drafts.social-x-instagram-carousel", images: ["https://cdn.sanity.io/a.png", "https://cdn.sanity.io/b.png"], video: null },
+            // A re-staged row's stale published copy: never mixed in.
+            { _id: "social-x-instagram-carousel", images: ["https://cdn.sanity.io/old.png"], video: null },
+            { _id: "social-x-facebook-carousel", images: ["https://cdn.sanity.io/a.png"], video: "https://cdn.sanity.io/r.mp4" },
         ]);
 
         const media = await stagedRowMedia("social-x-instagram-carousel, social-x-facebook-carousel");

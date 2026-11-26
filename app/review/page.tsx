@@ -7,7 +7,7 @@ import Link from "next/link";
 import MarkdownBlock from "../../components/MarkdownBlock";
 import AssetSheet from "../../components/cancello/AssetSheet";
 import PostPreview from "../../components/cancello/PostPreview";
-import { composePost } from "../../lib/cancello/post-preview";
+import { composePosts } from "../../lib/cancello/post-preview";
 import { deskFamily, gateCalendarIds, shadowedByCalendar } from "../../lib/house/families";
 import { Guilloche, Socket, Mark, AgeBar, type MarkTone } from "../../components/Registro";
 import { useSession } from "next-auth/react";
@@ -43,6 +43,10 @@ interface CalendarRow {
     orderedBy?: string | null; sanitySync?: string;
     /** A story's link destination. */
     sourceUrl?: string | null;
+    staged?: { platform: string; format: string | null; caption: string; hashtags: string[];
+        storyLinkUrl: string | null; images: MediaRef[]; video: MediaRef | null }[];
+    mediaUnavailable?: number;
+    mediaIgnored?: number;
 }
 interface WebsiteArticle {
     rowId: string; title: string; status: string | null; category: string | null; reviewDue: string | null;
@@ -139,6 +143,10 @@ export default function ReviewPage() {
     const isSocial = session?.user?.role === "social";
     /** The register speaks Italian to JJ and English to the social media manager. */
     const tr = useCallback((it: string, en: string) => (isSocial ? en : it), [isSocial]);
+    // load() reads the language through a ref, so a session resolving after
+    // the first read does not trigger a second one.
+    const trRef = useRef(tr);
+    trRef.current = tr;
     const [state, setState] = useState<ReviewState | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -192,7 +200,7 @@ export default function ReviewPage() {
             res = await fetch(`/api/review-dashboard/state${refresh ? "?refresh=1" : ""}`, { cache: "no-store" });
         } catch {
             if (!current()) return;
-            setError(tr("Review dashboard non raggiungibile.", "The queue cannot be reached."));
+            setError(trRef.current("Review dashboard non raggiungibile.", "The queue cannot be reached."));
             setRetry({ seconds: STATE_RETRY_SECONDS });
             return;
         }
@@ -200,7 +208,7 @@ export default function ReviewPage() {
             // A proxy error page (502/504 while the service restarts) is not JSON.
             const data = await res.json().catch(() => ({})) as { error?: string; code?: string };
             if (!current()) return;
-            setError(data.error ?? tr(`Review dashboard non disponibile (${res.status})`, `The queue is not available (${res.status}).`));
+            setError(trRef.current(data.error ?? `Review dashboard non disponibile (${res.status})`, "The queue is not available right now."));
             if (isTransientStateFailure(res.status, data)) {
                 setRetry({ seconds: retryAfterSeconds(res.headers.get("retry-after")) });
             }
@@ -212,7 +220,7 @@ export default function ReviewPage() {
         } catch {
             // A body cut off mid-restart: say so and ask again, never render it.
             if (!current()) return;
-            setError(tr("Review dashboard: risposta incompleta.", "The queue answered incompletely; trying again."));
+            setError(trRef.current("Review dashboard: risposta incompleta.", "The queue answered incompletely; trying again."));
             setRetry({ seconds: STATE_RETRY_SECONDS });
             return;
         }
@@ -220,7 +228,7 @@ export default function ReviewPage() {
         // No setError(null) here: an act's own error set while this read was
         // in flight must stay; the clear at the start of load() is enough.
         setState(data);
-    }, [tr]);
+    }, []);
 
     useEffect(() => { void load(); }, [load]);
 
@@ -405,7 +413,13 @@ export default function ReviewPage() {
                 }),
             });
             const result = await res.json();
-            if (!res.ok || !result.ok) throw new Error(result.error ?? (isSocial ? "Not saved" : "Decisione non salvata"));
+            if (!res.ok || !result.ok) {
+                // The social view says what happened in plain words; a raw
+                // server or Notion message is for JJ's register only.
+                throw new Error(isSocial
+                    ? (res.status === 403 && result.error ? result.error : "Not saved. Please try again in a moment.")
+                    : result.error ?? "Decisione non salvata");
+            }
             // A note is not a decision: the row stays open for more acts.
             if (decision === "comment" || decision === "ready" || decision === "request") {
                 setNote(entry.key, "");
@@ -521,7 +535,16 @@ export default function ReviewPage() {
                     {c && (
                         // The post as it will go out — media in order, the exact text,
                         // where and when — composed the way the pipeline composes it.
-                        <PostPreview post={composePost(c)} date={c.date} lang={isSocial ? "en" : "it"} />
+                        <div className="flex flex-col gap-8">
+                            {composePosts(c).map((post, i) => (
+                                <PostPreview key={`${c.rowId}-${i}`} post={post} date={c.date} lang={isSocial ? "en" : "it"} />
+                            ))}
+                            {!isSocial && !c.hasAssets && c.canva && (
+                                <p className="border border-sepia px-3 py-2 text-[12px] text-sepia">
+                                    Solo vecchio link Canva, nessun asset locale visibile.
+                                </p>
+                            )}
+                        </div>
                     )}
                     {/* The social view reads the post first, then what people said about it. */}
                     {history && isSocial && <div className="mt-5">{notesBlock}</div>}
@@ -844,7 +867,7 @@ export default function ReviewPage() {
                             })()}
                             {state && (
                                 <p className="mt-1.5 font-condensed text-[10px] uppercase tracking-[0.14em] text-plate-foreground-soft">
-                                    {tr("aggiornato", "updated")} {new Date(state.generatedAt).toLocaleTimeString(isSocial ? "en-GB" : "it-IT")}{state.cached ? " · cache" : ""}<SnapshotFreshness value={state.readModel} />
+                                    {tr("aggiornato", "updated")} {new Date(state.generatedAt).toLocaleTimeString(isSocial ? "en-GB" : "it-IT")}{!isSocial && state.cached ? " · cache" : ""}{!isSocial && <SnapshotFreshness value={state.readModel} />}
                                 </p>
                             )}
                         </div>
