@@ -299,6 +299,43 @@ changes upstream, run `node tools/board/sync-vendor.mjs` in this repo;
 curl -s -H "Authorization: Bearer $COCKPIT_SERVICE_TOKEN" http://127.0.0.1:3010/api/board/sync | python3 -m json.tool
 ```
 
+## Collaborators — access for people other than JJ
+
+Since 26 November 2026 the cockpit admits collaborators besides the env
+operator. Today the only role offered is `social` (the Social Media
+Manager): the social queue, Il Carico and `/guida`, nothing else. Design:
+`docs/SOCIAL-COLLABORATOR-PLAN-2026-11.md`.
+
+- **Store.** `$COCKPIT_AUTH_DIR/users.json`, else
+  `$COCKPIT_SNAPSHOT_DIR/auth/users.json` — on the VPS
+  `/var/lib/ggo-cockpit/auth/users.json` (directory 0700, file 0600, owner
+  `jj`), outside the deploy tree, so `rsync --delete` never touches it. It
+  holds bcrypt hashes and SHA-256 hashes of invitation tokens, never a
+  password or a token. There is no backup: if it is lost, collaborators are
+  invited again; the owner's sign-in does not depend on it.
+- **Invite.** Settings → Collaborators → name and email → *Create link*. JJ
+  sends the link himself. It works once, for 72 hours; the token travels in
+  the `#fragment`, so it never reaches nginx's logs.
+- **Reset.** *New link* on the person's row. The old password works until the
+  new link is used.
+- **Revoke.** *Switch off*. Every guarded route re-reads the store, so the
+  next request is refused; nothing is deleted.
+- **The owner.** `COCKPIT_USER_EMAIL` and `ADMIN_EMAIL` are always admin, can
+  never be invited, are never throttled and never depend on the store — a
+  corrupt `users.json` cannot lock JJ out.
+- **Sign-in brake.** Eight wrong passwords for one collaborator address in
+  fifteen minutes pause that address for the rest of the window (in-process;
+  a restart clears it). An nginx `limit_req` on
+  `/api/auth/callback/credentials` would add a server-side brake; it is not
+  configured.
+
+Inspect, read-only:
+
+```bash
+ssh -i ~/.ssh/ionos_ggo_xl root@85.215.37.39 \
+  'ls -l /var/lib/ggo-cockpit/auth/ && grep -E "\"(email|role|disabled)\"" /var/lib/ggo-cockpit/auth/users.json'
+```
+
 ## What stays on the Mac
 
 - The local resident service (LaunchAgent on `localhost:3010`) continues

@@ -1,5 +1,6 @@
 import { auth } from "./lib/auth/edge-config";
 import { NextResponse } from "next/server";
+import { canReach } from "./lib/auth/permissions";
 
 /**
  * Protect all routes except login, static files, and auth API.
@@ -8,10 +9,30 @@ import { NextResponse } from "next/server";
 export default auth((req) => {
     const { pathname } = req.nextUrl;
 
+    // Restricted roles (the social media manager) reach an allow-list only,
+    // and this runs BEFORE the exemptions below: several exempt routes accept
+    // any session (views, the LLM ledger), and several guarded ones rely on
+    // this middleware alone. The routes it does reach check the role again.
+    const framework = pathname.startsWith("/_next") || pathname.startsWith("/favicon")
+        || pathname.startsWith("/api/auth/") || pathname === "/login";
+    if (req.auth && !framework) {
+        const reach = canReach(req.auth.user?.role, pathname);
+        if (!reach.ok) {
+            if (pathname.startsWith("/api/")) {
+                return NextResponse.json({ error: "Not available for your role" }, { status: 403 });
+            }
+            return NextResponse.redirect(new URL(reach.redirect ?? "/login", req.url));
+        }
+    }
+
     // Allow auth routes and login page through
     if (
         pathname.startsWith("/api/auth") ||
         pathname === "/login" ||
+        // A collaborator redeems an invitation before having a session.
+        // The page and its API check the one-time token themselves.
+        pathname === "/invito" ||
+        pathname === "/api/auth-invite/redeem" ||
         pathname.startsWith("/_next") ||
         pathname.startsWith("/favicon") ||
         // View API does its own auth (NextAuth session OR service token for

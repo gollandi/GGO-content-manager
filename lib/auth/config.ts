@@ -2,6 +2,8 @@ import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import { getRoleForEmail, type Role } from "./roles";
+import { storeStanding, verifyStoredCredentials } from "./users";
+import { noteSignInFailure, signInThrottled } from "./throttle";
 import bcryptjs from "bcryptjs";
 
 /**
@@ -85,26 +87,61 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 // The stored bcrypt hash must belong to a compliant password.
                 if (password.length < MIN_PASSWORD_LENGTH) return null;
 
-                const user = CREDENTIALS_USERS[email];
-                if (!user) return null;
+                // The owner first, without touching the user store: a broken
+                // store must never stand between JJ and his own gate. His
+                // address cannot be in the store (inviteUser refuses it).
+                const owner = CREDENTIALS_USERS[email];
+                if (owner) {
+                    const valid = await bcryptjs.compare(password, owner.hash);
+                    if (!valid) return null;
+                    return { id: email, email, name: owner.name };
+                }
 
-                const valid = await bcryptjs.compare(password, user.hash);
-                if (!valid) return null;
-
-                return { id: email, email, name: user.name };
+                // The brake applies to collaborators only: throttling the
+                // owner's address would let anyone who knows it lock him out.
+                if (signInThrottled(email)) return null;
+                let collaborator = null;
+                try {
+                    collaborator = await verifyStoredCredentials(email, password);
+                } catch (err) {
+                    console.error("[auth] user store unreadable at sign-in:", (err as Error).message);
+                    return null;
+                }
+                if (!collaborator) { noteSignInFailure(email); return null; }
+                return { id: email, email, name: collaborator.name, role: collaborator.role, collaborator: true };
             },
         }),
     ],
     callbacks: {
+        /**
+         * Google, if it is ever configured, admits only people the cockpit
+         * already knows: the owner, ADMIN_EMAIL, or an active collaborator
+         * (who then holds the stored role). Anyone else is refused instead
+         * of becoming a viewer of everything.
+         */
+        async signIn({ user, account }) {
+            if (account?.provider !== "google") return true;
+            const email = user?.email?.toLowerCase();
+            if (!email) return false;
+            if (getRoleForEmail(email) === "admin") return true;
+            const standing = storeStanding(email);
+            if (standing.kind !== "active") return false;
+            user.role = standing.role;
+            user.name = standing.name;
+            user.collaborator = true;
+            return true;
+        },
         async jwt({ token, user }) {
             if (user?.email) {
-                token.role = getRoleForEmail(user.email);
+                token.role = user.role ?? getRoleForEmail(user.email);
+                token.collaborator = user.collaborator === true;
             }
             return token;
         },
         async session({ session, token }) {
             if (session.user) {
                 session.user.role = token.role as Role;
+                session.user.collaborator = token.collaborator === true;
             }
             return session;
         },

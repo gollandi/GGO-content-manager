@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Document, RegisterHeading, RoomCrest } from "../../components/Registro";
+import { useSession } from "next-auth/react";
 
 /**
  * Il Carico — depositare materiale dal telefono, direttamente sul server.
@@ -119,6 +120,10 @@ function WorkerLine({ job }: { job: Job | undefined }) {
 }
 
 export default function CaricoPage() {
+    // Italian for JJ, English for the social media manager.
+    const { data: session } = useSession();
+    const en = session?.user?.role === "social";
+    const tr = (it: string, english: string) => (en ? english : it);
     const [file, setFile] = useState<File | null>(null);
     const [kind, setKind] = useState<string>("talking-head");
     const [note, setNote] = useState("");
@@ -287,21 +292,20 @@ export default function CaricoPage() {
                         Il Carico
                     </p>
                     <h1 className="document-title mt-1.5 text-[30px] text-plate-foreground-strong max-sm:text-[24px]">
-                        Il Carico
+                        {tr("Il Carico", "Upload media")}
                     </h1>
                     <p className="mt-2 max-w-xl text-sm leading-relaxed text-plate-foreground-soft">
-                        Deposita il girato dal telefono direttamente sul server. Il file arriva a
-                        pezzi — se la linea cade riprende da dove si era fermata — e resta in inbox
-                        finché Ernesto e le ragazze lo lavorano. Qui non si pubblica nulla.
+                        {tr("Deposita il girato dal telefono direttamente sul server. Il file arriva a pezzi — se la linea cade riprende da dove si era fermata — e resta in inbox finché Ernesto e le ragazze lo lavorano. Qui non si pubblica nulla.",
+                            "Send footage or audio from your phone straight to the server. The file goes up in pieces — if the signal drops it resumes where it stopped — and waits in the inbox until the team works on it. Nothing is published from here.")}
                     </p>
                 </header>
 
                 <section className="mb-9">
-                    <RegisterHeading label="Nuovo deposito" />
+                    <RegisterHeading label={tr("Nuovo deposito", "New upload")} />
 
                     <Document className="p-5 max-sm:p-4">
                         <label className="column-label mb-2 block text-paper-foreground-soft">
-                            Il file
+                            {tr("Il file", "The file")}
                         </label>
                         <input
                             ref={fileInput}
@@ -326,7 +330,7 @@ export default function CaricoPage() {
                         <div className="mt-4 grid grid-cols-2 gap-3 max-sm:grid-cols-1">
                             <div>
                                 <label className="column-label mb-2 block text-paper-foreground-soft">
-                                    Che materiale è
+                                    {tr("Che materiale è", "What it is")}
                                 </label>
                                 <select
                                     value={kind}
@@ -343,7 +347,7 @@ export default function CaricoPage() {
                             </div>
                             <div>
                                 <label className="column-label mb-2 block text-paper-foreground-soft">
-                                    Nota per chi lo lavora
+                                    {tr("Nota per chi lo lavora", "Note for the editor")}
                                 </label>
                                 <input
                                     value={note}
@@ -387,20 +391,20 @@ export default function CaricoPage() {
 
                         {phase === "done" && (
                             <p className="mt-4 border-l-2 border-engraving-bright pl-3 text-sm text-paper-foreground">
-                                Depositato. È in inbox sul server — il worker lo prende da lì.
+                                {tr("Depositato. È in inbox sul server — il worker lo prende da lì.", "Uploaded. It is in the server's inbox; the worker takes it from there.")}
                             </p>
                         )}
                         {error && (
                             <p className="mt-4 border-l-2 border-seal pl-3 text-sm text-paper-foreground">
                                 {error}
-                                {uploadId.current && " — i pezzi già saliti restano, puoi riprendere."}
+                                {uploadId.current && tr(" — i pezzi già saliti restano, puoi riprendere.", " — the pieces already sent are kept; you can resume.")}
                             </p>
                         )}
 
                         <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-paper-edge pt-4">
                             {phase === "done" ? (
                                 <button onClick={reset} className="act-seal" type="button">
-                                    Deposita un altro
+                                    {tr("Deposita un altro", "Upload another")}
                                 </button>
                             ) : (
                                 <button
@@ -410,12 +414,12 @@ export default function CaricoPage() {
                                     type="button"
                                 >
                                     {phase === "uploading"
-                                        ? "In salita…"
+                                        ? tr("In salita…", "Uploading…")
                                         : phase === "assembling"
-                                          ? "Ricompone…"
+                                          ? tr("Ricompone…", "Assembling…")
                                           : phase === "paused" || phase === "error"
-                                            ? "Riprendi"
-                                            : "Deposita"}
+                                            ? tr("Riprendi", "Resume")
+                                            : tr("Deposita", "Upload")}
                                 </button>
                             )}
                             {busy && (
@@ -439,10 +443,10 @@ export default function CaricoPage() {
                 </section>
 
                 <section>
-                    <RegisterHeading label="In inbox sul server" count={inbox.length} />
+                    <RegisterHeading label={tr("In inbox sul server", "In the server's inbox")} count={inbox.length} />
                     {inbox.length === 0 ? (
                         <p className="py-6 text-sm text-plate-foreground-soft">
-                            Niente depositato, per ora.
+                            {tr("Niente depositato, per ora.", "Nothing uploaded yet.")}
                         </p>
                     ) : (
                         <div className="flex flex-col">

@@ -9,10 +9,18 @@ web
 ## Users
 
 A single expert operator: JJ (Giangiacomo), the clinician who owns GGOMed's
-content ecosystem. He is the only user. The `next-auth` roles in the code
-(`admin` / `editor` / `viewer`) are a technical scaffold, not evidence of a
-team — nothing should be designed for a reader who lacks full system
-knowledge.
+content ecosystem, and the only person who decides. The cockpit as a whole is
+designed for him: nothing outside the collaborator surface below should be
+designed for a reader who lacks full system knowledge.
+
+**One collaborator surface (since 26 November 2026).** GGO Med's Social
+Media Manager works remotely in a fenced part of the cockpit with the
+`social` role: the social queue (Il Cancello's Content Calendar rows), Il
+Carico and an English guide (`/guida`). Those three screens speak English to
+that role and assume no knowledge of the house. The role may comment, mark a
+post ready for JJ and send it back with a note; it never approves, because
+approving is publishing. JJ invites and switches off collaborators from
+Settings. Design and analysis: `docs/SOCIAL-COLLABORATOR-PLAN-2026-11.md`.
 
 Two usage scenes, both real:
 

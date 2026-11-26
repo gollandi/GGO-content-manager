@@ -2,8 +2,12 @@
  * Il Cancello's acts, applied natively — the port of `applyDecision` from
  * ernesto-agents-house tools/review-dashboard/server.js.
  *
- * Governance is unchanged: a status flip happens ONLY in direct response to
- * JJ's click on the register. The state machine values are copied verbatim
+ * Governance: a status flip happens ONLY in direct response to a click on
+ * the register, and the acts that close or release work (approve — which is
+ * publish — send, reject, done, delete) are JJ's alone (../auth/permissions).
+ * Collaborators may comment, mark a row ready for JJ and send a calendar row
+ * back with a note. Every act carries its actor, and notes are appended and
+ * attributed, never overwritten (./notes.ts). The state machine values are copied verbatim
  * from the house's core/publish-state.js (CALENDAR_DECISION_FLIPS) — the
  * house remains the owner of the lifecycle; this module is the conduit for
  * JJ's hand.
@@ -22,8 +26,11 @@ import { findPatchForAsset } from "./patches";
 import { runHouseScript } from "./house";
 import { isOrderedByJJ, liveDeps, sendRow } from "./buffer-send";
 import { invalidateCancelloCache } from "./state";
+import { appendNote, formatNote, readRichText, type NoteKind } from "./notes";
+import { mayAct, type CancelloAct } from "../auth/permissions";
+import type { Role } from "../auth/roles";
 
-export type Decision = "approve" | "modify" | "reject" | "done" | "delete" | "send";
+export type Decision = CancelloAct;
 export type Target = "desk" | "calendar" | "website";
 
 // Verbatim from the house's core/publish-state.js — approve is publish.
@@ -49,18 +56,50 @@ export interface DecisionInput {
     date?: string;
 }
 
+/** Who is acting. The owner is the default only for callers that predate attribution. */
+export interface Actor {
+    email: string;
+    name: string;
+    role: Role;
+}
+export const OWNER: Actor = { email: "", name: "JJ", role: "admin" };
+
+/** The admin is JJ; the house's roster and every existing text call him so. */
+export function actorLabel(actor: Actor): string {
+    return actor.role === "admin" ? "JJ" : (actor.name || actor.email || "unknown");
+}
+
+export class DecisionForbiddenError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "DecisionForbiddenError";
+    }
+}
+
+const NOTE_KIND: Partial<Record<Decision, NoteKind>> = {
+    approve: "approve", modify: "rework", reject: "reject", done: "done", delete: "delete",
+    comment: "note", ready: "ready",
+};
+
 export interface DecisionResult {
     rowId: string;
     status: string;
     [key: string]: unknown;
 }
 
-const rich = (content: string) => ({ rich_text: [{ text: { content } }] });
 const normaliseNotionId = (id: string) => id.replace(/-/g, "");
 
-async function assertDeletablePage(rowId: string, target: "desk" | "calendar"): Promise<void> {
+function statusOf(page: { properties?: Record<string, unknown> }): string | null {
+    const p = page.properties?.Status as { type?: string; select?: { name?: string } | null } | undefined;
+    return p?.type === "select" ? p.select?.name ?? null : null;
+}
+
+const assertRowOf = (rowId: string, target: "desk" | "calendar") => assertDeletablePage(rowId, target, "act on");
+
+async function assertDeletablePage(rowId: string, target: "desk" | "calendar", verb = "delete"): Promise<{ properties?: Record<string, unknown> }> {
     const page = await notion.pages.retrieve({ page_id: rowId }) as {
         parent?: { type?: string; database_id?: string };
+        properties?: Record<string, unknown>;
     };
     const expected = target === "desk"
         ? notionConfig.dbs.ernestoDesk()
@@ -69,8 +108,9 @@ async function assertDeletablePage(rowId: string, target: "desk" | "calendar"): 
         page.parent?.type !== "database_id" ||
         normaliseNotionId(page.parent.database_id ?? "") !== normaliseNotionId(expected)
     ) {
-        throw new Error(`refusing to delete ${rowId}: it is not a ${target} proposal`);
+        throw new Error(`refusing to ${verb} ${rowId}: it is not a ${target} proposal`);
     }
+    return page;
 }
 
 async function createDeskRow(input: {
@@ -98,20 +138,58 @@ async function createDeskRow(input: {
     return { rowId: page.id };
 }
 
-export async function applyCancelloDecision(input: DecisionInput): Promise<DecisionResult> {
-    const { rowId, decision, comment, target = "desk" } = input;
+/** The row's notes property with one attributed line appended. */
+async function appendedNotes(
+    rowId: string, target: "desk" | "calendar", actor: Actor, kind: NoteKind, text: string,
+    page?: { properties?: Record<string, unknown> },
+): Promise<{ prop: string; value: ReturnType<typeof appendNote>; text: string }> {
+    const prop = COMMENT_PROP[target];
+    const current = page ?? await notion.pages.retrieve({ page_id: rowId }) as { properties?: Record<string, unknown> };
+    const existing = readRichText(current.properties?.[prop]);
+    const line = formatNote({ label: actorLabel(actor) }, kind, text);
+    const value = appendNote(existing, line);
+    return { prop, value, text: existing ? `${existing}\n${line}` : line };
+}
+
+export async function applyCancelloDecision(input: DecisionInput, actor: Actor = OWNER): Promise<DecisionResult> {
+    const { rowId, decision, target = "desk" } = input;
+    const comment = typeof input.comment === "string" ? input.comment.trim() : "";
     if (!rowId) throw new Error("rowId is required");
+    if (target !== "desk" && target !== "calendar" && target !== "website") throw new Error(`unknown target: ${target}`);
+    if (decision === "send" && target !== "calendar") throw new Error("send applies to calendar rows only");
+    if (!mayAct(actor.role, target, decision)) {
+        throw new DecisionForbiddenError(`"${decision}" on ${target} rows is not available to the ${actor.role} role`);
+    }
+    // A rework order or a comment with nothing in it tells nobody anything.
+    if ((decision === "modify" || decision === "comment") && !comment) {
+        throw new Error(`${decision} requires a note`);
+    }
+    // Only the owner may move a publish date (it is part of his seal).
+    if (actor.role !== "admin" && typeof input.date === "string" && input.date.trim()) {
+        throw new DecisionForbiddenError("only JJ may change a publish date");
+    }
     try {
-        if (target === "website") return await applyWebsiteDecision(input);
+        if (target === "website") return await applyWebsiteDecision(input, actor);
+        // A collaborator's act must land on a real row of the declared
+        // table, and a rework order only on a row that is in Review: sending
+        // back a row JJ already approved would undo his seal.
+        let collaboratorPage: { properties?: Record<string, unknown> } | undefined;
+        if (actor.role !== "admin") {
+            collaboratorPage = await assertRowOf(rowId, target);
+            const current = statusOf(collaboratorPage);
+            if (decision === "modify" && current !== "Review") {
+                throw new DecisionForbiddenError(`only a row in Review can be sent back (this one is ${current ?? "without a status"})`);
+            }
+        }
 
         const map = STATUS_MAPS[target];
-        if (!map) throw new Error(`unknown target: ${target}`);
 
         if (decision === "delete") {
-            await assertDeletablePage(rowId, target);
+            const page = await assertDeletablePage(rowId, target);
             const properties: Record<string, unknown> = {};
-            if (typeof comment === "string" && comment.trim()) {
-                properties[COMMENT_PROP[target]] = rich(comment.trim().slice(0, 1900));
+            if (comment) {
+                const notes = await appendedNotes(rowId, target, actor, "delete", comment, page);
+                properties[notes.prop] = notes.value;
             }
             await notion.pages.update({
                 page_id: rowId,
@@ -119,6 +197,13 @@ export async function applyCancelloDecision(input: DecisionInput): Promise<Decis
                 ...(Object.keys(properties).length > 0 ? { properties: properties as never } : {}),
             });
             return { rowId, status: "Deleted", archived: true };
+        }
+
+        // Speaking on a row without deciding it: the status stays where it is.
+        if (decision === "comment" || decision === "ready") {
+            const notes = await appendedNotes(rowId, target, actor, NOTE_KIND[decision]!, comment, collaboratorPage);
+            await notion.pages.update({ page_id: rowId, properties: { [notes.prop]: notes.value } as never });
+            return { rowId, status: decision === "ready" ? "Ready for JJ" : "Noted", notes: notes.text };
         }
 
         // The second flip: JJ authorises the hand-off of an approved, staged
@@ -133,8 +218,11 @@ export async function applyCancelloDecision(input: DecisionInput): Promise<Decis
         if (!status) throw new Error(`unknown decision: ${decision}`);
 
         const properties: Record<string, unknown> = { Status: { select: { name: status } } };
-        if (typeof comment === "string" && comment.trim()) {
-            properties[COMMENT_PROP[target]] = rich(comment.trim().slice(0, 1900));
+        let notesText: string | undefined;
+        if (comment) {
+            const notes = await appendedNotes(rowId, target, actor, NOTE_KIND[decision] ?? "note", comment, collaboratorPage);
+            properties[notes.prop] = notes.value;
+            notesText = notes.text;
         }
         // JJ may correct the proposed publish date in the same act as the seal.
         if (target === "calendar" && typeof input.date === "string" && input.date.trim()) {
@@ -148,11 +236,11 @@ export async function applyCancelloDecision(input: DecisionInput): Promise<Decis
         // second flip ("send").
         if (target === "calendar" && decision === "approve") {
             const facts = await liveDeps.getRow(rowId);
-            if (!isOrderedByJJ(facts)) return { rowId, status, awaitingSecondFlip: true };
+            if (!isOrderedByJJ(facts)) return { rowId, status, awaitingSecondFlip: true, notes: notesText };
             const send = await sendRow(rowId, liveDeps, { budget: { immediate: 1 }, retryFailed: false });
-            return { rowId, status: send.calendarStatus ?? status, send };
+            return { rowId, status: send.calendarStatus ?? status, send, notes: notesText };
         }
-        return { rowId, status };
+        return { rowId, status, notes: notesText };
     } finally {
         invalidateCancelloCache();
     }
@@ -160,7 +248,8 @@ export async function applyCancelloDecision(input: DecisionInput): Promise<Decis
 
 /* ── Website: patches and work orders ────────────────────────────────── */
 
-async function applyWebsiteDecision({ rowId, decision, comment }: DecisionInput): Promise<DecisionResult> {
+async function applyWebsiteDecision({ rowId, decision, comment }: DecisionInput, actor: Actor): Promise<DecisionResult> {
+    const who = actorLabel(actor);
     if (decision !== "approve" && decision !== "modify") {
         throw new Error("website rows support approve (apply/commission the patch) or modify (rework order with your note)");
     }
@@ -172,7 +261,7 @@ async function applyWebsiteDecision({ rowId, decision, comment }: DecisionInput)
     const liveUrl = page.properties?.["Live URL"]?.url || null;
 
     const note = typeof comment === "string" && comment.trim()
-        ? `\nNota di JJ: ${comment.trim().slice(0, 1500)}` : "";
+        ? `\nNota di ${who}: ${comment.trim().slice(0, 1500)}` : "";
     const today = new Date().toISOString().slice(0, 10);
     const existing = findPatchForAsset(rowId);
 
@@ -184,7 +273,7 @@ async function applyWebsiteDecision({ rowId, decision, comment }: DecisionInput)
             priority: "Normal",
             status: "Approved", // JJ's click IS the ratification
             body:
-                `Richiesta di modifica di JJ dal Cancello il ${today}.\n`
+                `Richiesta di modifica di ${who} dal Cancello il ${today}.\n`
                 + `Destinatario: Edmondo (edmondo-il-caporedattore).\n`
                 + `Articolo: ${title}${liveUrl ? ` (${liveUrl})` : ""} — Content Asset ${rowId}.\n`
                 + (existing
@@ -253,7 +342,7 @@ async function applyWebsiteDecision({ rowId, decision, comment }: DecisionInput)
         priority: "Normal",
         status: "Approved",
         body:
-            `Work order commissionato da JJ dal Cancello il ${today}.\n`
+            `Work order commissionato da ${who} dal Cancello il ${today}.\n`
             + `Destinatario: Edmondo (edmondo-il-caporedattore) — orchestrazione sito.\n`
             + `Articolo: ${title}${liveUrl ? ` (${liveUrl})` : ""} — Content Asset ${rowId}.\n`
             + "Preparare il patch come BOZZA Sanity (mai publish — gate #1 resta di JJ). "

@@ -5,6 +5,8 @@ import { getHouseState } from "../../../../lib/house/state";
 import {
     CancelloStateTimeoutError, loadCancelloState, loadCancelloStateWithin,
 } from "../../../../lib/cancello/state";
+import { viewFor } from "../../../../lib/cancello/view";
+import type { Role } from "../../../../lib/auth/roles";
 
 /**
  * Il Cancello's state, assembled natively — the resident review-dashboard
@@ -25,9 +27,15 @@ function serviceTokenOk(req: NextRequest): boolean {
 }
 
 export async function GET(req: NextRequest) {
+    let role: Role | null = null;
     if (!serviceTokenOk(req)) {
         const auth = await requireAuth();
         if (!auth.authenticated) return auth.response;
+        role = auth.role;
+    }
+    // Warming is the machine's job; a restricted session has no use for it.
+    if (role && role !== "admin" && req.nextUrl.searchParams.get("warm") === "1") {
+        return NextResponse.json({ error: "Not available for your role" }, { status: 403 });
     }
 
     try {
@@ -49,7 +57,7 @@ export async function GET(req: NextRequest) {
         const state = await loadCancelloStateWithin(undefined, {
             refresh: req.nextUrl.searchParams.get("refresh") === "1",
         });
-        return NextResponse.json(state, { headers: { "Cache-Control": "private, no-store" } });
+        return NextResponse.json(viewFor(state, role), { headers: { "Cache-Control": "private, no-store" } });
     } catch (err) {
         if (err instanceof CancelloStateTimeoutError) {
             return NextResponse.json(

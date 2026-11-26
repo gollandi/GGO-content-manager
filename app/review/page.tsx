@@ -8,6 +8,8 @@ import MarkdownBlock from "../../components/MarkdownBlock";
 import AssetSheet from "../../components/cancello/AssetSheet";
 import { deskFamily, gateCalendarIds, shadowedByCalendar } from "../../lib/house/families";
 import { Guilloche, Socket, Mark, AgeBar, type MarkTone } from "../../components/Registro";
+import { useSession } from "next-auth/react";
+import { latestReadyMark } from "../../lib/cancello/notes";
 
 /**
  * IL CANCELLO — the register spread.
@@ -22,7 +24,7 @@ import { Guilloche, Socket, Mark, AgeBar, type MarkTone } from "../../components
  * acts pinned under the thumb. One hand, between clinics.
  */
 
-type Decision = "approve" | "modify" | "reject" | "done" | "delete" | "send";
+type Decision = "approve" | "modify" | "reject" | "done" | "delete" | "send" | "comment" | "ready";
 type Target = "desk" | "calendar" | "website";
 
 interface VideoRef { url: string; name?: string; path?: string; ageDays?: number }
@@ -114,6 +116,14 @@ function stateTone(value: string): MarkTone {
    ========================================================================= */
 
 export default function ReviewPage() {
+    // The social media manager sees the social rows only, and speaks on them
+    // (comment, ready for JJ, send back); the seal and every closing act stay
+    // JJ's. The server enforces this; the page only stops offering what
+    // would be refused.
+    const { data: session } = useSession();
+    const isSocial = session?.user?.role === "social";
+    /** The register speaks Italian to JJ and English to the social media manager. */
+    const tr = useCallback((it: string, en: string) => (isSocial ? en : it), [isSocial]);
     const [state, setState] = useState<ReviewState | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -221,7 +231,7 @@ export default function ReviewPage() {
 
     /* ── The register's lines ─────────────────────────────────────────────── */
 
-    const entries = useMemo<Entry[]>(() => {
+    const allEntries = useMemo<Entry[]>(() => {
         if (!state) return [];
         const wallIds = new Set(state.wall.map((row) => row.rowId));
         const fromDesk = (row: DeskRow): Entry => ({
@@ -256,7 +266,7 @@ export default function ReviewPage() {
                     title: row.title,
                     // The slot date is shown, and a passed slot ages like any
                     // overdue item: a Review row whose day is gone is stale.
-                    stateLabel: [row.orderedBy === "JJ" ? "Ordine JJ" : null, row.contentType, row.platforms, row.date]
+                    stateLabel: [row.orderedBy === "JJ" ? tr("Ordine JJ", "Ordered by JJ") : null, row.contentType, row.platforms, row.date]
                         .filter(Boolean).join(" · ") || "Social",
                     dueDays: daysUntil(row.date),
                     hasMedia: row.media.length > 0,
@@ -304,7 +314,11 @@ export default function ReviewPage() {
                     website: row
                 }))
         ];
-    }, [state]);
+    }, [state, tr]);
+    const entries = useMemo(
+        () => (isSocial ? allEntries.filter((e) => e.family === "Social") : allEntries),
+        [allEntries, isSocial]
+    );
 
     const open = entries.find((e) => e.key === openKey) ?? null;
     const pendingEntries = entries.filter((e) => !acted[e.key]);
@@ -313,7 +327,7 @@ export default function ReviewPage() {
         if (!state) return [];
         return [
             {
-                label: "In lavorazione adesso",
+                label: tr("In lavorazione adesso", "In production now"),
                 rows: [
                     ...state.calendar
                         .filter((r) => r.status === "In Production" || r.status === "Draft")
@@ -324,19 +338,19 @@ export default function ReviewPage() {
                 ]
             },
             {
-                label: "In coda — approvati, in attesa di uno slot",
+                label: tr("In coda — approvati, in attesa di uno slot", "Queued — approved, waiting for a slot"),
                 rows: state.desk
                     .filter((r) => r.status === "Approved" && deskFamily(r.type, r.videos.length > 0 || (r.media?.length ?? 0) > 0) === "editorial")
                     .map((r) => ({ key: `d:${r.rowId}`, title: r.title, state: "Approved", url: r.url }))
             },
             {
-                label: "Programmati verso pubblicazione",
+                label: tr("Programmati verso pubblicazione", "Scheduled for publication"),
                 rows: state.calendar
                     .filter((r) => r.status === "Scheduled")
                     .map((r) => ({ key: `c:${r.rowId}`, title: r.title, state: r.date ?? "Scheduled", url: r.url }))
             }
         ];
-    }, [state]);
+    }, [state, tr]);
 
     /* ── Acts ─────────────────────────────────────────────────────────────── */
 
@@ -350,8 +364,8 @@ export default function ReviewPage() {
         comment: string,
         opts: { date?: string } = {}
     ) {
-        if (decision === "modify" && !comment.trim()) {
-            setError(entry.target === "website"
+        if ((decision === "modify" || decision === "comment") && !comment.trim()) {
+            setError(isSocial ? "Write what should change: the note goes with the post." : entry.target === "website"
                 ? "Scrivi cosa va cambiato: il timbro porta la nota a Edmondo."
                 : "Scrivi cosa va cambiato: il timbro porta la nota a Ernesto.");
             return;
@@ -375,7 +389,15 @@ export default function ReviewPage() {
                 }),
             });
             const result = await res.json();
-            if (!res.ok || !result.ok) throw new Error(result.error ?? "Decisione non salvata");
+            if (!res.ok || !result.ok) throw new Error(result.error ?? (isSocial ? "Not saved" : "Decisione non salvata"));
+            // A note is not a decision: the row stays open for more acts.
+            if (decision === "comment" || decision === "ready") {
+                setNote(entry.key, "");
+                setToast(decision === "ready" ? "Marked ready for JJ" : "Note added");
+                setTimeout(() => setToast(null), 2600);
+                await load();
+                return;
+            }
             recordAct(entry.key, decision);
             if (decision === "approve") {
                 setJustSealed(entry.key);
@@ -386,7 +408,7 @@ export default function ReviewPage() {
                     ? describeHandOff(result.send)
                     : decision === "approve"
                     ? (result.awaitingSecondFlip ? "Sigillato — dopo lo staging resta «Invia a Buffer»" : "Sigillato")
-                    : decision === "modify" ? "Timbrato e rimandato"
+                    : decision === "modify" ? (isSocial ? "Sent back to the team" : "Timbrato e rimandato")
                     : decision === "done" ? "Archiviato — non tornerà a chiedere"
                     : decision === "delete" ? "Eliminato — non tornerà nel Cancello"
                     : "Rifiutato"
@@ -407,7 +429,16 @@ export default function ReviewPage() {
     /* ── The document page (right leaf / phone sheet) ─────────────────────── */
 
     function DocumentLeaf({ entry }: { entry: Entry }) {
-        const note = notes[entry.key] ?? entry.desk?.correction ?? entry.calendar?.notes ?? "";
+        // The box starts empty: notes are appended to the row's history, so
+        // pre-filling it with that history would write the history twice.
+        const note = notes[entry.key] ?? "";
+        // The house's machine markers share the field; the social media
+        // manager is shown the people's lines only, JJ everything.
+        const rawHistory = (entry.calendar?.notes ?? entry.desk?.correction ?? "").trim();
+        const history = isSocial
+            ? rawHistory.split("\n").filter((l) => /^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2} · /.test(l)).join("\n")
+            : rawHistory;
+        const ready = entry.calendar ? latestReadyMark(entry.calendar.notes ?? "") : null;
         const busy = busyKey === entry.key;
         const act = acted[entry.key];
         const c = entry.calendar;
@@ -422,7 +453,7 @@ export default function ReviewPage() {
                 <div className="border-b-[3px] border-double border-paper-edge px-5 pb-4 pt-5">
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                            <p className="column-label column-label-paper">{entry.family} · atto in attesa</p>
+                            <p className="column-label column-label-paper">{isSocial ? "Social · waiting for review" : `${entry.family} · atto in attesa`}</p>
                             <h2 className="document-title mt-1.5 text-[22px] text-paper-foreground">{entry.title}</h2>
                         </div>
                         <Socket
@@ -436,19 +467,28 @@ export default function ReviewPage() {
                         <Mark tone={stateTone(entry.stateLabel)} onPaper>{entry.stateLabel}</Mark>
                         {d?.due && <Mark tone="quiet" onPaper>entro {d.due}</Mark>}
                         {c?.date && <Mark tone="quiet" onPaper>{c.date}</Mark>}
-                        <a
+                        {ready && <Mark tone="sealed" onPaper>{`Checked by ${ready.by} · ${ready.at}`}</Mark>}
+                        {!isSocial && <a
                             href={entry.notionUrl}
                             target="_blank"
                             rel="noreferrer"
                             className="ml-auto font-condensed text-[10px] uppercase tracking-[0.14em] text-engraving-ink underline underline-offset-2 hover:text-seal"
                         >
                             Apri in Notion
-                        </a>
+                        </a>}
                     </div>
                 </div>
 
                 {/* The document body — caption and assets at document scale. */}
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                    {history && (
+                        <details className="mb-4 border border-paper-edge px-3 py-2" open={isSocial}>
+                            <summary className="column-label column-label-paper cursor-pointer">
+                                {isSocial ? "Notes on this post" : "Note sulla riga"}
+                            </summary>
+                            <pre className="mt-2 whitespace-pre-wrap font-sans text-[12px] leading-relaxed text-paper-foreground">{history}</pre>
+                        </details>
+                    )}
                     {c && (
                         <>
                             {c.caption ? (
@@ -570,7 +610,7 @@ export default function ReviewPage() {
                     <>
                     {!act && (
                         <div className="mb-2.5 flex flex-wrap items-end gap-3">
-                            {c && (
+                            {c && !isSocial && (
                                 <label className="text-[10px] font-condensed uppercase tracking-[0.14em] text-paper-foreground-soft">
                                     Pubblicazione
                                     <input
@@ -583,12 +623,12 @@ export default function ReviewPage() {
                                 </label>
                             )}
                             <label className="min-w-[12rem] flex-1 text-[10px] font-condensed uppercase tracking-[0.14em] text-paper-foreground-soft">
-                                Nota a {entry.target === "website" ? "Edmondo" : "Ernesto"}
+                                {isSocial ? "Your note" : <>Nota a {entry.target === "website" ? "Edmondo" : "Ernesto"}</>}
                                 <input
                                     id={`note-${entry.rowId}`}
                                     value={note}
                                     onChange={(event) => setNote(entry.key, event.target.value)}
-                                    placeholder="Facoltativa per il sigillo, obbligatoria per il timbro…"
+                                    placeholder={isSocial ? "What should change, or what you checked…" : "Facoltativa per il sigillo, obbligatoria per il timbro…"}
                                     className="mt-1 block w-full border border-paper-edge bg-transparent px-2.5 py-1.5 text-[13px] normal-case tracking-normal text-paper-foreground outline-none placeholder:text-paper-foreground-soft focus:border-engraving-ink"
                                 />
                             </label>
@@ -630,6 +670,39 @@ export default function ReviewPage() {
                                 L&apos;atto è nel registro. La riga sparirà alla prossima rilettura.
                             </span>
                         </div>
+                    ) : (
+                    isSocial ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            disabled={busy}
+                            onClick={() => void decide(entry, "ready", note)}
+                            className="act-seal flex-1 min-w-[8rem]"
+                            type="button"
+                            title="Tells JJ you have checked this post; your note goes with it. It does not publish."
+                        >
+                            Ready for JJ
+                        </button>
+                        <button
+                            disabled={busy || !note.trim()}
+                            onClick={() => void decide(entry, "comment", note)}
+                            className="act-void flex-1 min-w-[7rem]"
+                            type="button"
+                            style={{ color: "var(--paper-fg)", borderColor: "var(--paper-edge)" }}
+                            title="Adds your note to the post's history without changing its status"
+                        >
+                            Add note
+                        </button>
+                        <button
+                            disabled={busy}
+                            onClick={() => setModifyOpen(true)}
+                            className="act-stamp flex-1 min-w-[7rem]"
+                            type="button"
+                            style={{ color: "var(--stamp)", borderColor: "var(--stamp)" }}
+                            title="Sends the post back to the team with your note; it leaves the review queue"
+                        >
+                            Send back
+                        </button>
+                    </div>
                     ) : (
                     <div className="flex flex-wrap items-center gap-2">
                         {entry.family === "Buffer" ? (
@@ -701,6 +774,7 @@ export default function ReviewPage() {
                             </button>
                         )}
                     </div>
+                    )
                     )}
                     </>
                     )}
@@ -726,11 +800,11 @@ export default function ReviewPage() {
                 <header className="relative border-b border-plate-rule px-8 pb-4 pt-7 max-sm:px-4">
                     <div className="flex flex-wrap items-end justify-between gap-3">
                         <div>
-                            <p className="column-label">Il Cancello · le proposte editoriali</p>
+                            <p className="column-label">{tr("Il Cancello · le proposte editoriali", "Social queue · posts waiting for review")}</p>
                             <h1 className="document-title mt-1.5 text-[30px] text-plate-foreground-strong max-sm:text-[24px]">
-                                {state ? (pendingEntries.length === 0 ? "Niente aspetta il tuo sigillo" : pendingEntries.length === 1 ? "Un atto aspetta il tuo sigillo" : `${pendingEntries.length} atti aspettano il tuo sigillo`) : "Apro il registro…"}
+                                {state && isSocial ? (pendingEntries.length === 0 ? "No posts are waiting for review" : pendingEntries.length === 1 ? "One post is waiting for review" : `${pendingEntries.length} posts are waiting for review`) : !state && isSocial ? "Opening the queue…" : state ? (pendingEntries.length === 0 ? "Niente aspetta il tuo sigillo" : pendingEntries.length === 1 ? "Un atto aspetta il tuo sigillo" : `${pendingEntries.length} atti aspettano il tuo sigillo`) : "Apro il registro…"}
                             </h1>
-                            {state && pendingEntries.length > 0 && (() => {
+                            {state && !isSocial && pendingEntries.length > 0 && (() => {
                                 // The registrar's line: what stands at the gate, in one sentence.
                                 const social = pendingEntries.filter((e) => e.family === "Social").length;
                                 const deskN = pendingEntries.filter((e) => e.family === "Desk").length;
@@ -749,16 +823,16 @@ export default function ReviewPage() {
                             })()}
                             {state && (
                                 <p className="mt-1.5 font-condensed text-[10px] uppercase tracking-[0.14em] text-plate-foreground-soft">
-                                    aggiornato {new Date(state.generatedAt).toLocaleTimeString("it-IT")}{state.cached ? " · cache" : ""}<SnapshotFreshness value={state.readModel} />
+                                    {tr("aggiornato", "updated")} {new Date(state.generatedAt).toLocaleTimeString(isSocial ? "en-GB" : "it-IT")}{state.cached ? " · cache" : ""}<SnapshotFreshness value={state.readModel} />
                                 </p>
                             )}
                         </div>
                         <div className="flex items-center gap-3">
-                            <Link href="/questioni" className="text-[12px] text-plate-foreground-soft hover:text-plate-foreground hover:underline">
+                            {!isSocial && <Link href="/questioni" className="text-[12px] text-plate-foreground-soft hover:text-plate-foreground hover:underline">
                                 Domande, piani e raccomandazioni → Le Questioni
-                            </Link>
+                            </Link>}
                             <button onClick={() => void load(true)} className="act-quiet" type="button">
-                                Rileggi da Notion
+                                {tr("Rileggi da Notion", "Refresh")}
                             </button>
                         </div>
                     </div>
@@ -772,7 +846,7 @@ export default function ReviewPage() {
                 {error && (
                     <div className="relative mx-8 mt-4 border border-seal px-4 py-3 text-[13px] text-seal-bright max-sm:mx-4" role="alert">
                         {error}
-                        {retry !== null && ` Nuovo tentativo automatico tra ${retry.seconds} s.`}
+                        {retry !== null && (isSocial ? ` Trying again in ${retry.seconds} s.` : ` Nuovo tentativo automatico tra ${retry.seconds} s.`)}
                     </div>
                 )}
 
@@ -787,25 +861,25 @@ export default function ReviewPage() {
                         aria-label="Registro degli atti in attesa"
                     >
                         <div className="flex items-baseline justify-between border-b-[3px] border-double border-paper-edge px-4 py-2.5">
-                            <span className="column-label column-label-paper">Atto</span>
-                            <span className="column-label column-label-paper">Sigillo</span>
+                            <span className="column-label column-label-paper">{tr("Atto", "Post")}</span>
+                            <span className="column-label column-label-paper">{tr("Sigillo", "JJ's seal")}</span>
                         </div>
                         <div className="min-h-0 flex-1 overflow-y-auto">
                             {!state ? (
                                 <p className="px-4 py-8 text-center font-condensed text-[11px] uppercase tracking-[0.14em] text-paper-foreground-soft">
-                                    Carico ciò che aspetta il tuo giudizio…
+                                    {tr("Carico ciò che aspetta il tuo giudizio…", "Loading the queue…")}
                                 </p>
                             ) : entries.length === 0 ? (
                                 <div className="px-4 py-12 text-center">
                                     <Socket sealed size={40} />
                                     <p className="mt-3 text-[13px] text-paper-foreground-soft">
-                                        Ogni atto è deciso. Il resto della casa è qui sotto.
+                                        {tr("Ogni atto è deciso. Il resto della casa è qui sotto.", "Nothing is waiting for review. What is in progress is below.")}
                                     </p>
                                 </div>
                             ) : (
                                 ([
                                     ["Desk", "Da pubblicare · clip e script"],
-                                    ["Social", "Calendario sociale"],
+                                    ["Social", tr("Calendario sociale", "Social calendar")],
                                     ["Website", "Sito · patch e proposte"],
                                 ] as const).map(([family, label]) => {
                                     const rows = entries.filter((e) => e.family === family);
@@ -845,6 +919,16 @@ export default function ReviewPage() {
                                                                     · asset
                                                                 </span>
                                                             )}
+                                                            {(() => {
+                                                                // A collaborator's pre-check, visible on the line itself so
+                                                                // JJ can take the checked posts first.
+                                                                const mark = entry.calendar ? latestReadyMark(entry.calendar.notes ?? "") : null;
+                                                                return mark ? (
+                                                                    <span className="font-condensed text-[10px] uppercase tracking-[0.12em] text-engraving-ink">
+                                                                        · {tr("controllato da", "checked by")} {mark.by}
+                                                                    </span>
+                                                                ) : null;
+                                                            })()}
                                                         </div>
                                                         {entry.dueDays !== null && entry.dueDays > 0 && (
                                                             <div className="mt-1.5"><AgeBar days={entry.dueDays} /></div>
@@ -952,9 +1036,9 @@ export default function ReviewPage() {
                         <section className="paper w-full max-w-lg border border-paper-edge" role="dialog" aria-modal="true" aria-label="Timbra e rimanda">
                             <div className="border-b-[3px] border-double border-paper-edge px-5 py-4">
                                 <p className="column-label" style={{ color: "var(--stamp)" }}>
-                                    Timbro · nota a {open.target === "website" ? "Edmondo" : "Ernesto"}
+                                    {isSocial ? "Send back · note to the team" : <>Timbro · nota a {open.target === "website" ? "Edmondo" : "Ernesto"}</>}
                                 </p>
-                                <h2 className="document-title mt-1 text-[19px] text-paper-foreground">Cosa va modificato?</h2>
+                                <h2 className="document-title mt-1 text-[19px] text-paper-foreground">{isSocial ? "What should change?" : "Cosa va modificato?"}</h2>
                                 <p className="mt-1 truncate text-[13px] text-paper-foreground-soft">{open.title}</p>
                             </div>
                             <div className="px-5 py-4">
@@ -963,14 +1047,14 @@ export default function ReviewPage() {
                                     onChange={(event) => setNote(open.key, event.target.value)}
                                     rows={6}
                                     autoFocus
-                                    placeholder={open.target === "website"
+                                    placeholder={isSocial ? "Write what the team should change, regenerate or correct…" : open.target === "website"
                                         ? "Scrivi a Edmondo cosa deve rilavorare, correggere o verificare…"
                                         : "Scrivi a Ernesto cosa deve cambiare, rigenerare o correggere…"}
                                     className="w-full border border-paper-edge bg-transparent px-3 py-2 text-[13px] text-paper-foreground outline-none placeholder:text-paper-foreground-soft focus:border-engraving-ink"
                                 />
                                 <div className="mt-4 flex justify-end gap-2">
                                     <button onClick={() => setModifyOpen(false)} className="act-void" type="button" style={{ color: "var(--paper-fg-soft)", borderColor: "var(--paper-edge)" }}>
-                                        Annulla
+                                        {isSocial ? "Cancel" : "Annulla"}
                                     </button>
                                     <button
                                         disabled={busyKey === open.key || !(notes[open.key] ?? "").trim()}
@@ -979,7 +1063,7 @@ export default function ReviewPage() {
                                         type="button"
                                         style={{ color: "var(--stamp)", borderColor: "var(--stamp)" }}
                                     >
-                                        Timbra e rimanda
+                                        {isSocial ? "Send back" : "Timbra e rimanda"}
                                     </button>
                                 </div>
                             </div>

@@ -15,14 +15,18 @@ export const { auth } = NextAuth({
     providers: [],
     callbacks: {
         async jwt({ token, user }) {
+            // Sign-in happens in ./config (Node); this branch only runs if a
+            // sign-in ever reached the edge instance, and keeps the same shape.
             if (user?.email) {
-                token.role = getRoleForEmail(user.email);
+                token.role = user.role ?? getRoleForEmail(user.email);
+                token.collaborator = user.collaborator === true;
             }
             return token;
         },
         async session({ session, token }) {
             if (session.user) {
                 session.user.role = token.role as Role;
+                session.user.collaborator = token.collaborator === true;
             }
             return session;
         },

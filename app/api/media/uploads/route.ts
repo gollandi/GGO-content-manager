@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, requireWriter } from "../../../../lib/auth/api-guard";
+import { requireAuth, requireUploader } from "../../../../lib/auth/api-guard";
 import { createUpload, listInbox, MediaInboxError } from "../../../../lib/media/inbox";
 
 /**
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-    const auth = await requireWriter();
+    const auth = await requireUploader();
     if (!auth.authenticated) return auth.response;
 
     let body: { filename?: string; kind?: string; note?: string; size?: number };
