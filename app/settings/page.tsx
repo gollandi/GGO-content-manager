@@ -46,12 +46,14 @@ function Agreements() {
   }, []);
   useEffect(() => { void load(); }, [load]);
   const contractors = (rows ?? []).filter((r) => r.signatory_role === "contractor");
+  // Only a person's latest signature can be countersigned (the server checks it too).
+  const latest = (r: SignatureRow) => contractors.filter((c) => c.signatory_email === r.signatory_email).at(-1)?.record_id === r.record_id;
   const countersigned = (r: SignatureRow) => (rows ?? []).some((c) => c.signatory_role === "company" && c.countersigns === r.signatory_email && c.contract_sha256 === r.contract_sha256);
   const sign = async (r: SignatureRow) => {
     if (!window.confirm(`Sign version ${r.contract_version} for GGO Med Ltd as its director? This is your electronic signature.`)) return;
     setError("");
     const res = await fetch("/api/contract/countersign", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: r.signatory_email, typedName: typed[r.record_id] ?? "", confirm: true }) });
+      body: JSON.stringify({ email: r.signatory_email, contractSha256: r.contract_sha256, typedName: typed[r.record_id] ?? "", confirm: true }) });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) setError(j.error || "Not signed.");
     await load();
@@ -67,11 +69,11 @@ function Agreements() {
             <li key={r.record_id} className="py-3">
               <div>{r.signatory_name_typed} <span className="text-paper-foreground-soft">· {r.signatory_email}</span></div>
               <div className="column-label column-label-paper mt-1">
-                {r.contract_id} v{r.contract_version} · signed {new Date(r.accepted_at_utc).toLocaleString("en-GB")} from {r.ip_address} · {countersigned(r) ? "countersigned" : "awaiting your signature"}
+                {r.contract_id} v{r.contract_version} · signed {new Date(r.accepted_at_utc).toLocaleString("en-GB")} from {r.ip_address} · {countersigned(r) ? "countersigned" : latest(r) ? "awaiting your signature" : "superseded"}
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <a className="underline" href={`/api/contract/signed?email=${encodeURIComponent(r.signatory_email)}`}>Download the signed copy</a>
-                {!countersigned(r) && (
+                {!countersigned(r) && latest(r) && (
                   <>
                     <input aria-label="Your full name" placeholder="Your full name" value={typed[r.record_id] ?? ""}
                       onChange={(e) => setTyped({ ...typed, [r.record_id]: e.target.value })} className="border border-paper-edge bg-transparent px-2 py-1" />

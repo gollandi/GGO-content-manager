@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { describeInvite, findUser, MIN_PASSWORD_LENGTH, redeemInvite, validatePassword } from "../../../../lib/auth/users";
 import { clientIp } from "../../../../lib/auth/credentials";
 import { acceptContract, type AcceptanceInput } from "../../../../lib/contracts/accept";
-import { ContractError } from "../../../../lib/contracts/contract";
+import { ContractError, userMessage } from "../../../../lib/contracts/contract";
 
 /**
  * The invitation, from the invitee's side. Reached without a session (the
@@ -63,7 +63,10 @@ export async function POST(req: NextRequest) {
         const user = await redeemInvite(token, body.password);
         return NextResponse.json({ ok: true, email: user.email }, { headers: noStore });
     } catch (err) {
-        if (err instanceof ContractError) return NextResponse.json({ error: err.message, code: "CONTRACT" }, { status: 422, headers: noStore });
+        if (err instanceof ContractError) {
+            if (!err.userFacing) console.error("[contract]", err.message);
+            return NextResponse.json({ error: userMessage(err), code: "CONTRACT" }, { status: 422, headers: noStore });
+        }
         const message = (err as Error).message;
         // The user store's own refusals are written for the invitee; anything
         // else stays in the server log (it can quote a file).

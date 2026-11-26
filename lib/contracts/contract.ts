@@ -24,7 +24,15 @@ export interface ContractFile {
     body: string;
 }
 
-export class ContractError extends Error {}
+/**
+ * `userFacing` errors are written for the person signing and may be shown to
+ * them; anything else names server detail and stays in the log.
+ */
+export class ContractError extends Error {
+    constructor(message: string, readonly userFacing = false) { super(message); }
+}
+export const userMessage = (err: unknown, fallback = "The agreement could not be opened. GGO Med has been told; try again later.") =>
+    err instanceof ContractError && err.userFacing ? err.message : fallback;
 
 const unquote = (v: string) => {
     const t = v.trim();

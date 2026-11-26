@@ -97,15 +97,33 @@ describe("acceptance records", () => {
         await accept.acceptContract(acceptanceFor(s.view), ctx);
         expect(store.signedCopy("d@example.com", s.view.sha256)).toContain("Awaiting GGO Med's signature.");
         const jj = { email: "owner@example.com", name: "JJ", ip: "192.0.2.1", userAgent: "t" };
-        await expect(accept.countersign("d@example.com", "Someone", jj)).rejects.toThrow(/director/);
-        await accept.countersign("d@example.com", "Giangiacomo Ollandini", jj);
-        await expect(accept.countersign("d@example.com", "Giangiacomo Ollandini", jj)).rejects.toThrow(/Already/);
+        await expect(accept.countersign("d@example.com", s.view.sha256, "Someone", jj)).rejects.toThrow(/director/);
+        await expect(accept.countersign("d@example.com", "0".repeat(64), "Giangiacomo Ollandini", jj)).rejects.toThrow(/not the version/);
+        await accept.countersign("d@example.com", s.view.sha256, "Giangiacomo Ollandini", jj);
+        await expect(accept.countersign("d@example.com", s.view.sha256, "Giangiacomo Ollandini", jj)).rejects.toThrow(/Already/);
         const copy = store.signedCopy("d@example.com", s.view.sha256);
         expect(copy).toContain("For GGO Med Ltd: Giangiacomo Ollandini");
         expect(copy).not.toContain("Awaiting");
         const standing = store.contractStanding("d@example.com");
         expect(standing.kind === "accepted" && standing.countersigned).toBe(true);
         expect(store.verifyChain()).toBeNull();
+    });
+
+    it("a head one record behind (a crash between the two renames) is tolerated and repaired", async () => {
+        installContract(dir, "d@example.com");
+        installContract(dir, "e@example.com");
+        writeFileSync(path.join(dir, "contracts", "assignments.json"), JSON.stringify({
+            "d@example.com": { contract_id: CONTRACT_ID, signatory_name: "Test Contractor" },
+            "e@example.com": { contract_id: CONTRACT_ID, signatory_name: "Test Contractor" },
+        }));
+        const s = store.contractStanding("d@example.com");
+        if (s.kind !== "required") throw new Error("setup");
+        const first = await accept.acceptContract(acceptanceFor(s.view), ctx);
+        await accept.acceptContract(acceptanceFor(s.view), { ...ctx, email: "e@example.com" });
+        writeFileSync(path.join(dir, "contract-records.head"), first.record_sha256 + "\n");
+        expect(store.integrityProblem()).toBeNull();
+        writeFileSync(path.join(dir, "contract-records.head"), "f".repeat(64) + "\n");
+        expect(store.integrityProblem()).toMatch(/head/);
     });
 
     it("a truncated log no longer matches its head, and access stops", async () => {

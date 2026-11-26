@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "../../../lib/auth/api-guard";
 import { clientIp } from "../../../lib/auth/credentials";
 import { acceptContract, type AcceptanceInput } from "../../../lib/contracts/accept";
-import { ContractError } from "../../../lib/contracts/contract";
+import { ContractError, userMessage } from "../../../lib/contracts/contract";
 import { contractStanding } from "../../../lib/contracts/store";
 
 /**
@@ -49,7 +49,10 @@ export async function POST(req: NextRequest) {
         });
         return NextResponse.json({ ok: true, version: record.contract_version, acceptedAt: record.accepted_at_utc }, { headers: noStore });
     } catch (err) {
-        if (err instanceof ContractError) return NextResponse.json({ error: err.message }, { status: 422 });
+        if (err instanceof ContractError) {
+            if (!err.userFacing) console.error("[onboarding]", err.message);
+            return NextResponse.json({ error: userMessage(err) }, { status: 422 });
+        }
         console.error("[onboarding]", (err as Error).message);
         return NextResponse.json({ error: "Could not record your signature. Nothing was signed; try again." }, { status: 500 });
     }

@@ -167,7 +167,11 @@ export function integrityProblem(records = readRecords()): string | null {
     if (broken) return `the acceptance records do not verify from ${broken}`;
     const head = existsSync(headPath()) ? readFileSync(headPath(), "utf8").trim() : "";
     const last = records.at(-1)?.record_sha256 ?? "";
-    if (head !== last) return "the acceptance records do not match their recorded head";
+    // The log is renamed before the head: a crash between the two leaves the
+    // head one record behind, which the next append repairs. Anything else —
+    // a head ahead of the log (truncation) or further behind — is refused.
+    const previous = records.at(-2)?.record_sha256 ?? "";
+    if (head !== last && !(records.length > 0 && head === previous)) return "the acceptance records do not match their recorded head";
     return null;
 }
 
@@ -271,7 +275,10 @@ export function signedCopy(contractorEmail: string, contractSha: string): string
         `  signed ${r.accepted_at_utc} from ${r.ip_address}; version ${r.contract_version}; contract SHA-256 ${r.contract_sha256}; record ${r.record_sha256}`,
     ].join("\n"));
     const pending = records.some((r) => r.signatory_role === "company") ? "" : "\n\nAwaiting GGO Med's signature.";
-    const head = readRecords().at(-1)?.record_sha256 ?? "none";
+    const all = readRecords();
+    const problem = integrityProblem(all);
+    if (problem) throw new ContractError(problem);
+    const head = all.at(-1)?.record_sha256 ?? "none";
     return `${text}\n---\n\n## Electronic signatures\n\n${lines.join("\n") || "None yet."}${pending}\n\nRecord chain head when this copy was made: ${head}\n`;
 }
 
