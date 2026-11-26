@@ -1,0 +1,18 @@
+{
+  "welcome": "Welcome. This is a placeholder for tests.",
+  "howWeWork": ["You work your way.", "Nothing goes public without approval."],
+  "cards": [
+    { "title": "Who we are", "sections": ["Parties", "Background", "1"], "summary": "A fictional company and a fictional contractor." },
+    { "title": "When it starts", "sections": ["2"], "summary": "It starts on {{start_date}}." },
+    { "title": "The detail", "sections": ["Schedule 1"], "summary": "The fee is {{fee_basis}}." }
+  ],
+  "acceptance": {
+    "heading": "Accept and sign",
+    "checkboxes": ["I have read the whole agreement (version {{contract_version}}).", "I am an independent business.", "I understand nothing is published without approval."],
+    "namePrompt": "Type your full name as your signature:",
+    "intent": "By selecting \"I accept and sign\", I agree to be legally bound.",
+    "button": "I accept and sign"
+  },
+  "done": "Thank you.",
+  "countersign": { "intent": "I sign for the company.", "button": "Sign for the company" }
+}

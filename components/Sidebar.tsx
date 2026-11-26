@@ -75,7 +75,24 @@ const SOCIAL_LINKS = [
   { href: "/guida", label: "Guide", hint: "How this works" },
 ];
 
+/**
+ * Until the agreement is signed the server refuses every data route; this
+ * only takes the person to the welcome page instead of empty rooms.
+ */
+function useAgreementGate(pathname: string) {
+  useEffect(() => {
+    if (pathname.startsWith("/benvenuto")) return;
+    let cancelled = false;
+    fetch("/api/onboarding", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancelled && j && j.kind !== "accepted" && j.kind !== "owner") window.location.assign("/benvenuto"); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [pathname]);
+}
+
 function SocialMargin({ name, isActive }: { name: string; isActive: (href: string) => boolean }) {
+  useAgreementGate(usePathname());
   return (
     <aside className="plate relative sticky top-0 flex min-h-screen flex-col justify-between border-r border-plate-rule max-lg:relative max-lg:min-h-0 max-lg:border-b max-lg:border-r-0">
       <div className="relative">

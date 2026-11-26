@@ -26,6 +26,67 @@ interface Collaborator {
   houseHandle: string | null;
 }
 
+interface SignatureRow {
+  record_id: string; contract_id: string; contract_version: string; contract_sha256: string;
+  signatory_role: "contractor" | "company"; signatory_name_typed: string; signatory_email: string;
+  countersigns: string | null; accepted_at_utc: string; ip_address: string; method: string;
+}
+
+/** JJ's view of the agreements: who signed which version, when and from where; countersign; download. */
+function Agreements() {
+  const [rows, setRows] = useState<SignatureRow[] | null>(null);
+  const [broken, setBroken] = useState<string | null>(null);
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    const r = await fetch("/api/contract/records", { cache: "no-store" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return setError(j.error || "Could not read the signatures.");
+    setRows(j.records); setBroken(j.chainBrokenAt);
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  const contractors = (rows ?? []).filter((r) => r.signatory_role === "contractor");
+  const countersigned = (r: SignatureRow) => (rows ?? []).some((c) => c.signatory_role === "company" && c.countersigns === r.signatory_email && c.contract_sha256 === r.contract_sha256);
+  const sign = async (r: SignatureRow) => {
+    if (!window.confirm(`Sign version ${r.contract_version} for GGO Med Ltd as its director? This is your electronic signature.`)) return;
+    setError("");
+    const res = await fetch("/api/contract/countersign", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: r.signatory_email, typedName: typed[r.record_id] ?? "", confirm: true }) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) setError(j.error || "Not signed.");
+    await load();
+  };
+  return (
+    <section className="paper mt-6 border border-paper-edge p-5 text-sm text-paper-foreground">
+      <h2 className="column-label column-label-paper mb-3">Agreements</h2>
+      {broken && <p role="alert" className="mb-2">The signature records do not verify from {broken} on. Nothing new can be signed until this is looked at.</p>}
+      {error && <p role="alert" className="mb-2">{error}</p>}
+      {rows === null ? <p>Reading…</p> : contractors.length === 0 ? <p>No agreement signed yet. A collaborator signs during their invitation.</p> : (
+        <ul className="divide-y divide-paper-edge">
+          {contractors.map((r) => (
+            <li key={r.record_id} className="py-3">
+              <div>{r.signatory_name_typed} <span className="text-paper-foreground-soft">· {r.signatory_email}</span></div>
+              <div className="column-label column-label-paper mt-1">
+                {r.contract_id} v{r.contract_version} · signed {new Date(r.accepted_at_utc).toLocaleString("en-GB")} from {r.ip_address} · {countersigned(r) ? "countersigned" : "awaiting your signature"}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <a className="underline" href={`/api/contract/signed?email=${encodeURIComponent(r.signatory_email)}`}>Download the signed copy</a>
+                {!countersigned(r) && (
+                  <>
+                    <input aria-label="Your full name" placeholder="Your full name" value={typed[r.record_id] ?? ""}
+                      onChange={(e) => setTyped({ ...typed, [r.record_id]: e.target.value })} className="border border-paper-edge bg-transparent px-2 py-1" />
+                    <button type="button" className="act-seal" disabled={!(typed[r.record_id] ?? "").trim()} onClick={() => sign(r)}>Sign for GGO Med Ltd</button>
+                  </>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 const ROLE_COPY: Record<string, string> = {
   social: "Social media — the social queue (add a note, mark ready for JJ, request changes), media upload, analytics, the website (read-only), and briefs and strategies to the house under their own name. Never approves or publishes.",
 };
@@ -220,6 +281,7 @@ export default function SettingsPage() {
           </ul>
         )}
       </section>
+      <Agreements />
     </div>
   );
 }

@@ -41,7 +41,7 @@ export function effectiveRole(session: GateSession | null | undefined): Role | u
 
 const OPEN = (p: string) =>
     p.startsWith("/_next") || p.startsWith("/favicon") || p.startsWith("/api/auth/")
-    || p === "/login" || p === "/invito" || p === "/api/auth-invite/redeem";
+    || p === "/login" || p === "/invito" || p === "/api/auth-invite/redeem" || p === "/api/auth-invite/contract";
 
 const EXEMPT = (p: string) =>
     p.startsWith("/api/views")

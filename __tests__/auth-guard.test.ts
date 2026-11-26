@@ -1,9 +1,10 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { auth, standing } = vi.hoisted(() => ({ auth: vi.fn(), standing: vi.fn() }));
+const { auth, standing, contract } = vi.hoisted(() => ({ auth: vi.fn(), standing: vi.fn(), contract: vi.fn() }));
 vi.mock("../lib/auth/config", () => ({ auth }));
 vi.mock("../lib/auth/users", () => ({ storeStanding: standing }));
+vi.mock("../lib/contracts/store", () => ({ contractStanding: contract }));
 
 import { requireAuth, requireUploader, requireAdmin } from "../lib/auth/api-guard";
 import { viewFor } from "../lib/cancello/view";
@@ -11,7 +12,7 @@ import { noteSignInFailure, resetSignInThrottle, signInThrottled } from "../lib/
 
 const session = (user: Record<string, unknown>) => ({ user });
 
-beforeEach(() => { auth.mockReset(); standing.mockReset(); });
+beforeEach(() => { auth.mockReset(); standing.mockReset(); contract.mockReset(); contract.mockReturnValue({ kind: "accepted" }); });
 afterEach(() => vi.unstubAllEnvs());
 
 describe("requireAuth asks the store again on every call", () => {
@@ -110,5 +111,49 @@ describe("media a role may fetch", () => {
             generatedAt: "t", cached: false, warnings: [],
         } as never);
         expect([...paths].sort()).toEqual(["/srv/ggomed-media/a b.png", "/srv/ggomed-media/c.mp4"]);
+    });
+});
+
+describe("no data before the agreement", () => {
+    const diletta = () => {
+        auth.mockResolvedValue(session({ email: "d@example.com", name: "Diletta", role: "social", collaborator: true }));
+        standing.mockReturnValue({ kind: "active", role: "social", name: "Diletta", houseHandle: "diletta" });
+    };
+
+    it("refuses every guarded route until the agreement is signed", async () => {
+        diletta();
+        for (const kind of ["required", "unassigned"]) {
+            contract.mockReturnValue({ kind });
+            for (const guard of [requireAuth, requireUploader]) {
+                const r = await guard();
+                expect(r.authenticated).toBe(false);
+                if (!r.authenticated) {
+                    expect(r.response.status).toBe(403);
+                    expect((await r.response.json()).code).toBe("CONTRACT_REQUIRED");
+                }
+            }
+        }
+    });
+
+    it("refuses when the agreement cannot be read (fails closed)", async () => {
+        diletta();
+        contract.mockImplementation(() => { throw new Error("disk gone"); });
+        expect((await requireAuth()).authenticated).toBe(false);
+    });
+
+    it("lets the onboarding routes read and sign, and never asks it of the owner", async () => {
+        diletta();
+        contract.mockReturnValue({ kind: "required" });
+        expect((await requireAuth({ contract: "pending-ok" })).authenticated).toBe(true);
+        vi.stubEnv("COCKPIT_USER_EMAIL", "owner@example.com");
+        auth.mockResolvedValue(session({ email: "owner@example.com", name: "JJ", role: "admin" }));
+        contract.mockImplementation(() => { throw new Error("must not be called"); });
+        expect((await requireAdmin()).authenticated).toBe(true);
+    });
+
+    it("opens once it is signed", async () => {
+        diletta();
+        contract.mockReturnValue({ kind: "accepted" });
+        expect((await requireAuth()).authenticated).toBe(true);
     });
 });

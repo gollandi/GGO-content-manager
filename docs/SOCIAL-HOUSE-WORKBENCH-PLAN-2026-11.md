@@ -191,3 +191,42 @@ Residual risks: the drafting step now reads the body of every Pending
 YouTube row each run (one paginated Notion read per row) to find
 suggestions; the house still counts collaborator notes in the throughput
 sensor (first plan, §9).
+
+## 9. Phase 0, added: the agreement in the invitation (JJ, 26 Nov 2026)
+
+JJ: "il contratto deve fare parte del cockpit ovviamente. si apre con il
+link e parte un onboarding basic e friendly". She meets it first, so it
+gates everything else.
+
+- **Flow.** `/invito`: welcome; how we work, with what she can do and what
+  waits for JJ; the agreement as cards (plain-English summary, the exact
+  clauses underneath); the whole text, scrolled to the end, downloadable;
+  three ticks, typed name, the intent sentence; then her password. A
+  collaborator already signed in without a signature (a link redeemed before
+  this shipped, or a new version) is taken to `/benvenuto` with the same steps.
+- **Gates.** (1) Signing is refused unless the version is `FINAL` and every
+  variable is decided by JJ — v1.1 is `PENDING_JJ_FINAL_READ`, so today she
+  can read and not sign, and therefore not set a password. (2) `requireAuth`
+  refuses every data route to a collaborator without an accepted record of the
+  version in force (`403 CONTRACT_REQUIRED`), failing closed when the files
+  cannot be read; only `/api/onboarding` and `/api/contract/signed` run
+  before. (3) The hash is over the rendered text; a newer FINAL version asks
+  again, a newer draft does not take access away.
+- **Records.** Append-only `contract-records.jsonl` beside the user store,
+  0600, each record hash-chained to the previous; the exact text archived by
+  its SHA-256; server time, the client address nginx appends, user agent,
+  the ticks, sections read and download times as the browser reported them.
+  JJ countersigns in Settings → Agreements; both download the signed copy
+  (Markdown: the text, then a signature page).
+- **Where the contract lives.** On the server only, beside the user store
+  (`contracts/<id>/v<version>.md` and `.copy.json`, `contracts/assignments.json`):
+  it names her business, address and tax numbers. The repository holds a
+  fictional placeholder for tests and the converter
+  (`tools/contracts/copy-to-json.mjs`).
+
+Gaps, said plainly: the cockpit has no email service (the copy's "a signed
+copy has been emailed" became "download it in the Guide") and no second
+factor (`mfa: false` in every record); the download is Markdown, which prints
+to PDF from the browser, not a generated PDF; the countersignature wording
+was written here, adapted from the contractor's; none of it has been checked
+by a lawyer (the copy's own §5 says so).

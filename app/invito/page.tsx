@@ -2,17 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { Plate } from "../../components/Plate";
+import Onboarding from "../../components/onboarding/Onboarding";
+import type { ContractView } from "../../lib/contracts/store";
+import type { AcceptanceInput } from "../../lib/contracts/accept";
 
 /**
  * A collaborator's invitation. JJ sends them a link of the form
  * /invito#<token>; they choose their own password here and the link is spent.
  * The token lives in the #fragment, which browsers never send to a server,
  * and reaches the API only in a POST body.
+ *
+ * Before the password: a short welcome, how we work, and the agreement read
+ * and signed (JJ, 26 Nov 2026: "il contratto deve fare parte del cockpit").
+ * The signature travels with the password: no access before the agreement.
  */
 type Phase =
   | { kind: "checking" }
   | { kind: "invalid"; message: string }
-  | { kind: "ready"; email: string; name: string; min: number }
+  | { kind: "agreement"; email: string; name: string; min: number; view: ContractView }
+  | { kind: "ready"; email: string; name: string; min: number; acceptance: AcceptanceInput }
   | { kind: "done"; email: string };
 
 const field =
@@ -40,8 +48,15 @@ export default function InvitationPage() {
     })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) setPhase({ kind: "invalid", message: data.error || "This link is not valid any more." });
-        else setPhase({ kind: "ready", email: data.email, name: data.name, min: data.minPasswordLength ?? 12 });
+        if (!res.ok) return setPhase({ kind: "invalid", message: data.error || "This link is not valid any more." });
+        const c = await fetch("/api/auth-invite/contract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: t }),
+        });
+        const cdata = await c.json().catch(() => ({}));
+        if (!c.ok) return setPhase({ kind: "invalid", message: cdata.error || "Your agreement could not be opened." });
+        setPhase({ kind: "agreement", email: data.email, name: data.name, min: data.minPasswordLength ?? 12, view: cdata.view });
       })
       .catch(() => setPhase({ kind: "invalid", message: "The cockpit could not be reached. Try again in a minute." }));
   }, []);
@@ -57,7 +72,7 @@ export default function InvitationPage() {
       const res = await fetch("/api/auth-invite/redeem", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ token, password, acceptance: phase.acceptance }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -71,6 +86,16 @@ export default function InvitationPage() {
       setBusy(false);
     }
   };
+
+  if (phase.kind === "agreement") {
+    const p = phase;
+    return (
+      <Onboarding view={p.view} mode="invite" onSigned={async (acceptance) => {
+        setPhase({ kind: "ready", email: p.email, name: p.name, min: p.min, acceptance });
+        return null;
+      }} />
+    );
+  }
 
   return (
     <Plate>
@@ -89,8 +114,8 @@ export default function InvitationPage() {
           {phase.kind === "ready" && (
             <form onSubmit={submit}>
               <p className="mb-4">
-                Welcome, {phase.name}. Choose the password you will use to sign in as <strong>{phase.email}</strong>.
-                Only you will know it.
+                Last step, {phase.name}: choose the password you will use to sign in as <strong>{phase.email}</strong>.
+                Only you will know it. Your signature is recorded when you save it.
               </p>
               <label className="column-label column-label-paper mb-1.5 block" htmlFor="invite-password">
                 New password (at least {phase.min} characters)
@@ -104,14 +129,14 @@ export default function InvitationPage() {
                 value={confirm} onChange={(e) => setConfirm(e.target.value)} className={field} />
               {error && <p role="alert" className="mt-3 border border-seal px-3 py-2 text-[13px] text-seal">{error}</p>}
               <button type="submit" disabled={busy} className="act-seal mt-6 w-full">
-                {busy ? "Saving…" : "Set my password"}
+                {busy ? "Saving…" : "Sign and set my password"}
               </button>
             </form>
           )}
 
           {phase.kind === "done" && (
             <div>
-              <p>Your password is set. Sign in with <strong>{phase.email}</strong>.</p>
+              <p>Thank you: your agreement is signed and your password is set. Sign in with <strong>{phase.email}</strong>. Your signed copy is in the Guide.</p>
               <a href="/login?callbackUrl=/guida" className="act-seal mt-6 block w-full text-center">Go to sign-in</a>
             </div>
           )}

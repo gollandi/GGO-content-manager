@@ -86,6 +86,7 @@ export default function GuidePage() {
                     <li>Your password is yours: no one else knows it. If you forget it, ask JJ for a new link.</li>
                     <li>After several wrong passwords, sign-in pauses for fifteen minutes.</li>
                     <li>Everything you do here is recorded with your name.</li>
+                    <li>Your signed agreement: <a className="underline" href="/api/contract/signed">download your copy</a> (it opens in any text editor and prints to PDF), or see its status on the <a className="underline" href="/benvenuto">welcome page</a>.</li>
                 </ul>
             </section>
         </div>

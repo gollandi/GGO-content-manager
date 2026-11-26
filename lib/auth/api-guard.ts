@@ -3,6 +3,7 @@ import { auth } from "./config";
 import { canAdmin, canUpload, canWrite, type Role } from "./roles";
 import { storeStanding } from "./users";
 import { effectiveRole } from "./gate";
+import { contractStanding } from "../contracts/store";
 
 interface AuthResult {
     authenticated: true;
@@ -34,7 +35,13 @@ const deny = (error: string, status: number): AuthError => ({
  * effect at once. The admin is never in the store (the owner's address
  * cannot be invited), so a broken store can never lock him out.
  */
-export async function requireAuth(): Promise<AuthResult | AuthError> {
+/**
+ * `contract: "pending-ok"` is for the onboarding routes only: a collaborator
+ * whose agreement is not yet accepted may read and sign it, and nothing else.
+ */
+export interface AuthOptions { contract?: "required" | "pending-ok" }
+
+export async function requireAuth(options: AuthOptions = {}): Promise<AuthResult | AuthError> {
     const session = await auth();
     const email = session?.user?.email;
     if (!email) return deny("Authentication required", 401);
@@ -52,6 +59,22 @@ export async function requireAuth(): Promise<AuthResult | AuthError> {
             role = standing.role;
             name = standing.name;
             houseHandle = standing.houseHandle;
+            // No data before the agreement is accepted (the contract's own
+            // gate 2). A store or contract that cannot be read refuses.
+            if (options.contract !== "pending-ok") {
+                let accepted = false;
+                try {
+                    accepted = contractStanding(email).kind === "accepted";
+                } catch (err) {
+                    console.error("[auth] contract standing unreadable:", (err as Error).message);
+                }
+                if (!accepted) {
+                    return {
+                        authenticated: false,
+                        response: NextResponse.json({ error: "Your agreement with GGO Med comes first: open the welcome page to read and sign it.", code: "CONTRACT_REQUIRED" }, { status: 403 }),
+                    };
+                }
+            }
         }
     }
     return { authenticated: true, email, name, role, houseHandle };
