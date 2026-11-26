@@ -478,7 +478,7 @@ export default function ReviewPage() {
                         {c?.date && <Mark tone="quiet" onPaper>{c.date}</Mark>}
                         {mark && (
                             <Mark tone={mark.kind === "ready" ? "sealed" : "ageing"} onPaper>
-                                {`${mark.kind === "ready" ? "Checked by" : "Changes requested by"} ${mark.by} · ${mark.at}`}
+                                {`${mark.kind === "ready" ? tr("Controllato da", "Checked by") : tr("Modifiche chieste da", "Changes requested by")} ${mark.by} · ${mark.at}`}
                             </Mark>
                         )}
                         {!isSocial && <a

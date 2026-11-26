@@ -286,7 +286,8 @@ and claims — read the whole branch against `main`.
   `/api/notion/patient-journeys` answer 403; approve answers 403; switched
   off ⇒ 401 on the next request, switched on ⇒ 200; the owner keeps every
   room; store file 0600. Screenshots: `docs/screenshots/2026-11-collaborators/`
-  (they show "Send back", since renamed "Request changes").
+  — the social queue with "Ready for JJ", "Add note" and "Request changes",
+  and JJ's register with the collaborator's marks on the rows.
 - Not verified here: acts against real Notion rows (no Notion credentials in
   a worktree, by rule). Covered by unit tests with the client mocked; the
   first real "Ready for JJ" on the VPS is the live check, for a fresh
