@@ -66,6 +66,7 @@ export default function GuidePage() {
             <section className={section}>
                 <h2 className={h2}>Comments</h2>
                 <p><a className="underline" href="/comments">Comments</a> lists the YouTube comments waiting for a reply, each with Samantha&apos;s draft. <strong>Suggest reply</strong> gives her your wording or what the reply should say: she drafts again from it at the next run, and the new draft goes through the house&apos;s clinical and compliance check like every other. <strong>Ready for JJ</strong> tells him you have checked the draft on screen. A reply is posted only when JJ approves it — approving is publishing — and exactly the draft he approved is posted. If a draft failed the compliance check, only JJ can ask for another.</p>
+                <p className="mt-2"><strong>Health details.</strong> If a comment mentions someone&apos;s health, press <strong>Health details: handle by hand</strong>: no agent drafts for it again, and JJ sees the mark. Never paste health details into a suggestion, a brief or any AI tool.</p>
                 <p className="mt-2">Instagram and Facebook comments are not read by the house yet.</p>
             </section>
 

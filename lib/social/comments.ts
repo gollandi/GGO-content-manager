@@ -27,6 +27,7 @@ export const markers = {
     ready: (id: string) => `[yt-ready:${id}]`,
     approvedDraft: (id: string, n: number) => `[yt-approved-draft:${id}:${n}]`,
     approvalCleared: (id: string) => `[yt-approval-cleared:${id}]`,
+    manual: (id: string) => `[yt-manual:${id}]`,
 };
 
 export interface Draft { n: number; text: string }
@@ -47,6 +48,8 @@ export interface ParsedComment {
     halted: boolean;
     noReply: boolean;
     staleApproval: boolean;
+    /** Health details: handled by hand, never put before an agent again (contract 10.4). */
+    manual: { by: string } | null;
 }
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&");
@@ -90,6 +93,12 @@ export function parseCommentRow(blocks: Block[], commentId: string): ParsedComme
         if (r) ready.push({ by: r[1].trim() });
     });
     suggestions.sort((a, b) => a.k - b.k);
+    let manual: { by: string } | null = null;
+    texts.forEach((t, i) => {
+        if (!notQuote(i)) return;
+        const m = new RegExp(`^\\[yt-manual:${id}\\]\\s*(.*)$`, "s").exec(t.trim());
+        if (m && !manual) manual = { by: m[1].split(":")[0].trim() };
+    });
     const has = (needle: RegExp) => texts.some((t, i) => notQuote(i) && needle.test(t));
     return {
         commentId,
@@ -105,6 +114,7 @@ export function parseCommentRow(blocks: Block[], commentId: string): ParsedComme
         halted: has(new RegExp(`\\[yt-halt:${id}:\\d+\\]`)),
         noReply: has(new RegExp(`\\[yt-no-reply:${id}:\\d+\\]`)),
         staleApproval: has(new RegExp(`\\[yt-stale-approval:${id}:\\d+\\]`)),
+        manual,
     };
 }
 
@@ -161,4 +171,12 @@ export function approvalClearedBlock(commentId: string, byLabel: string, at: Dat
     return { object: "block", type: "callout", callout: {
         rich_text: [{ type: "text", text: { content: `${markers.approvalCleared(commentId)} ${defang(byLabel)} sent this reply back for a new draft, ${stamp}.` } }],
         icon: { type: "emoji", emoji: "↩️" } } };
+}
+
+/** "Health details: handled by hand" — signed, and carrying nothing of the comment. */
+export function manualBlock(commentId: string, byLabel: string, at: Date) {
+    const stamp = at.toISOString().slice(0, 16).replace("T", " ") + " UTC";
+    return { object: "block", type: "callout", callout: {
+        rich_text: [{ type: "text", text: { content: `${markers.manual(commentId)} ${defang(byLabel)}: this comment carries health details and is handled by hand; no agent drafts for it. Flagged for JJ, ${stamp}.` } }],
+        icon: { type: "emoji", emoji: "🔒" } } };
 }

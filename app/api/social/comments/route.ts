@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "../../../../lib/auth/api-guard";
 import { mayPublish } from "../../../../lib/auth/permissions";
-import { approveReply, CommentActError, listComments, markReady, suggestReply } from "../../../../lib/social/comments-notion";
+import { approveReply, CommentActError, listComments, markManual, markReady, suggestReply } from "../../../../lib/social/comments-notion";
 import { collaboratorTitle } from "../../../../lib/board/store";
 
 /**
@@ -10,6 +10,8 @@ import { collaboratorTitle } from "../../../../lib/board/store";
  *  - suggest: a collaborator's (or JJ's) suggested reply or direction;
  *    Samantha drafts again through Aspasia; the row stays Pending.
  *  - ready: "I checked draft n"; a mark for JJ, nothing else.
+ *  - manual: the comment carries health details: handled by hand, never put
+ *    before an agent again (contract clause 10.4); flagged for JJ.
  *  - approve: posting the reply in public — only the roles
  *    PUBLISH_AUTHORITY["comment-reply"] names (JJ alone today).
  */
@@ -53,6 +55,9 @@ export async function POST(req: NextRequest) {
                 const { k } = await suggestReply(body.rowId, actor, body.text);
                 return NextResponse.json({ ok: true, suggestion: k }, { headers: noStore });
             }
+            case "manual":
+                await markManual(body.rowId, actor);
+                return NextResponse.json({ ok: true }, { headers: noStore });
             case "ready":
                 if (!Number.isInteger(draftSeen)) return NextResponse.json({ error: "draftSeen is required" }, { status: 400 });
                 await markReady(body.rowId, actor, draftSeen);

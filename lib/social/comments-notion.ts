@@ -14,7 +14,7 @@ import { notion } from "../notion/client";
 import { notionConfig } from "../config";
 import { cached, invalidateCache } from "../cache";
 import * as x from "../notion/extract";
-import { approvalBlock, approvalClearedBlock, commentIdFromTitle, parseCommentRow, readyBlock, suggestionBlocks, type Block, type ParsedComment } from "./comments";
+import { approvalBlock, approvalClearedBlock, commentIdFromTitle, manualBlock, parseCommentRow, readyBlock, suggestionBlocks, type Block, type ParsedComment } from "./comments";
 
 const DESK_TYPE = "publish-approval";
 const OPEN_STATUSES = ["Pending", "Approved", "In production"];
@@ -109,10 +109,24 @@ export interface CommentActor { label: string }
 export async function suggestReply(rowId: string, actor: CommentActor, text: string, now = new Date()): Promise<{ k: number }> {
     const { row, status } = await loadRow(rowId);
     if (status !== "Pending") throw new CommentActError(`Only a comment waiting for a reply can take a suggestion (this one is ${status ?? "without a status"}).`);
+    if (row.manual) throw new CommentActError("This comment carries health details and is handled by hand: no agent drafts for it.");
     const k = (row.suggestions.at(-1)?.k ?? 0) + 1;
     await notion.blocks.children.append({ block_id: rowId, children: suggestionBlocks(row.commentId, k, actor.label, text, now) as never });
     invalidateCache(CACHE_KEY);
     return { k };
+}
+
+/**
+ * Health details (contract clause 10.4): mark the comment as handled by hand.
+ * The house never puts it before an agent again; JJ sees the mark on the row.
+ * Idempotent; nothing of the comment is copied.
+ */
+export async function markManual(rowId: string, actor: CommentActor, now = new Date()): Promise<void> {
+    const { row, status } = await loadRow(rowId);
+    if (status !== "Pending") throw new CommentActError(`Only a comment waiting for a reply can be marked (this one is ${status ?? "without a status"}).`);
+    if (row.manual) return;
+    await notion.blocks.children.append({ block_id: rowId, children: [manualBlock(row.commentId, actor.label, now)] as never });
+    invalidateCache(CACHE_KEY);
 }
 
 /** "I checked the latest draft": a signed mark for JJ. Never asks for a new draft. */

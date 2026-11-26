@@ -8,7 +8,9 @@ import type { CommentRow } from "../../lib/social/comments-notion";
  * draft. The social media manager suggests a reply (Samantha drafts again
  * from it, through the house's clinical and compliance check) or marks the
  * draft as checked. A reply goes public only when JJ approves it: approving
- * is posting. Instagram and Facebook comments are not read by the house yet.
+ * is posting. A comment with health details is marked to be handled by hand
+ * and never reaches an agent again (contract clause 10.4). Instagram,
+ * TikTok and Facebook comments are not read by the house at all yet.
  */
 
 const section = "paper mb-5 border border-paper-edge p-5 text-[14px] leading-relaxed text-paper-foreground";
@@ -53,11 +55,12 @@ function Card({ row, mayApprove, act, busy }: {
             )}
             {row.ready.length > 0 && <p className="mt-2 text-[13px]">Checked: {row.ready.map((r) => r.by).join("; ")}</p>}
 
-            {pending && (
+            {row.manual && <p className="mt-3 text-[13px]">🔒 Handled by hand ({row.manual.by}): it carries health details, so no agent drafts for it. JJ sees the mark.</p>}
+            {pending && !row.manual && (
                 <div className="mt-3 space-y-2">
                     <textarea aria-label={`Suggest a reply to ${row.author}`} value={text} onChange={(e) => setText(e.target.value)} rows={3}
                         className="w-full border border-paper-edge bg-transparent p-2"
-                        placeholder="Your suggested reply, or what it should say. Samantha drafts again from it." />
+                        placeholder="Your suggested reply, or what it should say. Samantha drafts again from it. Never copy health details here." />
                     <div className="flex flex-wrap gap-2">
                         <button type="button" className="act-void" style={onPaper} disabled={busy || !text.trim() || row.halted}
                             onClick={async () => { if (await act({ rowId: row.rowId, act: "suggest", text })) setText(""); }}>Suggest reply</button>
@@ -65,6 +68,10 @@ function Card({ row, mayApprove, act, busy }: {
                             <button type="button" className="act-void" style={onPaper} disabled={busy}
                                 onClick={() => act({ rowId: row.rowId, act: "ready", draftSeen: draft.n })}>Draft {draft.n} is ready for JJ</button>
                         )}
+                        <button type="button" className="act-quiet" style={onPaper} disabled={busy}
+                            onClick={() => window.confirm("Mark this comment as carrying health details? No agent will draft for it again; handle it by hand with an approved reply, and JJ sees the mark.") && act({ rowId: row.rowId, act: "manual" })}>
+                            Health details: handle by hand
+                        </button>
                         {mayApprove && draft && (
                             <button type="button" className="act-seal" disabled={busy}
                                 onClick={() => window.confirm(`Post draft ${draft.n} on YouTube? Approving is publishing.`) && act({ rowId: row.rowId, act: "approve", draftSeen: draft.n })}>

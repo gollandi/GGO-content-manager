@@ -11,7 +11,7 @@ vi.mock("../lib/config", () => ({ notionConfig: { dbs: { ernestoDesk: () => "des
 vi.mock("../lib/cache", () => ({ cached: (_k: string, f: () => unknown) => f(), invalidateCache: vi.fn() }));
 
 import { blockText, defang, parseCommentRow, suggestionBlocks, approvalBlock, type Block } from "../lib/social/comments";
-import { approveReply, markReady, prepareDeskDecision, suggestReply } from "../lib/social/comments-notion";
+import { approveReply, markManual, markReady, prepareDeskDecision, suggestReply } from "../lib/social/comments-notion";
 
 const p = (type: string, text: string): Block => ({ type, [type]: { rich_text: [{ plain_text: text }] } });
 
@@ -110,6 +110,19 @@ describe("acting on a comment row", () => {
         expect(order).toEqual(["stamp", "flip"]);
         expect(blockText(append.mock.calls[0][0].children[0])).toMatch(/^\[yt-approved-draft:Ugx1:1\]/);
         expect(update.mock.calls[0][0].properties.Status.select.name).toBe("Approved");
+    });
+
+    it("health details: the mark is signed, carries nothing of the comment, and stops suggestions", async () => {
+        retrieve.mockResolvedValue(row());
+        list.mockResolvedValue({ results: [...body(), ...draft(1, "First.")], next_cursor: null });
+        await markManual("r1", { label: "Diletta, Social Media Manager" });
+        const text = blockText(append.mock.calls[0][0].children[0]);
+        expect(text).toMatch(/^\[yt-manual:Ugx1\] Diletta, Social Media Manager: /);
+        expect(text).not.toContain("painful");
+        list.mockResolvedValue({ results: [...body(), ...draft(1, "First."), p("callout", text)], next_cursor: null });
+        await expect(suggestReply("r1", { label: "D" }, "x")).rejects.toThrow(/handled by hand/);
+        await markManual("r1", { label: "D" });
+        expect(append).toHaveBeenCalledTimes(1);
     });
 
     it("a Desk approve stamps the latest draft of an untouched reply row, and leaves other rows alone", async () => {
