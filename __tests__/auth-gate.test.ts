@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { effectiveRole, gate } from "../lib/auth/gate";
+import { allowedOrigins, effectiveRole, gate } from "../lib/auth/gate";
 
 afterEach(() => vi.unstubAllEnvs());
 const social = { email: "d@example.com", role: "social" as const, collaborator: true };
@@ -44,5 +44,13 @@ describe("the role that counts", () => {
     });
     it("takes a collaborator's role from the token (the routes re-check the store)", () => {
         expect(effectiveRole(social)).toBe("social");
+    });
+});
+
+describe("origins the cockpit accepts writes from", () => {
+    it("are the request's own, AUTH_URL's, and the production host whatever the env says", () => {
+        expect(allowedOrigins("http://127.0.0.1:3010", { AUTH_URL: "https://cockpit.test/" } as never))
+            .toEqual(expect.arrayContaining(["http://127.0.0.1:3010", "https://cockpit.test", "https://cockpit.ggo-suite.co.uk"]));
+        expect(allowedOrigins("http://127.0.0.1:3010", {} as never)).toContain("https://cockpit.ggo-suite.co.uk");
     });
 });

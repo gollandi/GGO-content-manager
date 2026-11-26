@@ -1,6 +1,6 @@
 import { auth } from "./lib/auth/edge-config";
 import { NextResponse } from "next/server";
-import { crossSiteWrite, gate } from "./lib/auth/gate";
+import { allowedOrigins, crossSiteWrite, gate } from "./lib/auth/gate";
 
 /**
  * Every request passes the gate in lib/auth/gate.ts: framework paths and the
@@ -44,15 +44,6 @@ export default auth((req) => {
             return NextResponse.next();
     }
 });
-
-/** The cockpit's public origin and the one the request arrived on. */
-function allowedOrigins(requestOrigin: string): string[] {
-    const out = [requestOrigin];
-    for (const url of [process.env.AUTH_URL, process.env.NEXTAUTH_URL, "https://cockpit.ggo-suite.co.uk"]) {
-        try { if (url) out.push(new URL(url).origin); } catch { /* not a URL */ }
-    }
-    return out;
-}
 
 export const config = {
     matcher: [

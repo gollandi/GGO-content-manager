@@ -408,7 +408,7 @@ export default function ReviewPage() {
                 setTimeout(() => setJustSealed(null), 1200);
             }
             // The act stood; only its note did not fit. Say so where JJ looks.
-            const skipped = result.noteSkipped ? " · nota NON salvata (note piene)" : "";
+            const skipped = result.noteSkipped ? " · nota NON salvata" : "";
             const message = (
                 decision === "send" || (decision === "approve" && result.send)
                     ? describeHandOff(result.send)

@@ -67,6 +67,15 @@ describe("sign-in", () => {
     });
 });
 
+describe("sign-in timing", () => {
+    it("pays one bcrypt comparison for an unknown or switched-off address too", async () => {
+        const spy = vi.spyOn(bcryptjs, "compare");
+        await users.verifyStoredCredentials("nobody@example.com", "whatever long pass");
+        expect(spy).toHaveBeenCalledTimes(1);
+        spy.mockRestore();
+    });
+});
+
 describe("Google sign-in admits only known people", () => {
     it("refuses a stranger and admits an active collaborator with the stored role", async () => {
         expect(creds.admitGoogle({ email: "stranger@gmail.com" })).toBe(false);
@@ -84,6 +93,12 @@ describe("Google sign-in admits only known people", () => {
 });
 
 describe("the sign-in brake stays bounded", () => {
+    it("does not evict an address under attack when the map is full", () => {
+        for (let i = 0; i < 8; i++) throttle.noteSignInFailure("d@example.com", "192.0.2.9", 1_000_000 + i);
+        for (let i = 0; i < 1500; i++) throttle.noteSignInFailure(`x${i}@example.com`, "192.0.2.1", 1_000_100);
+        expect(throttle.signInThrottled("d@example.com", "192.0.2.9", 1_000_200)).toBe(true);
+    });
+
     it("tracks at most a thousand addresses", () => {
         for (let i = 0; i < 1500; i++) throttle.noteSignInFailure(`x${i}@example.com`, "192.0.2.1", 1_000_000);
         const map = (globalThis as Record<string, unknown>).__ggoSignInFailures as Map<string, number[]>;

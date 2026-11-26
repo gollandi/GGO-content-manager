@@ -22,9 +22,9 @@ function recent(email: string, at: number): number[] {
 
 /**
  * Two counters. Per address and client: eight failures pause that pair, so
- * someone guessing from elsewhere cannot lock the collaborator out of their
- * own sign-in. Per address alone, a looser ceiling (forty) still caps a
- * guesser who rotates addresses of origin.
+ * a guesser elsewhere needs forty attempts, not eight, to lock the
+ * collaborator out. Per address alone, that looser ceiling (forty) still
+ * caps a guesser who rotates addresses of origin.
  */
 const MAX_PER_ADDRESS = 40;
 const pairKey = (email: string, ip: string) => `${email}|${ip}`;
@@ -44,8 +44,10 @@ export function noteSignInFailure(email: string, ip = "unknown", at = Date.now()
 function record(email: string, at: number): void {
     if (!failures.has(email) && failures.size >= MAX_TRACKED) {
         for (const key of [...failures.keys()]) recent(key, at);
-        // Still full of live entries: drop the oldest-tracked address.
-        if (failures.size >= MAX_TRACKED) failures.delete(failures.keys().next().value as string);
+        // Still full of live entries: track no new key rather than evict an
+        // old one — eviction would let a guesser flood the map with random
+        // addresses and reset the counter of the address they are attacking.
+        if (failures.size >= MAX_TRACKED) return;
     }
     failures.set(email, [...recent(email, at), at]);
 }

@@ -84,3 +84,12 @@ export function crossSiteWrite(input: {
     if (!origin) return false;
     return !allowedOrigins.includes(origin);
 }
+
+/** The cockpit's public origin and the one the request arrived on. */
+export function allowedOrigins(requestOrigin: string, env: NodeJS.ProcessEnv = process.env): string[] {
+    const out = [requestOrigin];
+    for (const url of [env.AUTH_URL, env.NEXTAUTH_URL, "https://cockpit.ggo-suite.co.uk"]) {
+        try { if (url) out.push(new URL(url).origin); } catch { /* not a URL */ }
+    }
+    return out;
+}

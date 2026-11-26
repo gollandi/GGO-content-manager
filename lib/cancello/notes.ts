@@ -60,15 +60,29 @@ export function defang(text: string): string {
     return text.replace(/\[/g, "(").replace(/\]/g, ")");
 }
 
-const MARK_RE = /\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) · ([^·\]]+) · (ready for JJ|changes requested)\]/g;
+const LINE_RE = /\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) · ([^·\]]+)(?: · ([^\]]+))?\]/g;
+/** JJ's decisions: each one settles whatever a collaborator said before it. */
+const OWNER_DECISIONS = new Set(["approved", "sent back", "rejected", "closed", "deleted"]);
 
 export interface CollaboratorMark { kind: "ready" | "changes"; at: string; by: string }
 
-/** The latest collaborator mark on a row ("ready for JJ" or "changes requested"), if any. */
+/**
+ * The collaborator mark that still stands on a row ("ready for JJ" or
+ * "changes requested"), if any. A later decision of JJ's clears it: a post he
+ * sent back and the team reworked must not come back to Review still
+ * wearing "checked by" for content nobody has checked — that mark sits next
+ * to the click that publishes.
+ */
 export function latestMark(notes: string): CollaboratorMark | null {
     let last: CollaboratorMark | null = null;
-    for (const m of notes.matchAll(MARK_RE)) {
-        last = { kind: m[3] === "ready for JJ" ? "ready" : "changes", at: m[1], by: m[2].trim() };
+    for (const m of notes.matchAll(LINE_RE)) {
+        const by = m[2].trim();
+        const tag = m[3]?.trim();
+        if (tag === "ready for JJ" || tag === "changes requested") {
+            last = { kind: tag === "ready for JJ" ? "ready" : "changes", at: m[1], by };
+        } else if (by === "JJ" && tag && OWNER_DECISIONS.has(tag)) {
+            last = null;
+        }
     }
     return last;
 }

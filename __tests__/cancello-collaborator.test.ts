@@ -15,7 +15,7 @@ vi.mock("../lib/cancello/buffer-send", () => ({
 }));
 
 import { applyCancelloDecision, DecisionForbiddenError, OWNER } from "../lib/cancello/decision";
-import { latestReadyMark } from "../lib/cancello/notes";
+import { latestMark, latestReadyMark } from "../lib/cancello/notes";
 
 const diletta = { email: "d@example.com", name: "Diletta", role: "social" as const };
 const MARKERS = "[page-story:abc@2026-11-01] [story-attempt:2]";
@@ -150,6 +150,13 @@ describe("JJ's acts are attributed and keep the history", () => {
         expect(props.Notes).toBeUndefined();
     });
 
+    it("refuses JJ's send-back when its instruction cannot be saved: the note is the order", async () => {
+        retrieve.mockResolvedValue(calendarRow("Review", "x".repeat(1590)));
+        await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "modify", comment: "Recut the hook" }, OWNER))
+            .rejects.toThrow(/notes are full/);
+        expect(update).not.toHaveBeenCalled();
+    });
+
     it("keeps the existing elements as they are, links included, and adds the line after them", async () => {
         retrieve.mockResolvedValue({
             parent: { type: "database_id", database_id: "calendar-db" },
@@ -171,5 +178,15 @@ describe("JJ's acts are attributed and keep the history", () => {
         retrieve.mockResolvedValue({ properties: {} });
         await applyCancelloDecision({ rowId: "d", target: "desk", decision: "modify", comment: "Recut the intro" }, OWNER);
         expect(update.mock.calls[0][0].properties.Correction).toEqual({ rich_text: [{ text: { content: "Recut the intro" } }] });
+    });
+});
+
+describe("a collaborator's mark", () => {
+    it("is cleared by a later decision of JJ's, so a reworked post does not come back wearing it", () => {
+        const ready = "[2026-11-26 10:00 · Diletta · ready for JJ] ok";
+        expect(latestMark(ready)?.kind).toBe("ready");
+        expect(latestMark(`${ready}\n[2026-11-26 11:00 · JJ · sent back] recut`)).toBeNull();
+        expect(latestMark(`${ready}\n[2026-11-26 11:00 · JJ] a plain note`)?.kind).toBe("ready");
+        expect(latestMark(`${ready}\n[2026-11-26 11:00 · JJ · sent back] x\n[2026-11-27 09:00 · Diletta · changes requested] cover`)?.kind).toBe("changes");
     });
 });

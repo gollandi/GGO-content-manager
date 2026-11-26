@@ -150,8 +150,10 @@ Phase B — the gate (P2, P5, findings 2, 6, 7)
 Phase C — attribution and history (P3, P4)
 - `applyCancelloDecision(input, actor)`; notes are appended as
   `[YYYY-MM-DD HH:MM · Name] text`, newest last, trimmed from the oldest end
+  *(superseded: never trimmed, see §6–§6b)*
   to Notion's limit; texts that said "JJ" name the actor.
-- New acts `comment` and `ready` (no status change), `modify` for `social`.
+- New acts `comment` and `ready` (no status change), `modify` for `social`
+  *(superseded: collaborators never move a status, see §6b)*.
 - The page shows each row's note history and the latest "ready" mark.
 
 Phase D — invitation and access management (P6, finding 5)
@@ -258,8 +260,10 @@ and claims — read the whole branch against `main`.
   subdomain — *fixed*, the middleware refuses a state-changing API call
   with a session whose `Origin` is not the cockpit; sign-in timing revealed
   active collaborators — *fixed*, a dummy bcrypt comparison; targeted
-  lock-out — *fixed*, the brake keys on address and client (the hop nginx
-  appends), with a looser per-address ceiling; multi-line notes could fake a
+  lock-out — *reduced*, the brake keys on address and client (the hop nginx
+  appends — UNVERIFIED that nginx sets X-Forwarded-For, its config is not in
+  the repository; without it only the per-address ceiling applies), so a
+  lock-out from elsewhere needs forty attempts, not eight; multi-line notes could fake a
   line — *fixed*, one act, one line.
 - **Tests and claims:** the decision route defaulted its actor to the owner
   — *fixed*, the actor is required; route-level tests added for the
@@ -269,7 +273,7 @@ and claims — read the whole branch against `main`.
 
 ## 7. Verification
 
-- `npm test`: the existing suite plus ten new files — user store, sign-in,
+- `npm test`: the existing suite plus nine new test files — user store, sign-in,
   gate, guard and brake, permissions with a walk of every route in `app/`,
   collaborator acts in the Cancello, media scope, the collaborator routes,
   and the social view of the page. Guards were broken on purpose (letting
@@ -303,8 +307,35 @@ and claims — read the whole branch against `main`.
 
 No server edit, no env change, and no password passes through JJ or an agent.
 
+## 6c. Verification round (round 4)
+
+Two reviewers re-read the branch after round 3. No high findings; two
+medium:
+
+- **A stale "checked by" mark on a reworked post.** A collaborator's mark
+  survived JJ sending the post back; after rework it returned to Review
+  still marked as checked, next to the click that publishes. *Fixed:* any
+  later decision of JJ's (approved, sent back, rejected, closed, deleted)
+  clears the mark. Tested.
+- **The house's throughput sensor counts collaborator notes.**
+  `operations/throughput-ledger.js:145-147` (house) counts Review rows by
+  `last_edited_time`; a collaborator's note updates it, so a quiet house
+  could read as producing. *Open, house side* (§9).
+
+Lows fixed: JJ's "send back" is refused, not sent without its instruction,
+when its note cannot be saved (the note is the order); the brake no longer
+evicts tracked addresses when full (eviction let a guesser reset a
+target's counter); wording in this document, the guide and the brake's
+comment; three small test gaps.
+
 ## 9. Residual risks and follow-ups
 
+- **House throughput sensor** (§6c): exclude rows whose newest Notes line is
+  a cockpit line stamped at `last_edited_time`, or record an "entered
+  Review" date. House side.
+- **nginx client address**: confirm the VPS nginx sets
+  `X-Forwarded-For` (or add `X-Real-IP $remote_addr`) so the brake's
+  per-client key is the real client.
 - **House prompts** (§6a, 8): Samantha's and Ernesto's references describe
   `Notes` as JJ's; lines now carry their author. A house SKILL.md commit.
 - **Notifications (N12).** None yet: the collaborator opens the queue to see

@@ -173,7 +173,9 @@ async function ownerNotes(
     try {
         return await appendedNotes(rowId, target, actor, kind, text, page);
     } catch (err) {
-        if (actor.role !== "admin") throw err;
+        // A rework order IS its note: flipping to Draft without the
+        // instruction would send the team work with nothing to do. Refuse.
+        if (actor.role !== "admin" || kind === "rework") throw err;
         return { skipped: `note not saved: ${(err as Error).message}` };
     }
 }
