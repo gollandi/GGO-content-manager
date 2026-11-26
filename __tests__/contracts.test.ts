@@ -36,9 +36,9 @@ describe("parsing and rendering", () => {
     });
 
     it("matches a typed signature without caring for case or accents", () => {
-        expect(sameName("diletta de donatis", "Diletta De Donatis")).toBe(true);
-        expect(sameName("Dilétta  De-Donatis", "Diletta De Donatis")).toBe(true);
-        expect(sameName("Diletta", "Diletta De Donatis")).toBe(false);
+        expect(sameName("maria della rossa", "Maria Della Rossa")).toBe(true);
+        expect(sameName("Mària  Della-Rossa", "Maria Della Rossa")).toBe(true);
+        expect(sameName("Maria", "Maria Della Rossa")).toBe(false);
     });
 });
 
