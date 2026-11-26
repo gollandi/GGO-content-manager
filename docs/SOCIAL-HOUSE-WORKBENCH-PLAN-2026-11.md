@@ -165,3 +165,29 @@ Desk's: code never moves a Desk row Pending → Approved.
    the dispatcher, Notes wording in Samantha's and Ernesto's references.
 4. **Cockpit PR C — Comments.** The `comments` target, the room, the
    approved-draft stamp on JJ's Approve.
+
+## 8. As built
+
+Shipped as two cockpit pull requests and one house pull request (JJ prefers
+consolidated pull requests; cockpit B and C became one):
+
+| Requirement | Where | How it stays JJ's |
+|---|---|---|
+| R1 briefs | `/briefs`, `/api/social/briefs`; house `COLLABORATORS`, bridge, `board-slot.js` | Signed with her house name, set by JJ in Settings; she writes only to the social team and JJ, only in her threads; the prompt builder labels her words "not JJ" and states what they cannot authorise |
+| R2 analytics | `/performance` | Read-only |
+| R3 strategies | `/briefs` (strategy), house `readStrategy`, `buildStrategySection` in every Ernesto slot | Copied to JJ; JJ's open strategy outranks hers; injected as JSON, capped, later words kept |
+| R4 website | `/website`, `/api/social/pages` | GET-only, trimmed |
+| R5 comments | `/comments`, `/api/social/comments`; house suggestions in the draft loop, stamp in the dispatcher | She suggests or marks ready; Samantha drafts through Aspasia; approving is posting and is `PUBLISH_AUTHORITY["comment-reply"]` (JJ); the stamp makes the house post exactly the draft he approved |
+| R6 widening | `PUBLISH_AUTHORITY` (cockpit) + the house's `jj` approver in the reply path and dispatcher | One line here plus its house counterpart |
+
+Deploy order: the cockpit (its vendored writer accepts collaborators) before
+the house, or the board sync would refuse her events.
+
+Not done, needs JJ: Instagram and Facebook comments need a Meta permission
+(`instagram_manage_comments`, `pages_manage_engagement`) — a credential
+decision. Notifications to her are still none (N12 of the first plan).
+
+Residual risks: the drafting step now reads the body of every Pending
+YouTube row each run (one paginated Notion read per row) to find
+suggestions; the house still counts collaborator notes in the throughput
+sensor (first plan, §9).

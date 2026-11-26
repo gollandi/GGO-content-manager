@@ -81,7 +81,7 @@ export function parseCommentRow(blocks: Block[], commentId: string): ParsedComme
     texts.forEach((t, i) => {
         if (!notQuote(i)) return;
         const s = new RegExp(`^\\[yt-suggestion:${id}:(\\d+)\\]\\s*(.*)$`, "s").exec(t.trim());
-        if (s && blocks[i + 1]?.type === "quote") suggestions.push({ k: Number(s[1]), by: s[2].trim(), text: blockText(blocks[i + 1]).trim() });
+        if (s && blocks[i + 1]?.type === "quote") suggestions.push({ k: Number(s[1]), by: s[2].split(". Suggested reply")[0].trim(), text: blockText(blocks[i + 1]).trim() });
         const r = new RegExp(`^\\[yt-ready:${id}\\]\\s*(.*)$`, "s").exec(t.trim());
         if (r) ready.push({ by: r[1].trim() });
     });
