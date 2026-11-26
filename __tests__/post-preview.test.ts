@@ -87,3 +87,14 @@ describe("an approved row shows what was staged, not what Notion says now", () =
         expect(composePosts(row({ staged: [staged(), staged({ platform: "facebook", caption: "Other." })] }))).toHaveLength(2);
     });
 });
+
+describe("when the staged version cannot be read", () => {
+    it("says the preview is the calendar's version, first", () => {
+        expect(composePost(row({ stagedUnreadable: true })).problems[0]).toEqual({ code: "staged-unreadable" });
+    });
+    it("treats a staged post with no format as a plain post, as the publish route does", () => {
+        const p = composePosts(row({ staged: [{ platform: "", format: null, caption: "x", hashtags: [], storyLinkUrl: null, images: [img(1), img(2)], video: null }] }))[0];
+        expect(p.format).toBe("post");
+        expect(p.problems).toEqual(expect.arrayContaining([{ code: "no-channel" }, { code: "post-too-many", count: 2 }]));
+    });
+});

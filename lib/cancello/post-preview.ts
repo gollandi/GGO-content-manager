@@ -29,7 +29,8 @@ export type Problem =
     | { code: "reel-no-video" } | { code: "story-no-card" } | { code: "story-no-link" }
     | { code: "carousel-count"; count: number } | { code: "post-too-many"; count: number }
     | { code: "story-one-frame"; count: number } | { code: "video-unused" }
-    | { code: "assets-unavailable"; count: number } | { code: "assets-ignored"; count: number };
+    | { code: "assets-unavailable"; count: number } | { code: "assets-ignored"; count: number }
+    | { code: "staged-unreadable" };
 
 export interface PostPreview {
     /** Where the post goes, in the order the row lists them. */
@@ -91,7 +92,7 @@ type RowInput = {
     media: MediaRef[]; sourceUrl?: string | null;
     staged?: { platform: string; format: string | null; caption: string; hashtags: string[];
         storyLinkUrl: string | null; images: MediaRef[]; video: MediaRef | null }[];
-    mediaUnavailable?: number; mediaIgnored?: number;
+    mediaUnavailable?: number; mediaIgnored?: number; stagedUnreadable?: boolean;
 };
 
 /**
@@ -111,7 +112,8 @@ function composeStaged(staged: NonNullable<RowInput["staged"]>, platforms: strin
     const elsewhere = Array.from(new Set(listed.filter((p) => !CHANNELS[p])));
     const groups = new Map<string, PostPreview>();
     for (const doc of staged) {
-        const format = (["carousel", "reel", "post", "story"] as const).find((f) => f === doc.format) ?? null;
+        // The publish route treats a missing format as a plain post.
+        const format = (["carousel", "reel", "post", "story"] as const).find((f) => f === (doc.format || "post")) ?? null;
         const text = doc.caption.trim() ? buildPostText(doc.caption, doc.hashtags) : "";
         const images = format === "reel" ? [] : doc.images;
         const video = format === "reel" ? doc.video : null;
@@ -125,6 +127,7 @@ function composeStaged(staged: NonNullable<RowInput["staged"]>, platforms: strin
         }
         const problems: Problem[] = [];
         if (!text) problems.push({ code: "no-text" });
+        if (!channel) problems.push({ code: "no-channel" });
         problems.push(...assetProblems(format, images, video));
         if (format === "story" && !storyLink) problems.push({ code: "story-no-link" });
         groups.set(key, { channels: channel ? [channel] : [], elsewhere, format, text, images, video, storyLink, problems });
@@ -157,6 +160,7 @@ export function composePost(row: RowInput): PostPreview {
     if (format && format !== "reel" && row.media.some((m) => m.kind === "video")) problems.push({ code: "video-unused" });
     if (row.mediaUnavailable) problems.push({ code: "assets-unavailable", count: row.mediaUnavailable });
     if (row.mediaIgnored) problems.push({ code: "assets-ignored", count: row.mediaIgnored });
+    if (row.stagedUnreadable) problems.unshift({ code: "staged-unreadable" });
 
     return { channels, elsewhere, format, text, images, video, storyLink, problems };
 }

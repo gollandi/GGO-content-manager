@@ -46,6 +46,9 @@ function problemText(p: Problem, lang: Lang): string {
         case "story-one-frame": return en ? `A story takes exactly one image; this one has ${p.count}.` : `Una storia prende una sola immagine; questa ne ha ${p.count}.`;
         case "video-unused": return en ? "A video is attached but this kind of post does not carry it: it will not go out." : "C'è un video allegato ma questo tipo di post non lo porta: non uscirà.";
         case "assets-unavailable": return en ? `${p.count} attached file(s) cannot be shown here yet, so what you see may be incomplete.` : `${p.count} file allegati non si vedono qui, quindi quello che vedi può essere incompleto.`;
+        case "staged-unreadable": return en
+            ? "The version prepared for publishing cannot be read right now: this is the calendar's version, which may differ. Check again before it goes out."
+            : "La versione preparata per la pubblicazione ora non si legge: questa è quella del calendario, che può differire. Ricontrolla prima che esca.";
         case "assets-ignored": return en ? `${p.count} attached file(s) are not an image or video the post can carry: they will not go out.` : `${p.count} file allegati non sono immagini o video che il post può portare: non usciranno.`;
         case "story-no-card": return en ? "The story has no card yet." : "La storia non ha ancora la card.";
         case "story-no-link": return en ? "The story has no link to send people to." : "La storia non ha il link a cui portare le persone.";

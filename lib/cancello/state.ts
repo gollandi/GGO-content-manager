@@ -63,6 +63,8 @@ export interface CalendarRow {
     mediaUnavailable?: number;
     /** Registered assets staging will leave out: their Format is neither an image nor a video it takes. */
     mediaIgnored?: number;
+    /** An approved row whose staged posts could not be read: the preview is the calendar's version. */
+    stagedUnreadable?: boolean;
 }
 
 /** One staged socialPost, as the publish route will read it. */
@@ -300,20 +302,6 @@ async function resolveRowMedia(props: Props, context: ReadContext): Promise<Medi
     return media;
 }
 
-/**
- * The media of an approved, staged row, read from the Sanity drafts the
- * house staged — the very images and video the Buffer hand-off will send,
- * so what JJ judges before "Invia a Buffer" is what goes out. Every
- * platform of the row is read, de-duplicated by URL.
- */
-async function approvedRowMedia(props: Props, context: ReadContext): Promise<MediaRef[]> {
-    try {
-        const staged = await stagedRowMedia(propText(props, "Sanity Sync") || "");
-        if (staged.length > 0) return staged;
-    } catch { /* fall back to the registered files */ }
-    return resolveRowMedia(props, context);
-}
-
 export async function stagedRowMedia(sanitySync: string): Promise<MediaRef[]> {
     const ids = sanitySync.split(",").map((s) => s.trim().replace(/^drafts\./, "")).filter(Boolean);
     if (ids.length === 0) return [];
@@ -401,7 +389,8 @@ async function resolvePostMedia(props: Props, context: ReadContext): Promise<{
         if (!url) { unavailable += 1; continue; }
         media.push({ kind, url });
     }
-    if (!media.some((m) => m.kind === "image")) {
+    // Staging uses the card for stories only (notion-to-sanity-sync.js).
+    if (propText(props, "Content Type") === "Story" && !media.some((m) => m.kind === "image")) {
         const cardUrl = propText(props, "Card URL");
         if (cardUrl) {
             try {
@@ -423,6 +412,9 @@ function previewableUrl(location: string | null, kind: "image" | "video"): strin
         try { p = decodeURIComponent(p); } catch { /* keep raw */ }
         const resolved = resolveLocalMediaPath(p);
         if (!isPathWithinRoots(resolved) || !fs.existsSync(resolved)) return null;
+        // The media route serves only these types; anything else would show broken.
+        const ext = path.extname(p).toLowerCase();
+        if (kind === "image" ? !IMAGE_EXTS.has(ext) : !VIDEO_EXTS.has(ext)) return null;
         return kind === "image" ? MEDIA_URL(p) : VIDEO_URL(p);
     }
     try {
@@ -652,8 +644,12 @@ async function loadCalendarRows(rows: PageObjectResponse[], context: ReadContext
                                 }
                                 return { media, staged };
                             }
-                        } catch { /* fall through */ }
-                        return { media: await approvedRowMedia(row.properties, context) };
+                        } catch { /* reported below */ }
+                        // The staged version cannot be read: show the row as staging
+                        // would compose it, and say plainly that this is not the
+                        // staged copy, so nobody mistakes it for what Buffer sends.
+                        const r = await resolvePostMedia(row.properties, context);
+                        return { media: r.media, mediaUnavailable: r.unavailable, mediaIgnored: r.ignored, stagedUnreadable: true };
                     })()
                     : { media: [] as MediaRef[] }),
             url: row.url,
