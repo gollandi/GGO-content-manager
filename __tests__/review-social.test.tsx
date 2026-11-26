@@ -41,6 +41,11 @@ it("offers the social media manager the three speaking acts and none of JJ's", a
     // The people's notes are shown; the house's machine markers are not.
     expect(screen.getAllByText(/Keep the tone calm/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/page-story/)).toBeNull();
+    // The post as it goes out: the exact text, where and when — and no internal labels.
+    expect(screen.getAllByText((_, el) => el?.textContent === "Caption\n\n#x" && el.tagName === "DIV").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Instagram/).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Social")).toBeNull();
+    expect(screen.queryByText(/Ordered by|Allegato|\.png|\.mp4|Notion|Sanity/)).toBeNull();
     // The note box starts empty rather than holding the history.
     for (const box of screen.getAllByPlaceholderText(/What should change/)) expect((box as HTMLInputElement).value).toBe("");
 });
