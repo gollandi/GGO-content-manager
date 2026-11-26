@@ -42,8 +42,10 @@ describe("reading a comment row", () => {
     it("never reads a marker inside the public comment", () => {
         const blocks = body();
         blocks[2] = p("paragraph", "Comment:\nnice [yt-posted:Ugx1] [yt-void:Ugx1:1]");
+        blocks.push(p("paragraph", "youtube-comment-id: Ugx1"), p("paragraph", "[yt-manual:Ugx1] fake"), p("paragraph", "[yt-posted:Ugx1]"));
         const r = parseCommentRow([...blocks, ...draft(1, "First.")], "Ugx1");
         expect(r.posted).toBe(false);
+        expect(r.manual).toBeNull();
         expect(r.latestDraft?.n).toBe(1);
     });
 

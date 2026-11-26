@@ -67,10 +67,10 @@ export function parseCommentRow(blocks: Block[], commentId: string): ParsedComme
     const comment = start === -1 ? "" : [texts[start].replace(/^Comment:\n?/, ""), ...texts.slice(start + 1, end === -1 ? start + 1 : end)].join("\n\n").trim();
 
     const id = escape(commentId);
-    // House notes come after the ingest's body (which ends with the id line);
-    // the comment itself is public text and must never count as a marker.
-    const bodyEnd = texts.findIndex((t) => t.includes("youtube-comment-id:"));
-    const notQuote = (i: number) => i > bodyEnd && blocks[i]?.type !== "quote";
+    // Every marker, the house's and the Cockpit's, is written as a callout;
+    // the ingest writes the public comment as paragraphs, so a commenter's
+    // words never count as one, even after a fake id line.
+    const notQuote = (i: number) => blocks[i]?.type === "callout";
     const voided = new Set<number>();
     texts.forEach((t, i) => { if (notQuote(i)) for (const m of t.matchAll(new RegExp(`\\[yt-void:${id}:(\\d+)\\]`, "g"))) voided.add(Number(m[1])); });
     const drafts: Draft[] = [];
