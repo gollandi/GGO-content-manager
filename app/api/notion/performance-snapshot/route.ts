@@ -10,7 +10,7 @@ export async function GET() {
     try {
         const data = await getPerformanceSnapshot();
         return NextResponse.json(data, {
-            headers: { "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400" },
+            headers: { "Cache-Control": "private, no-store" },
         });
     } catch (error: unknown) {
         console.error(

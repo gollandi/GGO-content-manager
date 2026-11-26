@@ -142,7 +142,7 @@ Twelve findings; each with what changes.
 | 6 | Agents answer as if JJ were the only reader; YouTube comments can carry health details of named people (medium) | **Changed.** When a collaborator is in a thread the slot prompt says so and tells the agent not to quote clinical drafts, Aspasia notes or patient-identifying detail. Comments are public on YouTube; she sees them as GGO Med staff doing the job they are published for, and the cockpit does not store them |
 | 7 | Strategy injection as written cannot read the threads (`readInbox` window, `readAll` refuses other readers), would let hers displace JJ's, is ambiguous about replies, and is uncapped (medium) | **Changed.** A dedicated house reader; JJ's open strategy outranks hers; only the opener's messages and JJ's are injected, labelled, capped at 4 KB |
 | 8 | Her text enters agent prompts like JJ's; the plan misstated that the house enforces `jj` on Review → Approved (it is documentation, not runtime) (medium) | **Changed.** The prompt builder wraps a collaborator's words as direction from a person who is not JJ, which cannot authorise a publish, a status move, spend over the cap, or a change to rules or skills. §2 corrected below |
-| 9 | Opening La Portineria would fetch `/api/house/state` (Desk counts, night failures, PIF) or 403; the snapshot route had no route guard and a public cache header (medium) | **Changed.** A separate English Performance room; exact API paths only; the snapshot route now calls `requireAuth` and sends `private` |
+| 9 | Opening La Portineria would fetch `/api/house/state` (Desk counts, night failures, PIF) or 403; the snapshot route had no route guard and a public cache header (medium) | **Changed.** A separate English Performance room; exact API paths only; the snapshot route now calls `requireAuth` and sends `private, no-store` |
 | 10 | The fence is per path, so allowing `/api/notion/content` exposes its writing POST to `requireWriter` alone; the GET returns reviewers' names (low) | **Changed.** A GET-only `/api/social/pages` returning only title, type, state, address and dates |
 | 11 | Collaborator acts land only on Review rows and the role has no Desk acts; `[yt:…]` rows are Pending (low) | **Changed.** A dedicated `comments` target: the server checks Type `publish-approval` and a `[yt:` title before any act; `desk` stays closed to her |
 | 12 | "Widening is one line" is overstated: the house names JJ as approver in the reply path, the dispatcher, the orchestrator and the bridge (low) | **Changed.** `PUBLISH_AUTHORITY`'s comment names each house counterpart; widening is a pair of commits |
@@ -152,7 +152,7 @@ Review → Approved, but the table is documentation, not consulted at runtime
 (OBSERVED house `core/publish-state.js:46-48`). The runtime refusal is the
 Desk's: code never moves a Desk row Pending → Approved.
 
-## 7. Plan v3 (built)
+## 7. Plan v3 (to build, in this order)
 
 1. **Cockpit PR A — read rooms.** Performance (Natascia's readings and the
    snapshot), Website (GET-only registry), `PUBLISH_AUTHORITY`.

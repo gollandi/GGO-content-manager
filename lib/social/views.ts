@@ -26,12 +26,27 @@ export function summariseWeek(rows: PerformanceSnapshotRow[]) {
 }
 
 const SITE = "https://www.ggomed.co.uk";
+const SITE_HOSTS = new Set(["www.ggomed.co.uk", "ggomed.co.uk"]);
 
+/**
+ * The live address of a registry row, or null. A slug may be a path or a
+ * full address; a full address is linked only when it is https on the site's
+ * own host (a prefix check would let `www.ggomed.co.uk.example` through).
+ */
 export function pageUrl(slug: string): string | null {
     const s = slug.trim();
     if (!s) return null;
-    if (/^https?:\/\//.test(s)) return s.startsWith(SITE) ? s : null;
-    return `${SITE}/${s.replace(/^\/+/, "")}`;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(s)) {
+        try {
+            const u = new URL(s);
+            return u.protocol === "https:" && SITE_HOSTS.has(u.hostname) && !u.username && !u.password ? u.href : null;
+        } catch {
+            return null;
+        }
+    }
+    const path = s.replace(/^\/+/, "");
+    if (/^(www\.)?ggomed\.co\.uk(\/|$)/i.test(path)) return pageUrl(`https://${path}`);
+    return `${SITE}/${path}`;
 }
 
 export function filterPages<T extends PublicPage>(items: T[], term: string, status: string): T[] {

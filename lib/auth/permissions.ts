@@ -64,8 +64,11 @@ export function canReach(role: Role | undefined, pathname: string): Reach {
  * a social row is publishing it (Level E.1); approving a reply to a YouTube
  * comment is posting it. Today only the admin — JJ — holds either.
  *
- * Widening is a deliberate edit of this table, not a rewrite: add a role to
- * an entry and the cockpit's acts follow (see ACTS below). The house must
+ * Widening is a deliberate edit of this table, not a rewrite. What reads it
+ * today: `social-post` governs approve and send on calendar rows
+ * (allowedActs below); `comment-reply` governs approving a reply in the
+ * Comments room. The two other entries are documentation of gates that
+ * live outside the cockpit. The house must
  * agree too — its lifecycle names `jj` as the actor of Review → Approved
  * (core/publish-state.js) and the reply dispatcher posts as JJ's decision
  * (operations/youtube-reply-dispatch.js) — so a widening is a pair of

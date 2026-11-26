@@ -28,7 +28,6 @@ export interface NatasciaReport {
     /** The page body as Markdown (the interpretive section lives here). */
     body: string;
     bodyTruncated: boolean;
-    url: string | null;
 }
 
 export function mapReport(p: PageObjectResponse, body: string): NatasciaReport {
@@ -43,7 +42,6 @@ export function mapReport(p: PageObjectResponse, body: string): NatasciaReport {
         silentPages: x.richText(x.prop(p.properties, "Silent Pages")),
         body: truncated ? body.slice(0, MAX_BODY_CHARS) : body,
         bodyTruncated: truncated,
-        url: p.url ?? null,
     };
 }
 

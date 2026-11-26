@@ -35,6 +35,13 @@ describe("the Website room", () => {
         expect(pageUrl("treatments/varicocele")).toBe("https://www.ggomed.co.uk/treatments/varicocele");
         expect(pageUrl("/about")).toBe("https://www.ggomed.co.uk/about");
         expect(pageUrl("https://evil.example/x")).toBeNull();
+        expect(pageUrl("https://www.ggomed.co.uk.evil.example/x")).toBeNull();
+        expect(pageUrl("https://www.ggomed.co.uk@evil.example/")).toBeNull();
+        expect(pageUrl("https://www.ggomed.co.ukfoo/x")).toBeNull();
+        expect(pageUrl("javascript:alert(1)")).toBeNull();
+        expect(pageUrl("http://www.ggomed.co.uk/x")).toBeNull();
+        expect(pageUrl("https://ggomed.co.uk/costs")).toBe("https://ggomed.co.uk/costs");
+        expect(pageUrl("www.ggomed.co.uk/costs")).toBe("https://www.ggomed.co.uk/costs");
         expect(pageUrl("  ")).toBeNull();
     });
 
@@ -74,6 +81,7 @@ describe("Natascia's weekly reading", () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const r = mapReport(page as any, "## Reading\nMore.");
         expect(r).toMatchObject({ title: "Weekly report — 2026-11-16", weekOf: "2026-11-16", summary: "A quiet week.", body: "## Reading\nMore.", bodyTruncated: false });
+        expect("url" in r).toBe(false);
     });
 
     it("says when the body was cut", () => {
@@ -106,5 +114,58 @@ describe("GET /api/natascia/weekly", () => {
         const res = await GET();
         expect(res.status).toBe(502);
         expect((await res.json()).error).toMatch(/not shared/);
+    });
+});
+
+describe("GET /api/social/pages", () => {
+    beforeEach(() => vi.resetModules());
+
+    it("refuses a switched-off collaborator", async () => {
+        vi.doMock("../lib/auth/api-guard", () => ({
+            requireAuth: async () => ({ authenticated: false, response: new Response(null, { status: 401 }) }),
+        }));
+        const { GET } = await import("../app/api/social/pages/route");
+        expect((await GET()).status).toBe(401);
+    });
+
+    it("returns only the public fields, never cached by the browser", async () => {
+        vi.doMock("../lib/auth/api-guard", () => ({
+            requireAuth: async () => ({ authenticated: true, email: "d@example.com", name: "Diletta", role: "social" }),
+        }));
+        vi.doMock("../lib/cache", () => ({ cached: (_k: string, f: () => unknown) => f() }));
+        vi.doMock("../lib/notion/services", () => ({
+            getContentAssets: async () => [{ id: "1", title: "T", contentType: "Page", status: "✅ Live", slug: "t", lastReviewed: null,
+                lastEditedTime: "2026-11-01", reviewedBy: ["Someone"], metaDescription: "m" }],
+        }));
+        const { GET } = await import("../app/api/social/pages/route");
+        const res = await GET();
+        expect(res.status).toBe(200);
+        expect(res.headers.get("cache-control")).toBe("private, no-store");
+        const body = await res.json();
+        expect(body[0].reviewedBy).toBeUndefined();
+        expect(body[0].metaDescription).toBeUndefined();
+    });
+});
+
+describe("GET /api/notion/performance-snapshot", () => {
+    beforeEach(() => vi.resetModules());
+
+    it("re-reads the store: a switched-off collaborator is refused", async () => {
+        vi.doMock("../lib/auth/api-guard", () => ({
+            requireAuth: async () => ({ authenticated: false, response: new Response(null, { status: 401 }) }),
+        }));
+        const { GET } = await import("../app/api/notion/performance-snapshot/route");
+        expect((await GET()).status).toBe(401);
+    });
+
+    it("is never stored by a browser or a proxy", async () => {
+        vi.doMock("../lib/auth/api-guard", () => ({
+            requireAuth: async () => ({ authenticated: true, email: "d@example.com", name: "Diletta", role: "social" }),
+        }));
+        vi.doMock("../lib/notion/editorial", () => ({ getPerformanceSnapshot: async () => [] }));
+        const { GET } = await import("../app/api/notion/performance-snapshot/route");
+        const res = await GET();
+        expect(res.status).toBe(200);
+        expect(res.headers.get("cache-control")).toBe("private, no-store");
     });
 });
