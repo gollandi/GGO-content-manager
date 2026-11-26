@@ -6,6 +6,7 @@ import ReviewPage from "../app/review/page";
 vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("../components/Registro", () => ({ Guilloche: () => null, Socket: () => null, Mark: () => null, AgeBar: () => null }));
 vi.mock("../components/SnapshotFreshness", () => ({ SnapshotFreshness: () => null }));
+vi.mock("next-auth/react", () => ({ useSession: () => ({ data: { user: { role: "admin" } }, status: "authenticated" }) }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 const empty = { wall: [], desk: [], calendar: [], website: [], generatedAt: "2026-11-16T10:00:00.000Z", cached: false, warnings: [] };

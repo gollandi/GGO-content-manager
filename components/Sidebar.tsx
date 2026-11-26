@@ -56,8 +56,64 @@ const ARCHIVE: NavEntry[] = [
 const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
   editor: "Editor",
+  social: "Social media",
   viewer: "Viewer"
 };
+
+/**
+ * The margin for the social media manager: three places and nothing
+ * else. In English — they work in it daily and the rooms' Italian names
+ * would mean little to a newcomer.
+ */
+const SOCIAL_LINKS = [
+  { href: "/review", label: "Social queue", hint: "Posts waiting for review" },
+  { href: "/carico", label: "Upload media", hint: "Footage and audio for the team" },
+  { href: "/guida", label: "Guide", hint: "How this works" },
+];
+
+function SocialMargin({ name, isActive }: { name: string; isActive: (href: string) => boolean }) {
+  return (
+    <aside className="plate relative sticky top-0 flex min-h-screen flex-col justify-between border-r border-plate-rule max-lg:relative max-lg:min-h-0 max-lg:border-b max-lg:border-r-0">
+      <div className="relative">
+        <div className="border-b border-plate-rule px-5 py-5 max-lg:px-4 max-lg:py-3">
+          <Link href="/review" className="block">
+            <div className="document-title text-[19px] text-plate-foreground-strong">GGO Med</div>
+            <div className="column-label mt-1.5">Social media</div>
+          </Link>
+        </div>
+        <nav className="py-4 max-lg:flex max-lg:flex-wrap max-lg:items-center max-lg:gap-x-3 max-lg:px-2 max-lg:py-2">
+          {SOCIAL_LINKS.map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              aria-current={isActive(l.href) ? "page" : undefined}
+              className={`block px-5 py-2 max-lg:px-3 ${isActive(l.href) ? "text-plate-foreground-strong" : "text-plate-foreground hover:text-plate-foreground-strong"}`}
+            >
+              <span className="block text-[14px]">{l.label}</span>
+              <span className="block text-[11px] text-plate-foreground-soft max-lg:hidden">{l.hint}</span>
+            </Link>
+          ))}
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="act-quiet hidden whitespace-nowrap max-lg:inline-flex"
+            type="button"
+          >
+            Sign out
+          </button>
+        </nav>
+      </div>
+      <div className="relative border-t border-plate-rule px-5 py-4 max-lg:hidden">
+        <div className="mb-3 flex items-baseline justify-between gap-2">
+          <span className="truncate text-[13px] text-plate-foreground">{name}</span>
+          <span className="column-label">{ROLE_LABELS.social}</span>
+        </div>
+        <button onClick={() => signOut({ callbackUrl: "/login" })} className="act-quiet w-full" type="button">
+          Sign out
+        </button>
+      </div>
+    </aside>
+  );
+}
 
 const PENDING_KEY = "house-awaiting-v2";
 const PENDING_TTL_MS = 5 * 60 * 1000;
@@ -91,7 +147,7 @@ function NavRow({ entry, active, count }: { entry: NavEntry; active: boolean; co
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [pending, setPending] = useState<Counts | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
 
@@ -101,7 +157,11 @@ export default function Sidebar() {
   // the house is standing still, waiting for a decision only JJ can make.
   // It is the house state's own count — the same the Atrio and Il Cancello
   // show — cached a few minutes so reloads do not wake the Notion crawl.
+  const role = session?.user?.role;
   useEffect(() => {
+    // The house count is JJ's; the social margin has no use for it and its
+    // role may not read the house state. Wait for the session to know.
+    if (status !== "authenticated" || role === "social") return;
     let cancelled = false;
     const readSaved = (): Counts | null => {
       try {
@@ -140,7 +200,7 @@ export default function Sidebar() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [status, role]);
 
   // Read after mount (the server renders the archive folded) so hydration
   // matches; the saved preference is applied in the next tick.
@@ -172,6 +232,10 @@ export default function Sidebar() {
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
   const showArchive = archiveOpen || inArchive;
+
+  if (session?.user?.role === "social") {
+    return <SocialMargin name={session.user.name ?? "Social"} isActive={isActive} />;
+  }
 
   return (
     <aside className="plate relative sticky top-0 flex min-h-screen flex-col justify-between border-r border-plate-rule max-lg:relative max-lg:min-h-0 max-lg:border-b max-lg:border-r-0">

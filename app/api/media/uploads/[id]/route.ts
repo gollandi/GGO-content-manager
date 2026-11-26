@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireWriter } from "../../../../../lib/auth/api-guard";
+import { requireUploader } from "../../../../../lib/auth/api-guard";
 import {
     abortUpload,
     completeUpload,
@@ -23,11 +23,32 @@ export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+/**
+ * A writer may act on any upload (today's behaviour); the social media
+ * manager only on their own — reading included — so they can neither see
+ * nor abandon nor complete JJ's.
+ */
+async function mayTouch(id: string, auth: { email: string; role: string }): Promise<NextResponse | null> {
+    if (auth.role === "admin" || auth.role === "editor") return null;
+    const manifest = await readManifest(id);
+    if (!manifest) return NextResponse.json({ error: "Unknown upload" }, { status: 404 });
+    if (manifest.operator?.toLowerCase() !== auth.email.toLowerCase()) {
+        return NextResponse.json({ error: "Not your upload" }, { status: 403 });
+    }
+    return null;
+}
+
 export async function GET(_req: NextRequest, { params }: Ctx) {
-    const auth = await requireWriter();
+    const auth = await requireUploader();
     if (!auth.authenticated) return auth.response;
 
     const { id } = await params;
+    try {
+        const refused = await mayTouch(id, auth);
+        if (refused) return refused;
+    } catch (err) {
+        return fail(err, "Could not read the upload");
+    }
     try {
         const manifest = await readManifest(id);
         if (!manifest) return NextResponse.json({ error: "Unknown upload" }, { status: 404 });
@@ -38,10 +59,16 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
 }
 
 export async function PUT(req: NextRequest, { params }: Ctx) {
-    const auth = await requireWriter();
+    const auth = await requireUploader();
     if (!auth.authenticated) return auth.response;
 
     const { id } = await params;
+    try {
+        const refused = await mayTouch(id, auth);
+        if (refused) return refused;
+    } catch (err) {
+        return fail(err, "Could not read the upload");
+    }
     const index = Number(req.nextUrl.searchParams.get("index"));
 
     try {
@@ -58,10 +85,16 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
 }
 
 export async function POST(_req: NextRequest, { params }: Ctx) {
-    const auth = await requireWriter();
+    const auth = await requireUploader();
     if (!auth.authenticated) return auth.response;
 
     const { id } = await params;
+    try {
+        const refused = await mayTouch(id, auth);
+        if (refused) return refused;
+    } catch (err) {
+        return fail(err, "Could not read the upload");
+    }
     try {
         const manifest = await completeUpload(id);
         return NextResponse.json({ ok: true, upload: manifest });
@@ -71,10 +104,16 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: Ctx) {
-    const auth = await requireWriter();
+    const auth = await requireUploader();
     if (!auth.authenticated) return auth.response;
 
     const { id } = await params;
+    try {
+        const refused = await mayTouch(id, auth);
+        if (refused) return refused;
+    } catch (err) {
+        return fail(err, "Could not read the upload");
+    }
     try {
         await abortUpload(id);
         return NextResponse.json({ ok: true });

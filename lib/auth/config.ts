@@ -2,35 +2,8 @@ import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import { getRoleForEmail, type Role } from "./roles";
-import bcryptjs from "bcryptjs";
+import { admitGoogle, authorizeCredentials, clientIp } from "./credentials";
 
-/**
- * Credentials users — stored here for now.
- * For a larger team, move to a database.
- *
- * To generate a hash: node -e "require('bcryptjs').hash('password', 10).then(console.log)"
- */
-const MIN_PASSWORD_LENGTH = 12;
-
-const CREDENTIALS_USERS: Record<string, { name: string; hash: string }> = {
-    // Example:
-    // "admin@ggomed.co.uk": { name: "JJ", hash: "$2a$10$..." },
-};
-
-/**
- * Env-driven single-operator user (12-factor — no code edit per user):
- *   COCKPIT_USER_EMAIL=you@example.com
- *   COCKPIT_USER_HASH=$2a$10$...   (bcrypt — see hash one-liner above)
- * Merged on top of CREDENTIALS_USERS; hardcoded entries still work.
- */
-/**
- * Prefer COCKPIT_USER_HASH_B64 (base64 of the bcrypt hash): Next's env
- * loader runs dotenv-expand, which eats the `$` sequences in a raw bcrypt
- * hash ("$2b$10$…" → mangled). Base64 has no `$`, so it survives verbatim.
- */
-const cockpitHash = process.env.COCKPIT_USER_HASH_B64
-    ? Buffer.from(process.env.COCKPIT_USER_HASH_B64, "base64").toString("utf8")
-    : process.env.COCKPIT_USER_HASH;
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 const googleProvider =
@@ -40,13 +13,6 @@ const googleProvider =
               clientSecret: googleClientSecret,
           })
         : null;
-
-if (process.env.COCKPIT_USER_EMAIL && cockpitHash) {
-    CREDENTIALS_USERS[process.env.COCKPIT_USER_EMAIL.toLowerCase()] = {
-        name: process.env.COCKPIT_USER_NAME || "Operator",
-        hash: cockpitHash,
-    };
-}
 
 const publicAuthUrl = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL;
 const productionAuthUrl = "https://cockpit.ggo-suite.co.uk";
@@ -76,35 +42,30 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 email: { label: "Email", type: "email" },
                 password: { label: "Password", type: "password" },
             },
-            async authorize(credentials) {
-                const email = (credentials?.email as string)?.toLowerCase();
-                const password = credentials?.password as string;
-                if (!email || !password) return null;
-
-                // Password policy: minimum 12 characters, no upper limit.
-                // The stored bcrypt hash must belong to a compliant password.
-                if (password.length < MIN_PASSWORD_LENGTH) return null;
-
-                const user = CREDENTIALS_USERS[email];
-                if (!user) return null;
-
-                const valid = await bcryptjs.compare(password, user.hash);
-                if (!valid) return null;
-
-                return { id: email, email, name: user.name };
-            },
+            authorize: (credentials, request) => authorizeCredentials(credentials, undefined, clientIp(request)),
         }),
     ],
     callbacks: {
+        /**
+         * Google, if it is ever configured, admits only people the cockpit
+         * already knows: the owner, ADMIN_EMAIL, or an active collaborator
+         * (who then holds the stored role). Anyone else is refused instead
+         * of becoming a viewer of everything.
+         */
+        async signIn({ user, account }) {
+            return account?.provider !== "google" || admitGoogle(user);
+        },
         async jwt({ token, user }) {
             if (user?.email) {
-                token.role = getRoleForEmail(user.email);
+                token.role = user.role ?? getRoleForEmail(user.email);
+                token.collaborator = user.collaborator === true;
             }
             return token;
         },
         async session({ session, token }) {
             if (session.user) {
                 session.user.role = token.role as Role;
+                session.user.collaborator = token.collaborator === true;
             }
             return session;
         },

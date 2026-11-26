@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, requireWriter } from "../../../../lib/auth/api-guard";
+import { requireAuth, requireUploader } from "../../../../lib/auth/api-guard";
 import { createUpload, listInbox, MediaInboxError } from "../../../../lib/media/inbox";
 
 /**
@@ -21,13 +21,17 @@ function serviceTokenOk(req: NextRequest): boolean {
 }
 
 export async function GET(req: NextRequest) {
+    let onlyFor: string | null = null;
     if (!serviceTokenOk(req)) {
         const auth = await requireAuth();
         if (!auth.authenticated) return auth.response;
+        // The social media manager sees their own uploads, not JJ's.
+        if (auth.role === "social") onlyFor = auth.email.toLowerCase();
     }
 
     try {
-        const uploads = await listInbox();
+        const all = await listInbox();
+        const uploads = onlyFor ? all.filter((u) => u.operator?.toLowerCase() === onlyFor) : all;
         return NextResponse.json(
             { count: uploads.length, uploads },
             { headers: { "Cache-Control": "private, no-store" } }
@@ -38,7 +42,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-    const auth = await requireWriter();
+    const auth = await requireUploader();
     if (!auth.authenticated) return auth.response;
 
     let body: { filename?: string; kind?: string; note?: string; size?: number };

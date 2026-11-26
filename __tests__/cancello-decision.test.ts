@@ -24,7 +24,7 @@ vi.mock("../lib/cancello/buffer-send", () => ({
     isOrderedByJJ: (row: { orderedBy: string | null }) => row.orderedBy === "JJ",
 }));
 
-import { applyCancelloDecision } from "../lib/cancello/decision";
+import { applyCancelloDecision, OWNER } from "../lib/cancello/decision";
 
 describe("Cancello decisions", () => {
     beforeEach(() => {
@@ -41,7 +41,7 @@ describe("Cancello decisions", () => {
             target: "desk",
             decision: "delete",
             comment: "Duplicato",
-        });
+        }, OWNER);
 
         expect(result).toEqual(expect.objectContaining({ status: "Deleted", archived: true }));
         expect(update).toHaveBeenCalledWith(expect.objectContaining({
@@ -56,7 +56,7 @@ describe("Cancello decisions", () => {
     it("allows deletion without a reason", async () => {
         retrieve.mockResolvedValue({ parent: { type: "database_id", database_id: "calendar-db" } });
 
-        await applyCancelloDecision({ rowId: "calendar-row", target: "calendar", decision: "delete" });
+        await applyCancelloDecision({ rowId: "calendar-row", target: "calendar", decision: "delete" }, OWNER);
 
         expect(update).toHaveBeenCalledWith({ page_id: "calendar-row", archived: true });
     });
@@ -68,18 +68,19 @@ describe("Cancello decisions", () => {
             rowId: "wrong-row",
             target: "desk",
             decision: "delete",
-        })).rejects.toThrow(/not a desk proposal/);
+        }, OWNER)).rejects.toThrow(/not a desk proposal/);
 
         expect(update).not.toHaveBeenCalled();
     });
 
     it("marks calendar work completed elsewhere as Archived", async () => {
+        retrieve.mockResolvedValue({ properties: {} });
         const result = await applyCancelloDecision({
             rowId: "calendar-row",
             target: "calendar",
             decision: "done",
             comment: "Already posted manually",
-        });
+        }, OWNER);
 
         expect(result.status).toBe("Archived");
         expect(update).toHaveBeenCalledWith(expect.objectContaining({
@@ -92,7 +93,7 @@ describe("Cancello decisions", () => {
         sendRow.mockReset();
         getRow.mockResolvedValue({ orderedBy: "Team" });
 
-        const result = await applyCancelloDecision({ rowId: "cal", target: "calendar", decision: "approve" });
+        const result = await applyCancelloDecision({ rowId: "cal", target: "calendar", decision: "approve" }, OWNER);
 
         expect(result).toEqual(expect.objectContaining({ status: "Approved", awaitingSecondFlip: true }));
         expect(sendRow).not.toHaveBeenCalled();
@@ -103,7 +104,7 @@ describe("Cancello decisions", () => {
         sendRow.mockResolvedValue({ outcome: "awaiting-staging", posts: [] });
         getRow.mockResolvedValue({ orderedBy: "JJ" });
 
-        const result = await applyCancelloDecision({ rowId: "cal", target: "calendar", decision: "approve" });
+        const result = await applyCancelloDecision({ rowId: "cal", target: "calendar", decision: "approve" }, OWNER);
 
         expect(sendRow).toHaveBeenCalledTimes(1);
         expect(result).toEqual(expect.objectContaining({ send: expect.objectContaining({ outcome: "awaiting-staging" }) }));
@@ -113,13 +114,13 @@ describe("Cancello decisions", () => {
         sendRow.mockReset();
         sendRow.mockResolvedValue({ outcome: "handed-off", calendarStatus: "Scheduled", posts: [] });
 
-        const result = await applyCancelloDecision({ rowId: "cal", target: "calendar", decision: "send" });
+        const result = await applyCancelloDecision({ rowId: "cal", target: "calendar", decision: "send" }, OWNER);
 
         expect(update).not.toHaveBeenCalled();
         expect(result).toEqual(expect.objectContaining({ status: "Scheduled" }));
     });
 
     it("refuses a send outside the calendar", async () => {
-        await expect(applyCancelloDecision({ rowId: "d", target: "desk", decision: "send" })).rejects.toThrow(/calendar rows only/);
+        await expect(applyCancelloDecision({ rowId: "d", target: "desk", decision: "send" }, OWNER)).rejects.toThrow(/calendar rows only/);
     });
 });
