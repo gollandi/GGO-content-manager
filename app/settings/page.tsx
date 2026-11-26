@@ -23,10 +23,11 @@ interface Collaborator {
   inviteExpiresAt: string | null;
   createdAt: string;
   createdBy: string;
+  houseHandle: string | null;
 }
 
 const ROLE_COPY: Record<string, string> = {
-  social: "Social media — the social queue (add a note, mark ready for JJ, request changes) and media upload. Never approves or publishes.",
+  social: "Social media — the social queue (add a note, mark ready for JJ, request changes), media upload, analytics, the website (read-only), and briefs and strategies to the house under their own name. Never approves or publishes.",
 };
 
 /** The quiet act on paper: act-quiet is drawn for the dark plate and vanishes here. */
@@ -71,6 +72,29 @@ export default function SettingsPage() {
       setLink({ email: data.user.email, url: data.link, expiresAt: data.expiresAt });
       setEmail("");
       setName("");
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const [handles, setHandles] = useState<string[]>([]);
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch("/api/collaborators/handle").then((r) => (r.ok ? r.json() : { handles: [] })).then((j) => setHandles(j.handles ?? [])).catch(() => setHandles([]));
+  }, [isAdmin]);
+
+  const setHandle = async (u: Collaborator, handle: string | null) => {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/collaborators/handle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: u.email, handle }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) setError(data.error || "The change failed.");
       await load();
     } finally {
       setBusy(false);
@@ -168,6 +192,14 @@ export default function SettingsPage() {
                       ? (u.inviteExpiresAt ? `invited, link valid until ${new Date(u.inviteExpiresAt).toLocaleString("en-GB")}` : "invited, link expired")
                       : u.status}
                   </div>
+                  <label className="mt-1 block text-[12px] text-paper-foreground-soft">
+                    Name on the house board{" "}
+                    <select aria-label={`House board name for ${u.name}`} disabled={busy} value={u.houseHandle ?? ""}
+                      onChange={(e) => setHandle(u, e.target.value || null)} className="border border-paper-edge bg-transparent">
+                      <option value="">none — cannot brief the house</option>
+                      {handles.map((h) => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </label>
                 </div>
                 <div className="flex gap-2">
                   <button type="button" disabled={busy} className="act-void" style={onPaper}

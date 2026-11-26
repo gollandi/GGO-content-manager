@@ -47,13 +47,25 @@ export default function GuidePage() {
 
             <section className={section}>
                 <h2 className={h2}>What stays with JJ</h2>
-                <p>Approving, scheduling or sending to Buffer, sending a post back, rejecting, closing and deleting posts, and changing a publish date are JJ&apos;s alone. You act on posts in Review — the ones in your queue. The buttons for them are not shown to you, and the server refuses them if asked. This is deliberate: GGO Med is a medical practice, and nothing reaches the public without the clinician&apos;s approval.</p>
+                <p>Publishing, in every form — a post, a reply to a comment, a website page, a newsletter — is JJ&apos;s. Approving, scheduling or sending to Buffer, sending a post back, rejecting, closing and deleting posts, and changing a publish date are JJ&apos;s alone. You act on posts in Review — the ones in your queue. The buttons for them are not shown to you, and the server refuses them if asked. This is deliberate: GGO Med is a medical practice, and nothing reaches the public without the clinician&apos;s approval.</p>
             </section>
 
             <section className={section}>
                 <h2 className={h2}>Notes are a shared history</h2>
                 <p>Every note is added to the post with the date, time and the author&apos;s name, on one line, and nothing is ever overwritten. The field is shared and short (1,600 characters for people, the rest kept for the agents), so keep notes brief. Write as you would on a shared document: clear, specific, kind. Notes are written in British English, as is everything GGO Med publishes.</p>
                 <p className="mt-2">Square brackets are turned into round ones: the agents use bracketed markers in the same field.</p>
+            </section>
+
+            <section className={section}>
+                <h2 className={h2}>Directing the house</h2>
+                <p><a className="underline" href="/briefs">Briefs</a> is where you tell the agents what to make. Choose who it is for — Ernesto plans and runs social production; Samantha writes captions, Greta cuts real footage and Titti splits raw recordings, all through Ernesto; Ginevra makes generative reels; Natascia answers questions about the numbers — and write what you want, for whom, by when and why. Your brief is signed with your name. The agents read it at their next slot (Ernesto at 07:15, 13:00 and 18:00) and answer in the same thread.</p>
+                <p className="mt-2">A <strong>social strategy</strong> goes to Ernesto and shapes every plan he makes until you close it or replace it. If JJ has a strategy of his own open, his comes first.</p>
+                <p className="mt-2">What a brief cannot do: publish anything, approve a post, spend beyond the house&apos;s weekly budget for generated video (Ernesto asks JJ), or change the house&apos;s rules. Every draft still goes through the house&apos;s clinical and compliance check, and every post still waits for JJ&apos;s approval. You can send twenty messages a day.</p>
+            </section>
+
+            <section className={section}>
+                <h2 className={h2}>Numbers and the website</h2>
+                <p><a className="underline" href="/performance">Performance</a> shows Natascia&apos;s weekly reading and the numbers the house collects every Sunday (search, the website, Instagram and Facebook, YouTube, the newsletter). <a className="underline" href="/website">Website</a> lists every page of ggomed.co.uk with its state. Both are read-only; if something there should change, send a brief.</p>
             </section>
 
             <section className={section}>

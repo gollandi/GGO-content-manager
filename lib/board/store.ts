@@ -109,8 +109,12 @@ export interface ComposeInput {
     tags?: string[];
 }
 
-/** Build JJ's event. `from` is always `jj`; nothing from the client can change it. */
-export function buildEvent(input: ComposeInput, now = new Date()): BoardEvent {
+/**
+ * Build the signed-in person's event. `from` is `jj` for the owner, or the
+ * collaborator's house handle from the user store; nothing from the client
+ * can change it.
+ */
+export function buildEvent(input: ComposeInput, now = new Date(), author = "jj"): BoardEvent {
     if (!["open", "reply", "close"].includes(input.mode)) throw new BoardInputError("board: unknown action");
     const date = Date.parse(input.date);
     if (!Number.isFinite(date) || Math.abs(date - now.getTime()) > MAX_CLOCK_SKEW_MS) {
@@ -121,7 +125,7 @@ export function buildEvent(input: ComposeInput, now = new Date()): BoardEvent {
         threadId: String(input.threadId ?? ""),
         date: new Date(date).toISOString(),
         kind: input.mode === "close" ? "close" : "message",
-        from: "jj",
+        from: author,
         lang: input.lang as BoardEvent["lang"],
         body: String(input.body ?? "").trim(),
     };
@@ -161,13 +165,29 @@ export interface SubmitResult {
     entry: OutboxEntry;
 }
 
-/** Queue one of JJ's writes. Idempotent on `id`; fails loud on anything the house would refuse. */
-export function submit(input: ComposeInput, now = new Date()): Promise<SubmitResult> {
+/** A collaborator's writes per rolling day: a brake on a loop or a stuck button. */
+export const COLLABORATOR_DAILY_CAP = 20;
+
+/**
+ * Queue one write, JJ's by default or a collaborator's (`author` = their house
+ * handle). Idempotent on `id`; fails loud on anything the house would refuse
+ * — the vendored writer holds a collaborator to their own threads and to
+ * the social team and JJ as recipients.
+ */
+export function submit(input: ComposeInput, now = new Date(), author = "jj"): Promise<SubmitResult> {
     return serialise(async () => {
-        const event = buildEvent(input, now);
+        const event = buildEvent(input, now, author);
         const house = await loadHouse();
         const snapshot = readSnapshot();
         const outbox = readOutbox();
+        if (author !== "jj") {
+            if (!house.isCollaborator(author)) throw new BoardInputError(`board: ${author} is not on the house's collaborator roster`);
+            const since = now.getTime() - 24 * 3_600_000;
+            const recent = outbox.filter((entry) => entry.event.from === author && Date.parse(entry.queuedAt) >= since).length;
+            if (recent >= COLLABORATOR_DAILY_CAP && !outbox.some((entry) => entry.event.id === event.id)) {
+                throw new BoardInputError(`board: ${COLLABORATOR_DAILY_CAP} messages in a day is the limit; try again tomorrow or write to JJ`);
+            }
+        }
 
         const previous = outbox.find((entry) => entry.event.id === event.id);
         if (previous) {
@@ -308,5 +328,32 @@ export function readBoard(): BoardView {
         threads,
         rejected: outbox.filter((entry) => entry.status === "rejected"),
         roster: ROSTER,
+    };
+}
+
+/** The house's collaborator handles and whom they may address, from the vendored writer. */
+export async function houseCollaborators(): Promise<string[]> {
+    const house = await loadHouse();
+    return Object.keys(house.COLLABORATORS);
+}
+
+export async function collaboratorRecipients(): Promise<string[]> {
+    const house = await loadHouse();
+    return [...house.COLLABORATOR_RECIPIENTS];
+}
+
+/**
+ * A collaborator's view of the board: only the threads they opened or are
+ * addressed in, open and closed, and only their own refused writes. JJ's,
+ * Ambrogio's and the agents' other threads are not theirs to read.
+ */
+export function readBoardFor(handle: string): BoardView {
+    const all = readBoard();
+    const mine = (thread: BoardThreadView) => thread.opener === handle || thread.recipients.includes(handle);
+    return {
+        syncedAt: all.syncedAt,
+        threads: all.threads.filter(mine),
+        rejected: all.rejected.filter((entry) => entry.event.from === handle),
+        roster: [],
     };
 }

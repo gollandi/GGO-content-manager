@@ -10,6 +10,8 @@ interface AuthResult {
     /** Display name for attribution ("JJ", "Diletta"). */
     name: string;
     role: Role;
+    /** A collaborator's name on the house board; null for the owner and anyone without one. */
+    houseHandle: string | null;
 }
 
 interface AuthError {
@@ -39,6 +41,7 @@ export async function requireAuth(): Promise<AuthResult | AuthError> {
 
     let role: Role = effectiveRole(session.user) ?? "viewer";
     let name = session.user.name || email;
+    let houseHandle: string | null = null;
     if (role !== "admin") {
         const standing = storeStanding(email);
         if (standing.kind === "revoked") return deny("Access revoked", 401);
@@ -48,9 +51,10 @@ export async function requireAuth(): Promise<AuthResult | AuthError> {
         if (standing.kind === "active") {
             role = standing.role;
             name = standing.name;
+            houseHandle = standing.houseHandle;
         }
     }
-    return { authenticated: true, email, name, role };
+    return { authenticated: true, email, name, role, houseHandle };
 }
 
 /** Admin or editor. 403 otherwise. */

@@ -42,7 +42,9 @@ describe("the social role's fence", () => {
             "/api/review-dashboard/media",
             "/api/review-dashboard/state",
             "/api/review-dashboard/video",
+            "/api/social/briefs",
             "/api/social/pages",
+            "/briefs",
             "/carico",
             "/guida",
             "/performance",
@@ -57,7 +59,7 @@ describe("the social role's fence", () => {
     it("is refused the routes the middleware otherwise exempts or leaves to the session", () => {
         for (const p of ["/api/views/editorial-content", "/api/llm/guard", "/api/board", "/api/board/sync",
             "/api/cache/invalidate", "/api/notion/patient-journeys", "/api/house/state", "/api/collaborators",
-            "/api/review-dashboard/buffer-sweep", "/api/ernesto/directives", "/api/notion/content", "/api/notion/content-needs", "/api/house/state"]) {
+            "/api/review-dashboard/buffer-sweep", "/api/ernesto/directives", "/api/notion/content", "/api/notion/content-needs", "/api/house/state", "/api/collaborators/handle"]) {
             expect(canReach("social", p)).toEqual({ ok: false });
         }
     });
