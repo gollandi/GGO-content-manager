@@ -139,5 +139,6 @@ describe("publish authority", () => {
 
     it("is frozen against accidental runtime widening", () => {
         expect(Object.isFrozen(PUBLISH_AUTHORITY)).toBe(true);
+        for (const roles of Object.values(PUBLISH_AUTHORITY)) expect(Object.isFrozen(roles)).toBe(true);
     });
 });

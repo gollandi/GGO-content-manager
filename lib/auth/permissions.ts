@@ -80,10 +80,10 @@ export function canReach(role: Role | undefined, pathname: string): Reach {
  */
 export type PublicAct = "social-post" | "comment-reply" | "website-page" | "newsletter";
 export const PUBLISH_AUTHORITY: Readonly<Record<PublicAct, readonly Role[]>> = Object.freeze({
-    "social-post": ["admin"],
-    "comment-reply": ["admin"],
-    "website-page": [],
-    newsletter: [],
+    "social-post": Object.freeze(["admin"] as Role[]),
+    "comment-reply": Object.freeze(["admin"] as Role[]),
+    "website-page": Object.freeze([] as Role[]),
+    newsletter: Object.freeze([] as Role[]),
 });
 
 export type PublishAuthority = Readonly<Record<PublicAct, readonly Role[]>>;
