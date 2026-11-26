@@ -240,7 +240,9 @@ by a lawyer (the copy's own §5 says so).
 - Condition on any future comment or DM ingest for Instagram, TikTok or
   Facebook: items go to a human-first manual queue, never straight to an
   agent. No such ingest exists today.
-- Open, JJ's decision: the existing YouTube ingest puts every new comment
-  before Samantha before a human sees it. A mark stops later processing, not
-  that first pass. Either the clause binds the collaborator's acts, or the
-  YouTube pipeline needs a human-first hold.
+- Settled in the contract (v1.2, regenerated): clause 10.4 binds the
+  contractor's own acts; GGO Med stays responsible as controller for the
+  cockpit's own automated processing and gives her the means to mark and
+  handle such items by hand — the mark above. Whether the YouTube ingest
+  should hold comments for a human before Samantha's first pass is a
+  data-protection question raised with JJ separately, not a contract one.
