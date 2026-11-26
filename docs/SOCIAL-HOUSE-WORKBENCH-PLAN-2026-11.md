@@ -230,3 +230,17 @@ factor (`mfa: false` in every record); the download is Markdown, which prints
 to PDF from the browser, not a generated PDF; the countersignature wording
 was written here, adapted from the contractor's; none of it has been checked
 by a lawyer (the copy's own §5 says so).
+
+### Health details never reach an agent (contract v1.2, clause 10.4)
+
+- Comments room: "Health details: handle by hand" marks a YouTube comment
+  row (`[yt-manual:<id>]`, signed, carrying nothing of the comment); the
+  house's drafting step never lists it again and refuses to attach to it;
+  suggestions on it are refused; JJ sees the mark.
+- Condition on any future comment or DM ingest for Instagram, TikTok or
+  Facebook: items go to a human-first manual queue, never straight to an
+  agent. No such ingest exists today.
+- Open, JJ's decision: the existing YouTube ingest puts every new comment
+  before Samantha before a human sees it. A mark stops later processing, not
+  that first pass. Either the clause binds the collaborator's acts, or the
+  YouTube pipeline needs a human-first hold.
