@@ -23,10 +23,74 @@ interface Collaborator {
   inviteExpiresAt: string | null;
   createdAt: string;
   createdBy: string;
+  houseHandle: string | null;
+}
+
+interface SignatureRow {
+  record_id: string; contract_id: string; contract_version: string; contract_sha256: string;
+  signatory_role: "contractor" | "company"; signatory_name_typed: string; signatory_email: string;
+  countersigns: string | null; accepted_at_utc: string; ip_address: string; method: string;
+}
+
+/** JJ's view of the agreements: who signed which version, when and from where; countersign; download. */
+function Agreements() {
+  const [rows, setRows] = useState<SignatureRow[] | null>(null);
+  const [broken, setBroken] = useState<string | null>(null);
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    const r = await fetch("/api/contract/records", { cache: "no-store" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return setError(j.error || "Could not read the signatures.");
+    setRows(j.records); setBroken(j.chainBrokenAt);
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  const contractors = (rows ?? []).filter((r) => r.signatory_role === "contractor");
+  // Only a person's latest signature can be countersigned (the server checks it too).
+  const latest = (r: SignatureRow) => contractors.filter((c) => c.signatory_email === r.signatory_email).at(-1)?.record_id === r.record_id;
+  const countersigned = (r: SignatureRow) => (rows ?? []).some((c) => c.signatory_role === "company" && c.countersigns === r.signatory_email && c.contract_sha256 === r.contract_sha256);
+  const sign = async (r: SignatureRow) => {
+    if (!window.confirm(`Sign version ${r.contract_version} for GGO Med Ltd as its director? This is your electronic signature.`)) return;
+    setError("");
+    const res = await fetch("/api/contract/countersign", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: r.signatory_email, contractSha256: r.contract_sha256, typedName: typed[r.record_id] ?? "", confirm: true }) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) setError(j.error || "Not signed.");
+    await load();
+  };
+  return (
+    <section className="paper mt-6 border border-paper-edge p-5 text-sm text-paper-foreground">
+      <h2 className="column-label column-label-paper mb-3">Agreements</h2>
+      {broken && <p role="alert" className="mb-2">The signature records need attention: {broken}. Nothing new can be signed until they are looked at.</p>}
+      {error && <p role="alert" className="mb-2">{error}</p>}
+      {rows === null ? <p>Reading…</p> : contractors.length === 0 ? <p>No agreement signed yet. A collaborator signs during their invitation.</p> : (
+        <ul className="divide-y divide-paper-edge">
+          {contractors.map((r) => (
+            <li key={r.record_id} className="py-3">
+              <div>{r.signatory_name_typed} <span className="text-paper-foreground-soft">· {r.signatory_email}</span></div>
+              <div className="column-label column-label-paper mt-1">
+                {r.contract_id} v{r.contract_version} · signed {new Date(r.accepted_at_utc).toLocaleString("en-GB")} from {r.ip_address} · {countersigned(r) ? "countersigned" : latest(r) ? "awaiting your signature" : "superseded"}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <a className="underline" href={`/api/contract/signed?email=${encodeURIComponent(r.signatory_email)}`}>Download the signed copy</a>
+                {!countersigned(r) && latest(r) && (
+                  <>
+                    <input aria-label="Your full name" placeholder="Your full name" value={typed[r.record_id] ?? ""}
+                      onChange={(e) => setTyped({ ...typed, [r.record_id]: e.target.value })} className="border border-paper-edge bg-transparent px-2 py-1" />
+                    <button type="button" className="act-seal" disabled={!(typed[r.record_id] ?? "").trim()} onClick={() => sign(r)}>Sign for GGO Med Ltd</button>
+                  </>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
 }
 
 const ROLE_COPY: Record<string, string> = {
-  social: "Social media — the social queue (add a note, mark ready for JJ, request changes) and media upload. Never approves or publishes.",
+  social: "Social media — the social queue (add a note, mark ready for JJ, request changes), media upload, analytics, the website (read-only), and briefs and strategies to the house under their own name. Never approves or publishes.",
 };
 
 /** The quiet act on paper: act-quiet is drawn for the dark plate and vanishes here. */
@@ -71,6 +135,29 @@ export default function SettingsPage() {
       setLink({ email: data.user.email, url: data.link, expiresAt: data.expiresAt });
       setEmail("");
       setName("");
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const [handles, setHandles] = useState<string[]>([]);
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch("/api/collaborators/handle").then((r) => (r.ok ? r.json() : { handles: [] })).then((j) => setHandles(j.handles ?? [])).catch(() => setHandles([]));
+  }, [isAdmin]);
+
+  const setHandle = async (u: Collaborator, handle: string | null) => {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/collaborators/handle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: u.email, handle }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) setError(data.error || "The change failed.");
       await load();
     } finally {
       setBusy(false);
@@ -168,6 +255,14 @@ export default function SettingsPage() {
                       ? (u.inviteExpiresAt ? `invited, link valid until ${new Date(u.inviteExpiresAt).toLocaleString("en-GB")}` : "invited, link expired")
                       : u.status}
                   </div>
+                  <label className="mt-1 block text-[12px] text-paper-foreground-soft">
+                    Name on the house board{" "}
+                    <select aria-label={`House board name for ${u.name}`} disabled={busy} value={u.houseHandle ?? ""}
+                      onChange={(e) => setHandle(u, e.target.value || null)} className="border border-paper-edge bg-transparent">
+                      <option value="">none — cannot brief the house</option>
+                      {handles.map((h) => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </label>
                 </div>
                 <div className="flex gap-2">
                   <button type="button" disabled={busy} className="act-void" style={onPaper}
@@ -188,6 +283,7 @@ export default function SettingsPage() {
           </ul>
         )}
       </section>
+      <Agreements />
     </div>
   );
 }

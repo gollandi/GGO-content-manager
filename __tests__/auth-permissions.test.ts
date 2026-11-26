@@ -33,17 +33,24 @@ describe("the social role's fence", () => {
         const reached = routes.filter((r) => canReach("social", r).ok).sort();
         expect(reached).toEqual([
             "/api/auth/x",
+            "/api/contract/signed",
             "/api/media/jobs",
             "/api/media/uploads",
             "/api/media/uploads/x",
             "/api/natascia/weekly",
             "/api/notion/performance-snapshot",
+            "/api/onboarding",
             "/api/review-dashboard/decision",
             "/api/review-dashboard/media",
             "/api/review-dashboard/state",
             "/api/review-dashboard/video",
+            "/api/social/briefs",
+            "/api/social/comments",
             "/api/social/pages",
+            "/benvenuto",
+            "/briefs",
             "/carico",
+            "/comments",
             "/guida",
             "/performance",
             "/review",
@@ -57,7 +64,7 @@ describe("the social role's fence", () => {
     it("is refused the routes the middleware otherwise exempts or leaves to the session", () => {
         for (const p of ["/api/views/editorial-content", "/api/llm/guard", "/api/board", "/api/board/sync",
             "/api/cache/invalidate", "/api/notion/patient-journeys", "/api/house/state", "/api/collaborators",
-            "/api/review-dashboard/buffer-sweep", "/api/ernesto/directives", "/api/notion/content", "/api/notion/content-needs", "/api/house/state"]) {
+            "/api/review-dashboard/buffer-sweep", "/api/ernesto/directives", "/api/notion/content", "/api/notion/content-needs", "/api/house/state", "/api/collaborators/handle", "/api/contract/records", "/api/contract/countersign"]) {
             expect(canReach("social", p)).toEqual({ ok: false });
         }
     });

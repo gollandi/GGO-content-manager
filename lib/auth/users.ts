@@ -34,6 +34,12 @@ export interface StoredUser {
     createdAt: string;
     createdBy: string;
     updatedAt: string;
+    /**
+     * Their name on the house board (house-board.js COLLABORATORS), set by
+     * the owner. Absent: they cannot brief the house. Never derived from
+     * `name`, so a collaborator called Greta cannot speak as the agent.
+     */
+    houseHandle?: string | null;
 }
 
 /** What the UI may see: never a hash or a token hash. */
@@ -45,6 +51,7 @@ export interface PublicUser {
     inviteExpiresAt: string | null;
     createdAt: string;
     createdBy: string;
+    houseHandle: string | null;
 }
 
 interface StoreFile { version: 1; users: StoredUser[] }
@@ -106,6 +113,7 @@ export function toPublic(u: StoredUser, at = Date.now()): PublicUser {
         inviteExpiresAt: inviteLive ? u.invite!.expiresAt : null,
         createdAt: u.createdAt,
         createdBy: u.createdBy,
+        houseHandle: u.houseHandle ?? null,
     };
 }
 
@@ -223,6 +231,27 @@ export async function setDisabled(email: string, disabled: boolean): Promise<Pub
     });
 }
 
+/**
+ * Give a collaborator their house handle, or take it away (null). The handle
+ * must be on the house's collaborator roster (`allowed`, read from the
+ * vendored house writer) and belong to nobody else.
+ */
+export async function setHouseHandle(email: string, handle: string | null, allowed: readonly string[]): Promise<PublicUser> {
+    const e = normEmail(email);
+    const h = handle === null ? null : String(handle).trim().toLowerCase();
+    if (h !== null && !allowed.includes(h)) throw new Error(`"${handle}" is not on the house's collaborator roster.`);
+    return mutate((store) => {
+        const u = store.users.find((x) => x.email === e);
+        if (!u) throw new Error("No such collaborator.");
+        if (h !== null && store.users.some((x) => x.email !== e && x.houseHandle === h)) {
+            throw new Error(`"${h}" already belongs to another collaborator.`);
+        }
+        u.houseHandle = h;
+        u.updatedAt = now();
+        return toPublic(u);
+    });
+}
+
 /** Sign-in check for collaborators. Null for unknown, disabled or not yet activated. */
 /** A bcrypt hash of nothing anyone knows: compared against when there is no real one. */
 const DUMMY_HASH = "$2a$10$CwTycUXWue0Thq9StjUM0uJ8.Zt8m0rN8k5YbQ6Z1W4o0uW5z4b2W";
@@ -244,7 +273,7 @@ export async function verifyStoredCredentials(email: string, password: string): 
  */
 export function storeStanding(email: string):
     | { kind: "absent" }
-    | { kind: "active"; role: AssignableRole; name: string }
+    | { kind: "active"; role: AssignableRole; name: string; houseHandle: string | null }
     | { kind: "revoked" } {
     let u: StoredUser | null;
     try {
@@ -256,5 +285,5 @@ export function storeStanding(email: string):
     }
     if (!u) return { kind: "absent" };
     if (u.disabled || !u.hash) return { kind: "revoked" };
-    return { kind: "active", role: u.role, name: u.name };
+    return { kind: "active", role: u.role, name: u.name, houseHandle: u.houseHandle ?? null };
 }

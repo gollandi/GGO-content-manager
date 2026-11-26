@@ -31,6 +31,9 @@ import { GET as media } from "../app/api/review-dashboard/media/route";
 import { GET as listCollaborators, POST as invite } from "../app/api/collaborators/route";
 import { POST as access } from "../app/api/collaborators/access/route";
 import { POST as redeem } from "../app/api/auth-invite/redeem/route";
+import { POST as inviteContract } from "../app/api/auth-invite/contract/route";
+import { acceptanceFor, installContract } from "./helpers/contract-fixture";
+import { readRecords } from "../lib/contracts/store";
 import { crossSiteWrite } from "../lib/auth/gate";
 
 const social = { authenticated: true, email: "d@example.com", name: "Diletta", role: "social" };
@@ -109,10 +112,40 @@ describe("collaborator management and the invitation", () => {
         expect(made.link).toMatch(/\/invito#[A-Za-z0-9_-]{40,}$/);
         expect(made.link).not.toContain("?");
         const token = made.link.split("#")[1];
-        const first = await redeem(json("http://x/api/auth-invite/redeem", { token, password: "a long enough pass" }));
+        installContract(dir, "d@example.com");
+        const { view } = await (await inviteContract(json("http://x/api/auth-invite/contract", { token }))).json();
+        const acceptance = acceptanceFor(view);
+        const first = await redeem(json("http://x/api/auth-invite/redeem", { token, password: "a long enough pass", acceptance }));
         expect(first.status).toBe(200);
         expect(first.headers.get("referrer-policy")).toBe("no-referrer");
-        expect((await redeem(json("http://x/api/auth-invite/redeem", { token, password: "a long enough pass" }))).status).toBe(400);
+        expect((await redeem(json("http://x/api/auth-invite/redeem", { token, password: "a long enough pass", acceptance }))).status).toBe(404);
+    });
+
+    it("sets no password without the agreement, and none on a draft", async () => {
+        m.requireAdmin.mockResolvedValue(owner);
+        const made = await (await invite(json("http://cockpit.test/api/collaborators", { email: "d@example.com", name: "Diletta", role: "social" }))).json();
+        const token = made.link.split("#")[1];
+        // No agreement prepared yet: the invitation says so and sets nothing.
+        expect((await inviteContract(json("http://x/api/auth-invite/contract", { token }))).status).toBe(409);
+        installContract(dir, "d@example.com", { status: "PENDING_JJ_FINAL_READ" });
+        const { view } = await (await inviteContract(json("http://x/api/auth-invite/contract", { token }))).json();
+        expect(view.signable).toBe(false);
+        expect(view.notSignableReason).toMatch(/not final yet/);
+        expect((await redeem(json("http://x/api/auth-invite/redeem", { token, password: "a long enough pass", acceptance: acceptanceFor(view) }))).status).toBe(422);
+        installContract(dir, "d@example.com");
+        const final = (await (await inviteContract(json("http://x/api/auth-invite/contract", { token }))).json()).view;
+        expect((await redeem(json("http://x/api/auth-invite/redeem", { token, password: "a long enough pass" }))).status).toBe(422);
+        expect((await redeem(json("http://x/api/auth-invite/redeem", { token, password: "a long enough pass", acceptance: acceptanceFor(final, "Someone Else") }))).status).toBe(422);
+        expect((await redeem(json("http://x/api/auth-invite/redeem", { token, password: "a long enough pass", acceptance: { ...acceptanceFor(final), sha256: "0".repeat(64) } }))).status).toBe(422);
+        expect((await redeem(json("http://x/api/auth-invite/redeem", { token, password: "short", acceptance: acceptanceFor(final) }))).status).toBe(400);
+        expect(readRecords()).toHaveLength(0);
+        // The link still works once the agreement is signed.
+        const ok = await redeem(json("http://x/api/auth-invite/redeem", { token, password: "a long enough pass", acceptance: acceptanceFor(final, "test contractor") }));
+        expect(ok.status).toBe(200);
+        const [record] = readRecords();
+        expect(record).toMatchObject({ signatory_role: "contractor", signatory_email: "d@example.com", contract_sha256: final.sha256, auth_evidence: { method: "invitation", mfa: false } });
+        expect(record.auth_evidence.invite_token_id).toMatch(/^[0-9a-f]{16}$/);
+        expect(JSON.stringify(record)).not.toContain(token);
     });
 });
 

@@ -28,6 +28,7 @@ import { isOrderedByJJ, liveDeps, sendRow } from "./buffer-send";
 import { invalidateCancelloCache } from "./state";
 import { appendNote, formatNote, type NoteKind } from "./notes";
 import { mayAct, type CancelloAct } from "../auth/permissions";
+import { CommentActError, prepareDeskDecision } from "../social/comments-notion";
 import type { Role } from "../auth/roles";
 
 export type Decision = CancelloAct;
@@ -247,6 +248,16 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor):
 
         const status = map[decision];
         if (!status) throw new Error(`unknown decision: ${decision}`);
+        // A YouTube reply row: approving is posting, so the draft is stamped
+        // (or the act refused); a rework clears earlier stamps.
+        if (target === "desk") {
+            try {
+                await prepareDeskDecision(rowId, null, decision, { label: actorLabel(actor) });
+            } catch (err) {
+                if (err instanceof CommentActError) throw new DecisionForbiddenError(err.message);
+                throw err;
+            }
+        }
 
         const properties: Record<string, unknown> = { Status: { select: { name: status } } };
         let notesText: string | undefined;

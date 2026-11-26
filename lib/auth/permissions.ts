@@ -25,7 +25,7 @@ interface Surface {
 export const RESTRICTED_SURFACES: Partial<Record<Role, Surface>> = {
     social: {
         home: "/review",
-        pages: ["/review", "/carico", "/guida", "/performance", "/website"],
+        pages: ["/review", "/carico", "/guida", "/performance", "/website", "/briefs", "/comments", "/benvenuto"],
         apis: [
             "/api/auth/",
             // Read-only rooms, exact paths (never a /api/notion/ prefix).
@@ -33,6 +33,16 @@ export const RESTRICTED_SURFACES: Partial<Record<Role, Surface>> = {
             // owner's /api/notion/content also takes a writing POST.
             "/api/notion/performance-snapshot",
             "/api/social/pages",
+            // Briefs and strategies: the route checks the role and the
+            // collaborator's house handle; the house writer checks the rest.
+            "/api/social/briefs",
+            // Comments: suggest and mark ready only; approving a reply is
+            // PUBLISH_AUTHORITY["comment-reply"], checked in the route.
+            "/api/social/comments",
+            // The agreement: read and signed before anything else, and
+            // downloadable after (routes run with contract "pending-ok").
+            "/api/onboarding",
+            "/api/contract/signed",
             "/api/natascia/weekly",
             "/api/review-dashboard/state",
             "/api/review-dashboard/decision",

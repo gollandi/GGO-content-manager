@@ -50,6 +50,8 @@ export interface BoardThreadView {
     closedBy: string | null;
     pending: boolean;
     events: BoardEventView[];
+    /** A collaborator's view: messages before they joined, not shown. */
+    earlierHidden?: number;
 }
 
 export interface BoardView {

@@ -24,7 +24,14 @@ vi.mock("../lib/cancello/buffer-send", () => ({
     isOrderedByJJ: (row: { orderedBy: string | null }) => row.orderedBy === "JJ",
 }));
 
-import { applyCancelloDecision, OWNER } from "../lib/cancello/decision";
+const { prepareDeskDecision } = vi.hoisted(() => ({ prepareDeskDecision: vi.fn() }));
+vi.mock("../lib/social/comments-notion", () => {
+    class CommentActError extends Error {}
+    return { prepareDeskDecision, CommentActError };
+});
+
+import { applyCancelloDecision, OWNER, DecisionForbiddenError } from "../lib/cancello/decision";
+import { CommentActError } from "../lib/social/comments-notion";
 
 describe("Cancello decisions", () => {
     beforeEach(() => {
@@ -122,5 +129,19 @@ describe("Cancello decisions", () => {
 
     it("refuses a send outside the calendar", async () => {
         await expect(applyCancelloDecision({ rowId: "d", target: "desk", decision: "send" }, OWNER)).rejects.toThrow(/calendar rows only/);
+    });
+
+    it("prepares a Desk decision (the reply stamp) before the status flip, and refuses when it refuses", async () => {
+        const order: string[] = [];
+        prepareDeskDecision.mockImplementation(async () => { order.push("prepare"); });
+        update.mockImplementation(async () => { order.push("flip"); return {}; });
+        await applyCancelloDecision({ rowId: "desk-row", target: "desk", decision: "approve" }, OWNER);
+        expect(order).toEqual(["prepare", "flip"]);
+        expect(prepareDeskDecision).toHaveBeenCalledWith("desk-row", null, "approve", { label: "JJ" });
+
+        update.mockClear();
+        prepareDeskDecision.mockRejectedValueOnce(new CommentActError("approve it in Comments"));
+        await expect(applyCancelloDecision({ rowId: "desk-row", target: "desk", decision: "approve" }, OWNER)).rejects.toBeInstanceOf(DecisionForbiddenError);
+        expect(update).not.toHaveBeenCalled();
     });
 });

@@ -3,6 +3,7 @@ import { auth } from "./config";
 import { canAdmin, canUpload, canWrite, type Role } from "./roles";
 import { storeStanding } from "./users";
 import { effectiveRole } from "./gate";
+import { contractStanding } from "../contracts/store";
 
 interface AuthResult {
     authenticated: true;
@@ -10,6 +11,8 @@ interface AuthResult {
     /** Display name for attribution ("JJ", "Diletta"). */
     name: string;
     role: Role;
+    /** A collaborator's name on the house board; null for the owner and anyone without one. */
+    houseHandle: string | null;
 }
 
 interface AuthError {
@@ -32,13 +35,20 @@ const deny = (error: string, status: number): AuthError => ({
  * effect at once. The admin is never in the store (the owner's address
  * cannot be invited), so a broken store can never lock him out.
  */
-export async function requireAuth(): Promise<AuthResult | AuthError> {
+/**
+ * `contract: "pending-ok"` is for the onboarding routes only: a collaborator
+ * whose agreement is not yet accepted may read and sign it, and nothing else.
+ */
+export interface AuthOptions { contract?: "required" | "pending-ok" }
+
+export async function requireAuth(options: AuthOptions = {}): Promise<AuthResult | AuthError> {
     const session = await auth();
     const email = session?.user?.email;
     if (!email) return deny("Authentication required", 401);
 
     let role: Role = effectiveRole(session.user) ?? "viewer";
     let name = session.user.name || email;
+    let houseHandle: string | null = null;
     if (role !== "admin") {
         const standing = storeStanding(email);
         if (standing.kind === "revoked") return deny("Access revoked", 401);
@@ -48,9 +58,26 @@ export async function requireAuth(): Promise<AuthResult | AuthError> {
         if (standing.kind === "active") {
             role = standing.role;
             name = standing.name;
+            houseHandle = standing.houseHandle;
+            // No data before the agreement is accepted (the contract's own
+            // gate 2). A store or contract that cannot be read refuses.
+            if (options.contract !== "pending-ok") {
+                let accepted = false;
+                try {
+                    accepted = contractStanding(email).kind === "accepted";
+                } catch (err) {
+                    console.error("[auth] contract standing unreadable:", (err as Error).message);
+                }
+                if (!accepted) {
+                    return {
+                        authenticated: false,
+                        response: NextResponse.json({ error: "Your agreement with GGO Med comes first: open the welcome page to read and sign it.", code: "CONTRACT_REQUIRED" }, { status: 403 }),
+                    };
+                }
+            }
         }
     }
-    return { authenticated: true, email, name, role };
+    return { authenticated: true, email, name, role, houseHandle };
 }
 
 /** Admin or editor. 403 otherwise. */

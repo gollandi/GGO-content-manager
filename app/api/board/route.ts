@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "../../../lib/auth/api-guard";
-import { BoardInputError, readBoard, submit, type ComposeInput } from "../../../lib/board/store";
+import { BoardInputError, houseCollaborators, readBoard, submit, type ComposeInput } from "../../../lib/board/store";
 
 /**
  * La Bacheca — JJ reads and writes the house board (HOUSE-0010).
@@ -20,7 +20,9 @@ export async function GET() {
     const auth = await requireAdmin();
     if (!auth.authenticated) return auth.response;
     try {
-        return NextResponse.json(readBoard(), { headers: noStore });
+        const board = readBoard();
+        // JJ may address the people of GGO Med on the board as well as the agents.
+        return NextResponse.json({ ...board, roster: [...board.roster, ...(await houseCollaborators())] }, { headers: noStore });
     } catch (err) {
         console.error("[board]", err);
         return NextResponse.json({ error: "Could not read the board" }, { status: 500 });

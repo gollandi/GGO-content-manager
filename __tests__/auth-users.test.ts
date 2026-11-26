@@ -72,7 +72,7 @@ describe("collaborators — the user store", () => {
     it("a switched-off collaborator cannot sign in and their standing is revoked", async () => {
         const { token } = await users.inviteUser({ email: "d@example.com", name: "D", role: "social", by: "o" });
         await users.redeemInvite(token, PASSWORD);
-        expect(users.storeStanding("d@example.com")).toEqual({ kind: "active", role: "social", name: "D" });
+        expect(users.storeStanding("d@example.com")).toEqual({ kind: "active", role: "social", name: "D", houseHandle: null });
         await users.setDisabled("d@example.com", true);
         expect(await users.verifyStoredCredentials("d@example.com", PASSWORD)).toBeNull();
         expect(users.storeStanding("d@example.com")).toEqual({ kind: "revoked" });
@@ -121,5 +121,19 @@ describe("collaborators — the user store", () => {
             users.inviteUser({ email: `${n}@example.com`, name: n, role: "social", by: "o" })));
         expect(users.listUsers().map((u) => u.email).sort()).toEqual(
             ["a", "b", "c", "d", "e"].map((n) => `${n}@example.com`));
+    });
+});
+
+describe("a collaborator's name on the house board", () => {
+    it("is set by the owner from the house roster, unique, and can be taken away", async () => {
+        await users.inviteUser({ email: "d@example.com", name: "Greta", role: "social", by: "o" });
+        await users.inviteUser({ email: "e@example.com", name: "E", role: "social", by: "o" });
+        expect(users.listUsers()[0].houseHandle).toBeNull();
+        await expect(users.setHouseHandle("d@example.com", "greta", ["diletta"])).rejects.toThrow(/not on the house/);
+        const set = await users.setHouseHandle("d@example.com", " Diletta ", ["diletta"]);
+        expect(set.houseHandle).toBe("diletta");
+        await expect(users.setHouseHandle("e@example.com", "diletta", ["diletta"])).rejects.toThrow(/another collaborator/);
+        expect((await users.setHouseHandle("d@example.com", null, ["diletta"])).houseHandle).toBeNull();
+        await expect(users.setHouseHandle("nobody@example.com", "diletta", ["diletta"])).rejects.toThrow(/No such/);
     });
 });
