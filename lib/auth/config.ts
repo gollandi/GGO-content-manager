@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import { getRoleForEmail, type Role } from "./roles";
-import { admitGoogle, authorizeCredentials } from "./credentials";
+import { admitGoogle, authorizeCredentials, clientIp } from "./credentials";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -42,7 +42,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 email: { label: "Email", type: "email" },
                 password: { label: "Password", type: "password" },
             },
-            authorize: (credentials) => authorizeCredentials(credentials),
+            authorize: (credentials, request) => authorizeCredentials(credentials, undefined, clientIp(request)),
         }),
     ],
     callbacks: {

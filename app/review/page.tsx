@@ -9,7 +9,7 @@ import AssetSheet from "../../components/cancello/AssetSheet";
 import { deskFamily, gateCalendarIds, shadowedByCalendar } from "../../lib/house/families";
 import { Guilloche, Socket, Mark, AgeBar, type MarkTone } from "../../components/Registro";
 import { useSession } from "next-auth/react";
-import { latestReadyMark } from "../../lib/cancello/notes";
+import { latestMark, type CollaboratorMark } from "../../lib/cancello/notes";
 
 /**
  * IL CANCELLO — the register spread.
@@ -24,7 +24,7 @@ import { latestReadyMark } from "../../lib/cancello/notes";
  * acts pinned under the thumb. One hand, between clinics.
  */
 
-type Decision = "approve" | "modify" | "reject" | "done" | "delete" | "send" | "comment" | "ready";
+type Decision = "approve" | "modify" | "reject" | "done" | "delete" | "send" | "comment" | "ready" | "request";
 type Target = "desk" | "calendar" | "website";
 
 interface VideoRef { url: string; name?: string; path?: string; ageDays?: number }
@@ -73,8 +73,8 @@ interface Entry {
     dueDays: number | null;
     hasMedia: boolean;
     notionUrl: string;
-    /** A collaborator's latest "ready for JJ" mark, read once from the row's notes. */
-    ready?: { at: string; by: string } | null;
+    /** A collaborator's latest mark ("ready for JJ" or "changes requested"), read once from the row's notes. */
+    mark?: CollaboratorMark | null;
     desk?: DeskRow;
     calendar?: CalendarRow;
     website?: WebsiteArticle;
@@ -273,7 +273,7 @@ export default function ReviewPage() {
                     dueDays: daysUntil(row.date),
                     hasMedia: row.media.length > 0,
                     notionUrl: row.url,
-                    ready: latestReadyMark(row.notes ?? ""),
+                    mark: latestMark(row.notes ?? ""),
                     calendar: row
                 })),
             // Approved and staged, not yet in Buffer: the team's rows wait for
@@ -367,7 +367,7 @@ export default function ReviewPage() {
         comment: string,
         opts: { date?: string } = {}
     ) {
-        if ((decision === "modify" || decision === "comment") && !comment.trim()) {
+        if ((decision === "modify" || decision === "comment" || decision === "request") && !comment.trim()) {
             setError(isSocial ? "Write what should change: the note goes with the post." : entry.target === "website"
                 ? "Scrivi cosa va cambiato: il timbro porta la nota a Edmondo."
                 : "Scrivi cosa va cambiato: il timbro porta la nota a Ernesto.");
@@ -394,9 +394,10 @@ export default function ReviewPage() {
             const result = await res.json();
             if (!res.ok || !result.ok) throw new Error(result.error ?? (isSocial ? "Not saved" : "Decisione non salvata"));
             // A note is not a decision: the row stays open for more acts.
-            if (decision === "comment" || decision === "ready") {
+            if (decision === "comment" || decision === "ready" || decision === "request") {
                 setNote(entry.key, "");
-                setToast(decision === "ready" ? "Marked ready for JJ" : "Note added");
+                setModifyOpen(false);
+                setToast(decision === "ready" ? "Marked ready for JJ" : decision === "request" ? "Changes requested — JJ will see it" : "Note added");
                 setTimeout(() => setToast(null), 2600);
                 await load();
                 return;
@@ -406,16 +407,19 @@ export default function ReviewPage() {
                 setJustSealed(entry.key);
                 setTimeout(() => setJustSealed(null), 1200);
             }
-            setToast(
+            // The act stood; only its note did not fit. Say so where JJ looks.
+            const skipped = result.noteSkipped ? " · nota NON salvata (note piene)" : "";
+            const message = (
                 decision === "send" || (decision === "approve" && result.send)
                     ? describeHandOff(result.send)
                     : decision === "approve"
                     ? (result.awaitingSecondFlip ? "Sigillato — dopo lo staging resta «Invia a Buffer»" : "Sigillato")
-                    : decision === "modify" ? (isSocial ? "Sent back to the team" : "Timbrato e rimandato")
+                    : decision === "modify" ? "Timbrato e rimandato"
                     : decision === "done" ? "Archiviato — non tornerà a chiedere"
                     : decision === "delete" ? "Eliminato — non tornerà nel Cancello"
                     : "Rifiutato"
             );
+            setToast(message + skipped);
             setTimeout(() => setToast(null), decision === "send" ? 6000 : 2600);
             setModifyOpen(false);
             // The document stays open: the point of the act is seeing the wax land.
@@ -432,16 +436,18 @@ export default function ReviewPage() {
     /* ── The document page (right leaf / phone sheet) ─────────────────────── */
 
     function DocumentLeaf({ entry }: { entry: Entry }) {
-        // The box starts empty: notes are appended to the row's history, so
-        // pre-filling it with that history would write the history twice.
-        const note = notes[entry.key] ?? "";
+        // Calendar notes are appended to the row's history, so the box starts
+        // empty (pre-filling it would write the history twice). The Desk's
+        // Correction is still JJ's latest instruction, overwritten: his
+        // previous one is offered for editing, as before.
+        const note = notes[entry.key] ?? (entry.target === "desk" && !isSocial ? entry.desk?.correction ?? "" : "");
         // The house's machine markers share the field; the social media
         // manager is shown the people's lines only, JJ everything.
         const rawHistory = (entry.calendar?.notes ?? entry.desk?.correction ?? "").trim();
         const history = isSocial
             ? rawHistory.split("\n").filter((l) => /^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2} · /.test(l)).join("\n")
             : rawHistory;
-        const ready = entry.ready ?? null;
+        const mark = entry.mark ?? null;
         const busy = busyKey === entry.key;
         const act = acted[entry.key];
         const c = entry.calendar;
@@ -470,7 +476,11 @@ export default function ReviewPage() {
                         <Mark tone={stateTone(entry.stateLabel)} onPaper>{entry.stateLabel}</Mark>
                         {d?.due && <Mark tone="quiet" onPaper>entro {d.due}</Mark>}
                         {c?.date && <Mark tone="quiet" onPaper>{c.date}</Mark>}
-                        {ready && <Mark tone="sealed" onPaper>{`Checked by ${ready.by} · ${ready.at}`}</Mark>}
+                        {mark && (
+                            <Mark tone={mark.kind === "ready" ? "sealed" : "ageing"} onPaper>
+                                {`${mark.kind === "ready" ? "Checked by" : "Changes requested by"} ${mark.by} · ${mark.at}`}
+                            </Mark>
+                        )}
                         {!isSocial && <a
                             href={entry.notionUrl}
                             target="_blank"
@@ -701,9 +711,9 @@ export default function ReviewPage() {
                             className="act-stamp flex-1 min-w-[7rem]"
                             type="button"
                             style={{ color: "var(--stamp)", borderColor: "var(--stamp)" }}
-                            title="Sends the post back to the team with your note; it leaves the review queue"
+                            title="Asks for changes with your note; JJ decides whether to send the post back"
                         >
-                            Send back
+                            Request changes
                         </button>
                     </div>
                     ) : (
@@ -930,9 +940,11 @@ export default function ReviewPage() {
                                                                 </span>
                                                             )}
                                                             {/* A collaborator's pre-check, on the line itself so JJ can take the checked posts first. */}
-                                                            {entry.ready && (
-                                                                <span className="font-condensed text-[10px] uppercase tracking-[0.12em] text-engraving-ink">
-                                                                    · {tr("controllato da", "checked by")} {entry.ready.by}
+                                                            {entry.mark && (
+                                                                <span className={`font-condensed text-[10px] uppercase tracking-[0.12em] ${entry.mark.kind === "ready" ? "text-engraving-ink" : "text-stamp"}`}>
+                                                                    · {entry.mark.kind === "ready"
+                                                                        ? tr("controllato da", "checked by")
+                                                                        : tr("modifiche chieste da", "changes requested by")} {entry.mark.by}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -1042,7 +1054,7 @@ export default function ReviewPage() {
                         <section className="paper w-full max-w-lg border border-paper-edge" role="dialog" aria-modal="true" aria-label="Timbra e rimanda">
                             <div className="border-b-[3px] border-double border-paper-edge px-5 py-4">
                                 <p className="column-label" style={{ color: "var(--stamp)" }}>
-                                    {isSocial ? "Send back · note to the team" : <>Timbro · nota a {open.target === "website" ? "Edmondo" : "Ernesto"}</>}
+                                    {isSocial ? "Request changes · note for JJ and the team" : <>Timbro · nota a {open.target === "website" ? "Edmondo" : "Ernesto"}</>}
                                 </p>
                                 <h2 className="document-title mt-1 text-[19px] text-paper-foreground">{isSocial ? "What should change?" : "Cosa va modificato?"}</h2>
                                 <p className="mt-1 truncate text-[13px] text-paper-foreground-soft">{open.title}</p>
@@ -1064,12 +1076,12 @@ export default function ReviewPage() {
                                     </button>
                                     <button
                                         disabled={busyKey === open.key || !(notes[open.key] ?? "").trim()}
-                                        onClick={() => void decide(open, "modify", notes[open.key] ?? "")}
+                                        onClick={() => void decide(open, isSocial ? "request" : "modify", notes[open.key] ?? "")}
                                         className="act-stamp"
                                         type="button"
                                         style={{ color: "var(--stamp)", borderColor: "var(--stamp)" }}
                                     >
-                                        {isSocial ? "Send back" : "Timbra e rimanda"}
+                                        {isSocial ? "Request changes" : "Timbra e rimanda"}
                                     </button>
                                 </div>
                             </div>

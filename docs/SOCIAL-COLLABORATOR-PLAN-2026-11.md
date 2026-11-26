@@ -126,6 +126,10 @@ Findings, each with the correction carried into v2:
 
 ## 5. Plan, corrected (v2)
 
+> Historical: v2 as written before the independent reviews. Where it differs
+> from §6 and §6a (note limits, the invitation URL, "send back"), the later
+> sections describe what was built.
+
 Phase A — identity and roles (P1, findings 1, 3, 5, 8)
 - `lib/auth/users.ts`: a file-backed user store under
   `$COCKPIT_SNAPSHOT_DIR/auth/users.json` (0600): `{email, name, role,
@@ -170,10 +174,10 @@ findings; each is listed with what was done.
 
 | # | Finding (severity) | Disposition |
 |---|--------------------|-------------|
-| 1 | Trimming notes "from the oldest end" would delete the house's machine markers (`[page-story:`, `[story-attempt:`), which sit at the oldest end and drive the page-story dedup (blocker) | **Fixed.** Notes are never trimmed: split across Notion's 2,000-character elements as `operations/calendar-reschedule.js` does; a full field refuses the note instead. The same finding exposed that today's code already *erases* those markers by overwriting `Notes` on every Cancello comment — fixed by appending |
+| 1 | Trimming notes "from the oldest end" would delete the house's machine markers (`[page-story:`, `[story-attempt:`), which sit at the oldest end and drive the page-story dedup (blocker) | **Fixed.** Notes are never trimmed; a note that does not fit is refused (the limit was later set to 1,600 characters — §6a). The same finding exposed that today's code already *erases* those markers by overwriting `Notes` on every Cancello comment — fixed by appending |
 | 2 | A comment could forge a marker or another person's line (blocker) | **Fixed.** Square brackets in human text become parentheses; the author label loses `·` |
 | 3 | The note box was pre-filled with the existing notes, so appending would duplicate history (should-fix) | **Fixed.** The box starts empty; the history is shown read-only above |
-| 4 | The route checked the act, not the target or the row: a collaborator could commission website work, undo an approval by sending an Approved row back, move a date, or write to any page the integration reaches (blocker) | **Fixed.** Acts keyed on role × target × act; for a collaborator the page must belong to the Content Calendar, "send back" only from Review, no date |
+| 4 | The route checked the act, not the target or the row: a collaborator could commission website work, undo an approval by sending an Approved row back, move a date, or write to any page the integration reaches (blocker) | **Fixed.** Acts keyed on role × target × act; for a collaborator the page must belong to the Content Calendar and be in Review, no date. (§6b later removed "send back" from collaborators altogether.) |
 | 5 | Middleware-exempt routes (`/api/views`, `/api/llm/guard`, …) skip the allow-list (blocker) | **Fixed.** The fence runs before the exemptions; a test walks every route in `app/` against the role |
 | 6 | The JWT role came from `getRoleForEmail`, so a store user would land as a viewer of everything; unfenced roles see all; Google would admit any account (blocker) | **Fixed.** `authorize` returns the stored role; only `social` can be assigned; a `signIn` callback admits Google accounts only for the owner or an active collaborator |
 | 7 | Revocation and role changes do not reach the middleware (should-fix) | **Mitigated.** Every route the `social` role can reach re-reads the store (disabled ⇒ 401, changed role applies at once); a collaborator's token whose record vanished is refused. Pages still render for a revoked session until the JWT expires, but show no data. Node-runtime middleware was not adopted: untested on this Next version |
@@ -184,7 +188,7 @@ findings; each is listed with what was done.
 | 12 | The sidebar fetched the house state and showed every room (should-fix) | **Fixed.** A social margin with three places; the house count is not fetched for that role |
 | 13 | The in-process write queue assumes one module instance (nit) | **Mitigated.** The queue lives on `globalThis`; writes are tmp-then-rename |
 | 14 | The store location in v2 was wrong (nit) | **Fixed.** On the VPS it resolves to `/var/lib/ggo-cockpit/auth/` (OBSERVED: `tools/vps/install-cockpit-warm.py:27` sets `COCKPIT_SNAPSHOT_DIR` for the service); outside the rsync tree |
-| 15 | A new link re-enables a disabled collaborator (nit) | **Kept, confirmed in the UI.** The button asks first |
+| 15 | A new link re-enables a disabled collaborator (nit) | **Fixed** (§6a): a switched-off collaborator stays off until the new link is used |
 | 16 | `PRODUCT.md` must change; the Notion link is useless to a collaborator (nit) | **Fixed.** `PRODUCT.md` amended; the Notion link is hidden for the role |
 
 What was built (v3) is v2 with the corrections above, plus the English copy
@@ -192,29 +196,101 @@ the collaborator sees in Il Cancello and Il Carico (JJ keeps the Italian),
 and the Settings placeholder — invented controls claiming "keys are
 encrypted at rest" — replaced by the real Collaborators panel.
 
+## 6a. Adversarial review of the code (round 2)
+
+A second reviewer read the committed code against seven requirements. Its
+thirteen findings and what was done:
+
+1. **Notes past 2,000 characters would be cut by the house** — five house
+   writers rewrite `Notes` through `truncateText(…, 2000)`
+   (OBSERVED `core/notion-client.js:268`), keeping the head and dropping the
+   tail, their own new marker included. *Fixed:* the field is capped (now
+   1,600, §6b); existing rich-text elements, links included, are kept as they
+   are.
+2. **Read-modify-write on notes** can lose a concurrent write. *Reduced:*
+   collaborators no longer change status (§6b); the window is one Notion
+   round trip. Accepted residual.
+3. **Re-inviting a disabled collaborator revived the old password.**
+   *Fixed.*
+4. **Stale roles in old tokens.** *Fixed:* anyone who is not a collaborator
+   has the role recomputed from the environment on every request, in the
+   middleware and the routes.
+5. **The brake could be dodged with spaces.** *Fixed:* emails are trimmed;
+   the brake's map is bounded.
+6. **The social role could fetch other media and JJ's uploads.** *Fixed:*
+   media only of the calendar rows it is shown; uploads and worker output
+   only its own.
+7. **Forcing a full re-crawl.** *Fixed:* `refresh` is the owner's and the
+   machine's only.
+8. **House prompts read `Notes` as "JJ's notes".** *Open, house side:*
+   `skills/samantha-social-groupie/SKILL.md:90`,
+   `skills/ernesto-the-pimp/references/notion-databases.md:42`. Lines now
+   carry their author; the skill text should say so. A deliberate SKILL.md
+   commit in the house — a follow-up, not this pull request. The Desk keeps
+   its old overwrite semantics, so `desk-reader` and the YouTube reply drafts
+   are unaffected.
+9. **A signed-in collaborator could not open a reset link.** *Fixed.*
+10. **"Ready" on any status.** *Fixed:* collaborators act on Review only.
+11. **A collaborator named "JJ".** *Fixed:* the name is reserved.
+12. **JJ's screen flashed for the social role while loading.** *Fixed.*
+13. **Test gaps** (sign-in order, Google, middleware order, route walk).
+    *Fixed:* the middleware's decision is a pure, tested gate; sign-in moved
+    to `lib/auth/credentials.ts` and tested.
+
+## 6b. Pre-PR hardening loop (round 3)
+
+Four independent reviewers — security, domain integrity, regression, tests
+and claims — read the whole branch against `main`.
+
+- **Domain integrity, the decisive one:** the house's lifecycle declares
+  Review → Draft a `jj` transition (OBSERVED
+  `core/publish-state.js:45`). A collaborator's "send back" took it, and
+  could race JJ's approval of the same row. *Changed:* collaborators never
+  move a status. "Request changes" is a note marked `changes requested`;
+  JJ sees it on the row and sends the post back himself. The race is gone
+  with the status write. Also: the cap went from 2,000 to 1,600 characters
+  so the house keeps room for its markers after any note.
+- **Regression:** JJ's approval with a note could fail on a full notes
+  field. *Fixed:* for the owner the status flip always happens; a note that
+  does not fit is skipped and reported on the page. The Desk box is
+  pre-filled with his previous instruction again, as on `main`.
+- **Security** (no high or medium): cross-site writes from a sibling
+  subdomain — *fixed*, the middleware refuses a state-changing API call
+  with a session whose `Origin` is not the cockpit; sign-in timing revealed
+  active collaborators — *fixed*, a dummy bcrypt comparison; targeted
+  lock-out — *fixed*, the brake keys on address and client (the hop nginx
+  appends), with a looser per-address ceiling; multi-line notes could fake a
+  line — *fixed*, one act, one line.
+- **Tests and claims:** the decision route defaulted its actor to the owner
+  — *fixed*, the actor is required; route-level tests added for the
+  decision, state, media, collaborator and invitation routes and the
+  cross-site check; stale claims in this document and the runbook
+  corrected.
+
 ## 7. Verification
 
-- Unit tests: `npm test` — the existing suite plus five new files (user
-  store, permissions with a walk of every route in `app/`, guard and
-  revocation, collaborator acts in the Cancello, the social view of the
-  page). Two guards were broken on purpose (letting `social` approve;
-  removing the bracket defang) and the tests failed for the right reason;
-  the page test fails when the role is switched to admin.
-- `npx tsc --noEmit` and `next build`: clean. `eslint` reports three
-  errors, all pre-existing in files this change does not touch.
+- `npm test`: the existing suite plus ten new files — user store, sign-in,
+  gate, guard and brake, permissions with a walk of every route in `app/`,
+  collaborator acts in the Cancello, media scope, the collaborator routes,
+  and the social view of the page. Guards were broken on purpose (letting
+  `social` approve; removing the bracket defang; rendering the page as
+  admin) and the tests failed for the right reason.
+- `npx tsc --noEmit` and `next build`: clean. `eslint` reports three errors,
+  all pre-existing in files this change does not touch.
 - Live, against a local server with generated test credentials and a
-  scratch store: invite → link → password set → link refused on reuse →
-  sign-in as `social`; `/review`, `/carico`, `/guida` reachable; `/`,
-  `/questioni`, `/settings`, `/bacheca` redirect to the queue;
-  `/api/views/*`, `/api/llm/guard`, `/api/house/state`,
+  scratch store (before round 3): invite → link → password set → link
+  refused on reuse → sign-in as `social`; `/review`, `/carico`, `/guida`
+  reachable; `/`, `/questioni`, `/settings`, `/bacheca` redirect to the
+  queue; `/api/views/*`, `/api/llm/guard`, `/api/house/state`,
   `/api/collaborators`, `/api/board`, `/api/cache/invalidate`,
   `/api/notion/patient-journeys` answer 403; approve answers 403; switched
   off ⇒ 401 on the next request, switched on ⇒ 200; the owner keeps every
-  room. Store file mode 0600. Screenshots: `docs/screenshots/2026-11-collaborators/`.
-- Not verified here: the decision acts against real Notion rows (no Notion
-  credentials in a worktree, by rule). The unit tests cover them with the
-  Notion client mocked; the first real "Ready for JJ" on the VPS is the
-  live check, for a fresh session after the merge.
+  room; store file 0600. Screenshots: `docs/screenshots/2026-11-collaborators/`
+  (they show "Send back", since renamed "Request changes").
+- Not verified here: acts against real Notion rows (no Notion credentials in
+  a worktree, by rule). Covered by unit tests with the client mocked; the
+  first real "Ready for JJ" on the VPS is the live check, for a fresh
+  session after the merge.
 
 ## 8. What JJ has to do for Diletta to be working
 
@@ -228,16 +304,19 @@ No server edit, no env change, and no password passes through JJ or an agent.
 
 ## 9. Residual risks and follow-ups
 
-- **Notifications (N12).** None yet: Diletta opens the queue to see what is
-  waiting. Email needs a provider, a sender and a secret — a decision with a
-  cost, so its own task.
-- **Photos in Il Carico.** It accepts video and audio only; a social media
-  manager will want stills. The worker would need a path for images.
-- **nginx `limit_req`** on the credentials callback: a server change, not in
+- **House prompts** (§6a, 8): Samantha's and Ernesto's references describe
+  `Notes` as JJ's; lines now carry their author. A house SKILL.md commit.
+- **Notifications (N12).** None yet: the collaborator opens the queue to see
+  what is waiting. Email needs a provider, a sender and a secret — a
+  decision with a cost, so its own task.
+- **Photos in Il Carico.** Video and audio only; a social media manager will
+  want stills. The worker would need a path for images.
+- **nginx `limit_req`** on the credentials callback: a server change outside
   this repository's deploy.
-- **Media served by path.** `/api/review-dashboard/media` serves any file
-  under the media root to any signed-in role, the collaborator included;
-  paths are not guessable from the collaborator screens, and the root holds the house's
-  production media only. Accepted.
+- **Media of every calendar row in the register**, Draft and Scheduled
+  included, are fetchable by the social role — all of them social assets.
+  Accepted.
 - **Revoked sessions keep page shells** until the JWT expires (they get no
-  data). Accepted; see finding 7.
+  data). Accepted.
+- **Concurrent note writes** on the same row can lose one (one Notion round
+  trip). Accepted.

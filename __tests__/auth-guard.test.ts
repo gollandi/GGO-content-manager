@@ -75,14 +75,25 @@ describe("the Cancello state a role is shown", () => {
 
 describe("the sign-in brake", () => {
     afterEach(() => resetSignInThrottle());
-    it("pauses an address after eight wrong passwords in fifteen minutes, then lets it try again", () => {
+    it("pauses an address and client after eight wrong passwords, leaving the same address from elsewhere free", () => {
         const t0 = 1_000_000;
-        for (let i = 0; i < 7; i++) noteSignInFailure("d@example.com", t0 + i);
-        expect(signInThrottled("d@example.com", t0 + 10)).toBe(false);
-        noteSignInFailure("d@example.com", t0 + 8);
-        expect(signInThrottled("d@example.com", t0 + 10)).toBe(true);
-        expect(signInThrottled("other@example.com", t0 + 10)).toBe(false);
-        expect(signInThrottled("d@example.com", t0 + 15 * 60 * 1000 + 10)).toBe(false);
+        for (let i = 0; i < 7; i++) noteSignInFailure("d@example.com", "203.0.113.9", t0 + i);
+        expect(signInThrottled("d@example.com", "203.0.113.9", t0 + 10)).toBe(false);
+        noteSignInFailure("d@example.com", "203.0.113.9", t0 + 8);
+        expect(signInThrottled("d@example.com", "203.0.113.9", t0 + 10)).toBe(true);
+        // The collaborator, signing in from their own connection, is not locked out.
+        expect(signInThrottled("d@example.com", "198.51.100.7", t0 + 10)).toBe(false);
+        expect(signInThrottled("d@example.com", "203.0.113.9", t0 + 15 * 60 * 1000 + 10)).toBe(false);
+    });
+    it("still caps a guesser who rotates their address", () => {
+        for (let i = 0; i < 40; i++) noteSignInFailure("d@example.com", `198.51.100.${i}`, 1_000_000 + i);
+        expect(signInThrottled("d@example.com", "192.0.2.1", 1_000_100)).toBe(true);
+    });
+    it("reads the client address from the hop nginx appended, not one the client claimed", async () => {
+        const { clientIp } = await import("../lib/auth/credentials");
+        const req = new Request("http://x", { headers: { "x-forwarded-for": "198.51.100.7, 203.0.113.9" } });
+        expect(clientIp(req)).toBe("203.0.113.9");
+        expect(clientIp(undefined)).toBe("unknown");
     });
 });
 

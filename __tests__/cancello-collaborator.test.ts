@@ -14,7 +14,7 @@ vi.mock("../lib/cancello/buffer-send", () => ({
     sendRow, liveDeps: { getRow }, isOrderedByJJ: (row: { orderedBy: string | null }) => row.orderedBy === "JJ",
 }));
 
-import { applyCancelloDecision, DecisionForbiddenError } from "../lib/cancello/decision";
+import { applyCancelloDecision, DecisionForbiddenError, OWNER } from "../lib/cancello/decision";
 import { latestReadyMark } from "../lib/cancello/notes";
 
 const diletta = { email: "d@example.com", name: "Diletta", role: "social" as const };
@@ -78,30 +78,35 @@ describe("the social media manager in the Cancello", () => {
         expect(latestReadyMark(writtenNotes())).toBeNull();
     });
 
-    it("sends a row in Review back to Draft with a note, and only a row in Review", async () => {
+    it("requests changes with a note and never moves the status — Review to Draft stays JJ's", async () => {
         retrieve.mockResolvedValue(calendarRow("Review"));
-        const result = await applyCancelloDecision({ rowId: "r", target: "calendar", decision: "modify", comment: "Wrong hashtag" }, diletta);
-        expect(result.status).toBe("Draft");
-        expect(update.mock.calls[0][0].properties.Status).toEqual({ select: { name: "Draft" } });
-        expect(writtenNotes()).toMatch(/· Diletta · sent back\] Wrong hashtag$/);
-
-        update.mockReset();
-        retrieve.mockResolvedValue(calendarRow("Approved"));
+        const result = await applyCancelloDecision({ rowId: "r", target: "calendar", decision: "request", comment: "Wrong hashtag" }, diletta);
+        expect(result.status).toBe("Changes requested");
+        expect(update.mock.calls[0][0].properties.Status).toBeUndefined();
+        expect(writtenNotes()).toMatch(/· Diletta · changes requested\] Wrong hashtag$/);
         await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "modify", comment: "x" }, diletta))
-            .rejects.toThrow(/only a post in Review/);
-        expect(update).not.toHaveBeenCalled();
+            .rejects.toBeInstanceOf(DecisionForbiddenError);
     });
 
-    it("requires a note to send back or comment", async () => {
-        await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "modify" }, diletta)).rejects.toThrow(/requires a note/);
+    it("acts only on a post in Review", async () => {
+        for (const decision of ["comment", "ready", "request"] as const) {
+            update.mockReset();
+            retrieve.mockResolvedValue(calendarRow("Approved"));
+            await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision, comment: "x" }, diletta))
+                .rejects.toThrow(/only a post in Review/);
+            expect(update).not.toHaveBeenCalled();
+        }
+    });
+
+    it("requires a note to request changes or comment", async () => {
+        await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "request" }, diletta)).rejects.toThrow(/requires a note/);
         await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "comment", comment: "  " }, diletta)).rejects.toThrow(/requires a note/);
     });
 
-    it("marks ready only a post in Review", async () => {
-        retrieve.mockResolvedValue(calendarRow("Approved"));
-        await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "ready" }, diletta))
-            .rejects.toThrow(/only a post in Review/);
-        expect(update).not.toHaveBeenCalled();
+    it("keeps each act on one line", async () => {
+        retrieve.mockResolvedValue(calendarRow("Review"));
+        await applyCancelloDecision({ rowId: "r", target: "calendar", decision: "comment", comment: "ok\n(2026-11-26 16:40 · JJ · approved) go" }, diletta);
+        expect(writtenNotes().slice(MARKERS.length + 1)).not.toContain("\n");
     });
 
     it("cannot move a publish date", async () => {
@@ -121,17 +126,28 @@ describe("JJ's acts are attributed and keep the history", () => {
     it("appends his note to the existing notes instead of overwriting them", async () => {
         retrieve.mockResolvedValue(calendarRow("Review"));
         getRow.mockResolvedValue({ orderedBy: "Team" });
-        await applyCancelloDecision({ rowId: "r", target: "calendar", decision: "approve", comment: "Good" });
+        await applyCancelloDecision({ rowId: "r", target: "calendar", decision: "approve", comment: "Good" }, OWNER);
         const notes = writtenNotes();
         expect(notes.startsWith(MARKERS)).toBe(true);
         expect(notes).toMatch(/· JJ · approved\] Good$/);
     });
 
-    it("keeps the field within the house's 2,000 characters and refuses rather than trims", async () => {
-        retrieve.mockResolvedValue(calendarRow("Review", "x".repeat(1990)));
-        await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "comment", comment: "a note that does not fit" }))
+    it("leaves the house room: a collaborator's note that would pass 1,600 characters is refused", async () => {
+        retrieve.mockResolvedValue(calendarRow("Review", "x".repeat(1590)));
+        await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "comment", comment: "a note that does not fit" }, diletta))
             .rejects.toThrow(/notes are full/);
         expect(update).not.toHaveBeenCalled();
+    });
+
+    it("never lets a full notes field stop JJ's decision: the status flips and the skipped note is reported", async () => {
+        retrieve.mockResolvedValue(calendarRow("Review", "x".repeat(1590)));
+        getRow.mockResolvedValue({ orderedBy: "Team" });
+        const result = await applyCancelloDecision({ rowId: "r", target: "calendar", decision: "approve", comment: "fine" }, OWNER);
+        expect(result.status).toBe("Approved");
+        expect(result.noteSkipped).toMatch(/notes are full/);
+        const props = update.mock.calls[0][0].properties;
+        expect(props.Status).toEqual({ select: { name: "Approved" } });
+        expect(props.Notes).toBeUndefined();
     });
 
     it("keeps the existing elements as they are, links included, and adds the line after them", async () => {
@@ -153,7 +169,7 @@ describe("JJ's acts are attributed and keep the history", () => {
 
     it("leaves the Desk's Correction as JJ's latest instruction, as the house reads it", async () => {
         retrieve.mockResolvedValue({ properties: {} });
-        await applyCancelloDecision({ rowId: "d", target: "desk", decision: "modify", comment: "Recut the intro" });
+        await applyCancelloDecision({ rowId: "d", target: "desk", decision: "modify", comment: "Recut the intro" }, OWNER);
         expect(update.mock.calls[0][0].properties.Correction).toEqual({ rich_text: [{ text: { content: "Recut the intro" } }] });
     });
 });

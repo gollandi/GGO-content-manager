@@ -18,8 +18,8 @@ Media Manager works remotely in a fenced part of the cockpit with the
 `social` role: the social queue (Il Cancello's Content Calendar rows), Il
 Carico and an English guide (`/guida`). Those three screens speak English to
 that role and assume no knowledge of the house. The role may comment, mark a
-post ready for JJ and send it back with a note; it never approves, because
-approving is publishing. JJ invites and switches off collaborators from
+post ready for JJ and request changes; it never moves a post's status (JJ
+approves — approving is publishing — and JJ sends back). JJ invites and switches off collaborators from
 Settings. Design and analysis: `docs/SOCIAL-COLLABORATOR-PLAN-2026-11.md`.
 
 Two usage scenes, both real:

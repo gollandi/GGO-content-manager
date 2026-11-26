@@ -224,11 +224,16 @@ export async function setDisabled(email: string, disabled: boolean): Promise<Pub
 }
 
 /** Sign-in check for collaborators. Null for unknown, disabled or not yet activated. */
+/** A bcrypt hash of nothing anyone knows: compared against when there is no real one. */
+const DUMMY_HASH = "$2a$10$CwTycUXWue0Thq9StjUM0uJ8.Zt8m0rN8k5YbQ6Z1W4o0uW5z4b2W";
+
 export async function verifyStoredCredentials(email: string, password: string): Promise<StoredUser | null> {
     const u = findUser(email);
-    if (!u || u.disabled || !u.hash) return null;
-    if (Buffer.byteLength(password, "utf8") > MAX_PASSWORD_BYTES) return null;
-    return (await bcryptjs.compare(password, u.hash)) ? u : null;
+    const usable = Boolean(u && !u.disabled && u.hash) && Buffer.byteLength(password, "utf8") <= MAX_PASSWORD_BYTES;
+    // Always pay one bcrypt comparison, so the time taken does not tell an
+    // outsider which addresses belong to active collaborators.
+    const ok = await bcryptjs.compare(password, usable ? u!.hash! : DUMMY_HASH);
+    return usable && ok ? u : null;
 }
 
 /**

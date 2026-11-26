@@ -10,7 +10,7 @@ import type { Role } from "./roles";
  * anything not listed here must be unreachable for that role.
  */
 
-export type CancelloAct = "approve" | "modify" | "reject" | "done" | "delete" | "send" | "comment" | "ready";
+export type CancelloAct = "approve" | "modify" | "reject" | "done" | "delete" | "send" | "comment" | "ready" | "request";
 export type CancelloTarget = "desk" | "calendar" | "website";
 
 interface Surface {
@@ -56,7 +56,10 @@ export function canReach(role: Role | undefined, pathname: string): Reach {
 /**
  * The Cancello acts each role may take. Approve is publish, so approve,
  * send, reject, done and delete — every act that closes or releases work —
- * are JJ's alone. Collaborators speak on rows; they never decide them.
+ * are JJ's alone — and so is sending a row back to Draft, which the house's
+ * lifecycle (core/publish-state.js) declares a `jj` transition. Collaborators
+ * speak on rows (a note, "ready for JJ", "changes requested"); they never
+ * move a status.
  */
 const ACTS: Record<Role, Partial<Record<CancelloTarget, CancelloAct[]>>> = {
     admin: {
@@ -65,11 +68,10 @@ const ACTS: Record<Role, Partial<Record<CancelloTarget, CancelloAct[]>>> = {
         website: ["approve", "modify"],
     },
     editor: {
-        desk: ["comment"],
-        calendar: ["modify", "comment", "ready"],
+        calendar: ["comment", "ready", "request"],
     },
     social: {
-        calendar: ["modify", "comment", "ready"],
+        calendar: ["comment", "ready", "request"],
     },
     viewer: {},
 };

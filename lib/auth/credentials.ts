@@ -27,9 +27,21 @@ export function envOwners(env: NodeJS.ProcessEnv = process.env): Record<string, 
     return { [env.COCKPIT_USER_EMAIL.trim().toLowerCase()]: { name: env.COCKPIT_USER_NAME || "Operator", hash } };
 }
 
+/**
+ * The client address as nginx saw it: the LAST hop of X-Forwarded-For, the
+ * one nginx appends. Earlier hops are whatever the client claimed, and
+ * trusting them would let a guesser pick any address, the victim's included.
+ */
+export function clientIp(request?: Request): string {
+    const fwd = request?.headers?.get("x-forwarded-for");
+    const hops = fwd ? fwd.split(",").map((h) => h.trim()).filter(Boolean) : [];
+    return hops.at(-1) || request?.headers?.get("x-real-ip")?.trim() || "unknown";
+}
+
 export async function authorizeCredentials(
     raw: { email?: unknown; password?: unknown } | undefined,
     owners: Record<string, OwnerEntry> = envOwners(),
+    ip = "unknown",
 ): Promise<User | null> {
     // Trimmed as the store trims, so " d@x" and "d@x" are one address for
     // the sign-in brake as well as for the store.
@@ -49,7 +61,7 @@ export async function authorizeCredentials(
 
     // The brake applies to collaborators only: throttling the owner's
     // address would let anyone who knows it lock him out.
-    if (signInThrottled(email)) return null;
+    if (signInThrottled(email, ip)) return null;
     let collaborator = null;
     try {
         collaborator = await verifyStoredCredentials(email, password);
@@ -58,7 +70,7 @@ export async function authorizeCredentials(
         return null;
     }
     if (!collaborator) {
-        noteSignInFailure(email);
+        noteSignInFailure(email, ip);
         return null;
     }
     return { id: email, email, name: collaborator.name, role: collaborator.role, collaborator: true };

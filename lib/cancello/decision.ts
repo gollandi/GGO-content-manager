@@ -5,8 +5,8 @@
  * Governance: a status flip happens ONLY in direct response to a click on
  * the register, and the acts that close or release work (approve — which is
  * publish — send, reject, done, delete) are JJ's alone (../auth/permissions).
- * Collaborators may comment, mark a row ready for JJ and send a calendar row
- * back with a note. Every act carries its actor, and notes are appended and
+ * Collaborators may comment, mark a post ready for JJ or request changes —
+ * notes only, never a status. Every act carries its actor, and notes are appended and
  * attributed, never overwritten (./notes.ts). The state machine values are copied verbatim
  * from the house's core/publish-state.js (CALENDAR_DECISION_FLIPS) — the
  * house remains the owner of the lifecycle; this module is the conduit for
@@ -78,7 +78,7 @@ export class DecisionForbiddenError extends Error {
 
 const NOTE_KIND: Partial<Record<Decision, NoteKind>> = {
     approve: "approve", modify: "rework", reject: "reject", done: "done", delete: "delete",
-    comment: "note", ready: "ready",
+    comment: "note", ready: "ready", request: "changes",
 };
 
 export interface DecisionResult {
@@ -159,7 +159,26 @@ async function appendedNotes(
     return { prop, value: { rich_text }, text: full };
 }
 
-export async function applyCancelloDecision(input: DecisionInput, actor: Actor = OWNER): Promise<DecisionResult> {
+/**
+ * JJ's decision never fails because of its note: on main a note simply
+ * overwrote the field and the act always went through. If his note cannot be
+ * appended (the field is at its limit, or the read failed) the status flip
+ * still happens and the result says the note was not saved, so the page can
+ * tell him. A collaborator's note is the whole act, so for them it throws.
+ */
+async function ownerNotes(
+    rowId: string, target: "desk" | "calendar", actor: Actor, kind: NoteKind, text: string,
+    page?: { properties?: Record<string, unknown> },
+): Promise<{ prop?: string; value?: unknown; text?: string; skipped?: string }> {
+    try {
+        return await appendedNotes(rowId, target, actor, kind, text, page);
+    } catch (err) {
+        if (actor.role !== "admin") throw err;
+        return { skipped: `note not saved: ${(err as Error).message}` };
+    }
+}
+
+export async function applyCancelloDecision(input: DecisionInput, actor: Actor): Promise<DecisionResult> {
     const { rowId, decision, target = "desk" } = input;
     const comment = typeof input.comment === "string" ? input.comment.trim() : "";
     if (!rowId) throw new Error("rowId is required");
@@ -169,25 +188,24 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor =
         throw new DecisionForbiddenError(`"${decision}" on ${target} rows is not available to the ${actor.role} role`);
     }
     // A rework order or a comment with nothing in it tells nobody anything.
-    if ((decision === "modify" || decision === "comment") && !comment) {
+    if ((decision === "modify" || decision === "comment" || decision === "request") && !comment) {
         throw new Error(`${decision} requires a note`);
     }
     // Only the owner may move a publish date (it is part of his seal).
     if (actor.role !== "admin" && typeof input.date === "string" && input.date.trim()) {
         throw new DecisionForbiddenError("only JJ may change a publish date");
     }
+    let noteSkipped: string | undefined;
     try {
         if (target === "website") return await applyWebsiteDecision(input, actor);
         // A collaborator's act must land on a real row of the declared
-        // table, and a rework order only on a row that is in Review: sending
-        // back a row JJ already approved would undo his seal.
+        // table, and only on a post in Review — the queue they are shown.
         let collaboratorPage: { properties?: Record<string, unknown> } | undefined;
         if (actor.role !== "admin") {
             collaboratorPage = await assertRowOf(rowId, target);
             const current = statusOf(collaboratorPage);
-            if ((decision === "modify" || decision === "ready") && current !== "Review") {
-                throw new DecisionForbiddenError(
-                    `only a post in Review can be ${decision === "modify" ? "sent back" : "marked ready"} (this one is ${current ?? "without a status"})`);
+            if (current !== "Review") {
+                throw new DecisionForbiddenError(`only a post in Review can be acted on (this one is ${current ?? "without a status"})`);
             }
         }
 
@@ -197,22 +215,24 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor =
             const page = await assertDeletablePage(rowId, target);
             const properties: Record<string, unknown> = {};
             if (comment) {
-                const notes = await appendedNotes(rowId, target, actor, "delete", comment, page);
-                properties[notes.prop] = notes.value;
+                const notes = await ownerNotes(rowId, target, actor, "delete", comment, page);
+                if (notes.prop) properties[notes.prop] = notes.value;
+                if (notes.skipped) noteSkipped = notes.skipped;
             }
             await notion.pages.update({
                 page_id: rowId,
                 archived: true,
                 ...(Object.keys(properties).length > 0 ? { properties: properties as never } : {}),
             });
-            return { rowId, status: "Deleted", archived: true };
+            return { rowId, status: "Deleted", archived: true, ...(noteSkipped ? { noteSkipped } : {}) };
         }
 
         // Speaking on a row without deciding it: the status stays where it is.
-        if (decision === "comment" || decision === "ready") {
+        if (decision === "comment" || decision === "ready" || decision === "request") {
             const notes = await appendedNotes(rowId, target, actor, NOTE_KIND[decision]!, comment, collaboratorPage);
             await notion.pages.update({ page_id: rowId, properties: { [notes.prop]: notes.value } as never });
-            return { rowId, status: decision === "ready" ? "Ready for JJ" : "Noted", notes: notes.text };
+            const label = decision === "ready" ? "Ready for JJ" : decision === "request" ? "Changes requested" : "Noted";
+            return { rowId, status: label, notes: notes.text };
         }
 
         // The second flip: JJ authorises the hand-off of an approved, staged
@@ -229,9 +249,10 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor =
         const properties: Record<string, unknown> = { Status: { select: { name: status } } };
         let notesText: string | undefined;
         if (comment) {
-            const notes = await appendedNotes(rowId, target, actor, NOTE_KIND[decision] ?? "note", comment, collaboratorPage);
-            properties[notes.prop] = notes.value;
+            const notes = await ownerNotes(rowId, target, actor, NOTE_KIND[decision] ?? "note", comment, collaboratorPage);
+            if (notes.prop) properties[notes.prop] = notes.value;
             notesText = notes.text;
+            if (notes.skipped) noteSkipped = notes.skipped;
         }
         // JJ may correct the proposed publish date in the same act as the seal.
         if (target === "calendar" && typeof input.date === "string" && input.date.trim()) {
@@ -245,11 +266,11 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor =
         // second flip ("send").
         if (target === "calendar" && decision === "approve") {
             const facts = await liveDeps.getRow(rowId);
-            if (!isOrderedByJJ(facts)) return { rowId, status, awaitingSecondFlip: true, notes: notesText };
+            if (!isOrderedByJJ(facts)) return { rowId, status, awaitingSecondFlip: true, notes: notesText, ...(noteSkipped ? { noteSkipped } : {}) };
             const send = await sendRow(rowId, liveDeps, { budget: { immediate: 1 }, retryFailed: false });
-            return { rowId, status: send.calendarStatus ?? status, send, notes: notesText };
+            return { rowId, status: send.calendarStatus ?? status, send, notes: notesText, ...(noteSkipped ? { noteSkipped } : {}) };
         }
-        return { rowId, status, notes: notesText };
+        return { rowId, status, notes: notesText, ...(noteSkipped ? { noteSkipped } : {}) };
     } finally {
         invalidateCancelloCache();
     }

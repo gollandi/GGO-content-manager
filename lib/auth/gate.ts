@@ -64,3 +64,23 @@ export function gate(pathname: string, session: GateSession | null | undefined):
     if (!session) return { kind: "login" };
     return { kind: "next" };
 }
+
+/**
+ * Cross-site request refusal for state-changing API calls made with a
+ * session. Session cookies are SameSite=Lax, which stops other sites but not
+ * a sibling host on the same registrable domain (*.ggo-suite.co.uk), and the
+ * routes accept a text/plain body. A browser always names the page that
+ * sent a POST in `Origin`; a request without one is not from a browser page
+ * and cannot ride a victim's cookie. NextAuth's own routes carry their own
+ * CSRF token and are left to it.
+ */
+export function crossSiteWrite(input: {
+    method: string; pathname: string; origin: string | null; secFetchSite: string | null; allowedOrigins: string[];
+}): boolean {
+    const { method, pathname, origin, secFetchSite, allowedOrigins } = input;
+    if (method === "GET" || method === "HEAD" || method === "OPTIONS") return false;
+    if (!pathname.startsWith("/api/") || pathname.startsWith("/api/auth/")) return false;
+    if (secFetchSite === "same-origin") return false;
+    if (!origin) return false;
+    return !allowedOrigins.includes(origin);
+}

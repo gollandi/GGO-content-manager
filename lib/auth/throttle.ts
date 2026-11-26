@@ -20,14 +20,28 @@ function recent(email: string, at: number): number[] {
     return list;
 }
 
-export function signInThrottled(email: string, at = Date.now()): boolean {
-    return recent(email, at).length >= MAX_FAILURES;
+/**
+ * Two counters. Per address and client: eight failures pause that pair, so
+ * someone guessing from elsewhere cannot lock the collaborator out of their
+ * own sign-in. Per address alone, a looser ceiling (forty) still caps a
+ * guesser who rotates addresses of origin.
+ */
+const MAX_PER_ADDRESS = 40;
+const pairKey = (email: string, ip: string) => `${email}|${ip}`;
+
+export function signInThrottled(email: string, ip = "unknown", at = Date.now()): boolean {
+    return recent(pairKey(email, ip), at).length >= MAX_FAILURES || recent(email, at).length >= MAX_PER_ADDRESS;
 }
 
 /** Addresses tracked at most; random addresses must not grow the map without end. */
 const MAX_TRACKED = 1000;
 
-export function noteSignInFailure(email: string, at = Date.now()): void {
+export function noteSignInFailure(email: string, ip = "unknown", at = Date.now()): void {
+    record(pairKey(email, ip), at);
+    record(email, at);
+}
+
+function record(email: string, at: number): void {
     if (!failures.has(email) && failures.size >= MAX_TRACKED) {
         for (const key of [...failures.keys()]) recent(key, at);
         // Still full of live entries: drop the oldest-tracked address.

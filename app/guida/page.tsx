@@ -22,8 +22,8 @@ export default function GuidePage() {
                 <ol className="list-decimal space-y-1 pl-5">
                     <li>The house&apos;s agents plan and produce each post: visuals, caption and hashtags.</li>
                     <li>When a post is ready to be judged it enters <strong>Review</strong> and appears in your <a className="underline" href="/review">Social queue</a>.</li>
-                    <li>You check it, and either mark it <strong>Ready for JJ</strong>, add a note, or <strong>send it back</strong> to the team.</li>
-                    <li>JJ approves. <strong>Approving is publishing</strong>: his approval hands the post to Buffer, which posts it at its slot.</li>
+                    <li>You check it, and either mark it <strong>Ready for JJ</strong>, add a note, or <strong>request changes</strong>.</li>
+                    <li>JJ decides: he approves — and <strong>approving is publishing</strong>, his approval hands the post to Buffer, which posts it at its slot — or he sends it back to the team, usually with your note.</li>
                 </ol>
             </section>
 
@@ -39,20 +39,20 @@ export default function GuidePage() {
                         <dd>Leaves a remark in the post&apos;s history without changing its status — a question, a suggestion, a fact to verify.</dd>
                     </div>
                     <div>
-                        <dt className="font-semibold">Send back</dt>
-                        <dd>The post needs work. Write what should change (a note is required); the post returns to Draft for the team to rework and leaves the queue until it comes back to Review.</dd>
+                        <dt className="font-semibold">Request changes</dt>
+                        <dd>The post needs work. Write what should change (a note is required). JJ sees &ldquo;Changes requested&rdquo; with your name on the post and sends it back to the team; the post stays in the queue until he does.</dd>
                     </div>
                 </dl>
             </section>
 
             <section className={section}>
                 <h2 className={h2}>What stays with JJ</h2>
-                <p>Approving, scheduling or sending to Buffer, rejecting, closing and deleting posts, and changing a publish date are JJ&apos;s alone. The buttons for them are not shown to you, and the server refuses them if asked. This is deliberate: GGO Med is a medical practice, and nothing reaches the public without the clinician&apos;s approval.</p>
+                <p>Approving, scheduling or sending to Buffer, sending a post back, rejecting, closing and deleting posts, and changing a publish date are JJ&apos;s alone. You act on posts in Review — the ones in your queue. The buttons for them are not shown to you, and the server refuses them if asked. This is deliberate: GGO Med is a medical practice, and nothing reaches the public without the clinician&apos;s approval.</p>
             </section>
 
             <section className={section}>
                 <h2 className={h2}>Notes are a shared history</h2>
-                <p>Every note is added to the post with the date, time and the author&apos;s name, and nothing is ever overwritten. Write as you would on a shared document: clear, specific, kind. Notes are written in British English, as is everything GGO Med publishes.</p>
+                <p>Every note is added to the post with the date, time and the author&apos;s name, on one line, and nothing is ever overwritten. The field is shared and short (1,600 characters for people, the rest kept for the agents), so keep notes brief. Write as you would on a shared document: clear, specific, kind. Notes are written in British English, as is everything GGO Med publishes.</p>
                 <p className="mt-2">Square brackets are turned into round ones: the agents use bracketed markers in the same field.</p>
             </section>
 

@@ -26,7 +26,7 @@ interface Collaborator {
 }
 
 const ROLE_COPY: Record<string, string> = {
-  social: "Social media — the social queue (comment, mark ready, send back with a note) and media upload. Never approves or publishes.",
+  social: "Social media — the social queue (add a note, mark ready for JJ, request changes) and media upload. Never approves or publishes.",
 };
 
 /** The quiet act on paper: act-quiet is drawn for the dark plate and vanishes here. */

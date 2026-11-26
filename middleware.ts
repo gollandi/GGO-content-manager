@@ -1,6 +1,6 @@
 import { auth } from "./lib/auth/edge-config";
 import { NextResponse } from "next/server";
-import { gate } from "./lib/auth/gate";
+import { crossSiteWrite, gate } from "./lib/auth/gate";
 
 /**
  * Every request passes the gate in lib/auth/gate.ts: framework paths and the
@@ -20,6 +20,15 @@ import { gate } from "./lib/auth/gate";
  */
 export default auth((req) => {
     const { pathname } = req.nextUrl;
+    if (req.auth && crossSiteWrite({
+        method: req.method,
+        pathname,
+        origin: req.headers.get("origin"),
+        secFetchSite: req.headers.get("sec-fetch-site"),
+        allowedOrigins: allowedOrigins(req.nextUrl.origin),
+    })) {
+        return NextResponse.json({ error: "Cross-site request refused" }, { status: 403 });
+    }
     const decision = gate(pathname, req.auth?.user ?? null);
     switch (decision.kind) {
         case "forbidden":
@@ -35,6 +44,15 @@ export default auth((req) => {
             return NextResponse.next();
     }
 });
+
+/** The cockpit's public origin and the one the request arrived on. */
+function allowedOrigins(requestOrigin: string): string[] {
+    const out = [requestOrigin];
+    for (const url of [process.env.AUTH_URL, process.env.NEXTAUTH_URL, "https://cockpit.ggo-suite.co.uk"]) {
+        try { if (url) out.push(new URL(url).origin); } catch { /* not a URL */ }
+    }
+    return out;
+}
 
 export const config = {
     matcher: [

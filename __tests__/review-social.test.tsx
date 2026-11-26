@@ -34,8 +34,8 @@ it("offers the social media manager the three speaking acts and none of JJ's", a
     // The document renders as the desktop leaf and the phone sheet, hence getAll.
     expect(screen.getAllByRole("button", { name: "Ready for JJ" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "Add note" }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: "Send back" }).length).toBeGreaterThan(0);
-    for (const label of [/Sigilla/, /Rifiuta/, /archivia/, /Elimina/, /Invia a Buffer/, /Apri in Notion/, /Le Questioni/]) {
+    expect(screen.getAllByRole("button", { name: "Request changes" }).length).toBeGreaterThan(0);
+    for (const label of [/Sigilla/, /Rifiuta/, /archivia/, /Elimina/, /Invia a Buffer/, /Apri in Notion/, /Le Questioni/, /Timbra/, /Send back/]) {
         expect(screen.queryByText(label)).toBeNull();
     }
     // The people's notes are shown; the house's machine markers are not.

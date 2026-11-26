@@ -85,7 +85,7 @@ describe("Google sign-in admits only known people", () => {
 
 describe("the sign-in brake stays bounded", () => {
     it("tracks at most a thousand addresses", () => {
-        for (let i = 0; i < 1500; i++) throttle.noteSignInFailure(`x${i}@example.com`, 1_000_000);
+        for (let i = 0; i < 1500; i++) throttle.noteSignInFailure(`x${i}@example.com`, "192.0.2.1", 1_000_000);
         const map = (globalThis as Record<string, unknown>).__ggoSignInFailures as Map<string, number[]>;
         expect(map.size).toBeLessThanOrEqual(1000);
     });

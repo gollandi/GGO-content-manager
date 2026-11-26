@@ -318,14 +318,17 @@ Manager): the social queue, Il Carico and `/guida`, nothing else. Design:
   the `#fragment`, so it never reaches nginx's logs.
 - **Reset.** *New link* on the person's row. The old password works until the
   new link is used.
-- **Revoke.** *Switch off*. Every guarded route re-reads the store, so the
-  next request is refused; nothing is deleted.
+- **Revoke.** *Switch off*. Every guarded API route re-reads the store, so
+  the next data request is refused; page shells still render, empty, until
+  the session expires. Nothing is deleted. A new link does not switch the
+  person back on until they use it.
 - **The owner.** `COCKPIT_USER_EMAIL` and `ADMIN_EMAIL` are always admin, can
   never be invited, are never throttled and never depend on the store — a
   corrupt `users.json` cannot lock JJ out.
-- **Sign-in brake.** Eight wrong passwords for one collaborator address in
-  fifteen minutes pause that address for the rest of the window (in-process;
-  a restart clears it). An nginx `limit_req` on
+- **Sign-in brake.** Eight wrong passwords for one collaborator address from
+  one client (the last X-Forwarded-For hop, the one nginx adds) pause that
+  pair for fifteen minutes; forty from anywhere pause the address. In-process:
+  a restart clears it. An nginx `limit_req` on
   `/api/auth/callback/credentials` would add a server-side brake; it is not
   configured.
 

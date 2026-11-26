@@ -70,6 +70,14 @@ describe("the social role's fence", () => {
 describe("who may act in the Cancello", () => {
     const closing: CancelloAct[] = ["approve", "send", "reject", "done", "delete"];
 
+    it("keeps the Desk and every status move for the admin alone", () => {
+        for (const role of ["editor", "social", "viewer"] as const) {
+            expect(allowedActs(role, "desk")).toEqual([]);
+            expect(allowedActs(role, "website")).toEqual([]);
+            expect(mayAct(role, "calendar", "modify")).toBe(false);
+        }
+    });
+
     it("keeps every act that closes or releases work for the admin alone", () => {
         for (const act of closing) {
             for (const role of ["editor", "social", "viewer"] as const) {
@@ -83,7 +91,7 @@ describe("who may act in the Cancello", () => {
     });
 
     it("lets the social role speak on calendar rows only", () => {
-        expect(allowedActs("social", "calendar").sort()).toEqual(["comment", "modify", "ready"]);
+        expect(allowedActs("social", "calendar").sort()).toEqual(["comment", "ready", "request"]);
         expect(allowedActs("social", "desk")).toEqual([]);
         expect(allowedActs("social", "website")).toEqual([]);
         expect(allowedActs(undefined, "calendar")).toEqual([]);

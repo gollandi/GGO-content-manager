@@ -15,10 +15,10 @@
  * (100 elements of 2,000), but five house writers rewrite `Notes` as one
  * element through `truncateText(…, 2000)` (ernesto-agents-house
  * core/notion-client.js), which keeps the head and drops the tail — the
- * marker they have just appended included. A longer field would cost the
- * house its attempt counts and dedup markers, so the cockpit refuses first.
+ * marker they have just appended included. The cockpit stops at 1,600 so
+ * the house keeps 400 characters for its own markers after any note.
  */
-export const NOTES_LIMIT = 2000;
+export const NOTES_LIMIT = 1600;
 export const NOTE_MAX = 1900;
 
 export interface NoteAuthor {
@@ -26,11 +26,12 @@ export interface NoteAuthor {
     label: string;
 }
 
-export type NoteKind = "note" | "ready" | "rework" | "approve" | "reject" | "done" | "delete";
+export type NoteKind = "note" | "ready" | "changes" | "rework" | "approve" | "reject" | "done" | "delete";
 
 const KIND_TAG: Record<NoteKind, string | null> = {
     note: null,
     ready: "ready for JJ",
+    changes: "changes requested",
     rework: "sent back",
     approve: "approved",
     reject: "rejected",
@@ -43,7 +44,9 @@ export function formatNote(author: NoteAuthor, kind: NoteKind, text: string, at 
     const stamp = at.toISOString().slice(0, 16).replace("T", " ");
     const tag = KIND_TAG[kind];
     const head = [stamp, defang(author.label).replace(/·/g, "-").trim() || "unknown", ...(tag ? [tag] : [])].join(" · ");
-    const body = defang(text.trim().slice(0, NOTE_MAX));
+    // One act, one line: a newline in the text could start a line that reads
+    // as someone else's entry to a person looking at the field in Notion.
+    const body = defang(text.replace(/[\r\n]+/g, " ").trim().slice(0, NOTE_MAX));
     return body ? `[${head}] ${body}` : `[${head}]`;
 }
 
@@ -57,13 +60,23 @@ export function defang(text: string): string {
     return text.replace(/\[/g, "(").replace(/\]/g, ")");
 }
 
-const READY_RE = /\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) · ([^·\]]+) · ready for JJ\]/g;
+const MARK_RE = /\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) · ([^·\]]+) · (ready for JJ|changes requested)\]/g;
 
-/** The latest "ready for JJ" mark on a row, if any. */
-export function latestReadyMark(notes: string): { at: string; by: string } | null {
-    let last: { at: string; by: string } | null = null;
-    for (const m of notes.matchAll(READY_RE)) last = { at: m[1], by: m[2].trim() };
+export interface CollaboratorMark { kind: "ready" | "changes"; at: string; by: string }
+
+/** The latest collaborator mark on a row ("ready for JJ" or "changes requested"), if any. */
+export function latestMark(notes: string): CollaboratorMark | null {
+    let last: CollaboratorMark | null = null;
+    for (const m of notes.matchAll(MARK_RE)) {
+        last = { kind: m[3] === "ready for JJ" ? "ready" : "changes", at: m[1], by: m[2].trim() };
+    }
     return last;
+}
+
+/** The latest "ready for JJ" mark, if it is the row's latest mark. */
+export function latestReadyMark(notes: string): { at: string; by: string } | null {
+    const m = latestMark(notes);
+    return m && m.kind === "ready" ? { at: m.at, by: m.by } : null;
 }
 
 type RichElement = {

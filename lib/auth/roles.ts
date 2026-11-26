@@ -6,7 +6,7 @@
  * - editor: read everything, write reviews and notes; never approves.
  * - social: the social media manager. Reaches the Cancello's social rows,
  *           Il Carico and the guide only; may comment, mark a row ready for
- *           JJ, send a row back with a note and upload media. Never approves.
+ *           JJ, request changes and upload media. Never moves a status.
  * - viewer: read-only (e.g. a PIF Tick assessor).
  *
  * Collaborators live in the user store (./users.ts) with their role; the map
