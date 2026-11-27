@@ -46,6 +46,7 @@ describe("the social role's fence", () => {
             "/api/review-dashboard/video",
             "/api/social/briefs",
             "/api/social/comments",
+            "/api/social/library/x",
             "/api/social/pages",
             "/benvenuto",
             "/briefs",
@@ -59,6 +60,12 @@ describe("the social role's fence", () => {
         // (/invito is opened by the gate before the fence: auth-gate.test.ts.)
         // Sanity: the walk found the whole app, not an empty tree.
         expect(routes.length).toBeGreaterThan(60);
+    });
+
+    it("reaches the library only below its prefix", () => {
+        expect(canReach("social", "/api/social/library/social-media-guide").ok).toBe(true);
+        expect(canReach("social", "/api/social/library")).toEqual({ ok: false });
+        expect(canReach("social", "/api/social/librarything")).toEqual({ ok: false });
     });
 
     it("is refused the routes the middleware otherwise exempts or leaves to the session", () => {
