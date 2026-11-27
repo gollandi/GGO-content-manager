@@ -8,7 +8,7 @@ import MarkdownBlock from "../../components/MarkdownBlock";
 import AssetSheet from "../../components/cancello/AssetSheet";
 import PostPreview from "../../components/cancello/PostPreview";
 import { composePosts } from "../../lib/cancello/post-preview";
-import { capForSeal, deskFamily, gateCalendarIds, shadowedByCalendar } from "../../lib/house/families";
+import { capForSeal, deskFamily, gateCalendarIds, shadowedByCalendar, localToday, needsNewDate } from "../../lib/house/families";
 import { Guilloche, Socket, Mark, AgeBar, type MarkTone } from "../../components/Registro";
 import { useSession } from "next-auth/react";
 import { latestMark, type CollaboratorMark } from "../../lib/cancello/notes";
@@ -518,8 +518,7 @@ export default function ReviewPage() {
         const plannedDate = dates[entry.key] ?? (c?.date ? c.date.slice(0, 10) : "");
         // Approving publishes: a post whose day has gone would go out at
         // once on a stale slot. The seal waits for a date from today on.
-        const today = new Date().toISOString().slice(0, 10);
-        const needsDate = Boolean(c) && slotPassed(entry) && (!plannedDate || plannedDate < today);
+        const needsDate = Boolean(c) && needsNewDate({ proposed: c?.date ?? null, planned: plannedDate });
 
         return (
             <div className="paper flex h-full min-h-0 flex-col border border-paper-edge">
@@ -683,6 +682,7 @@ export default function ReviewPage() {
                                     <input
                                         id={`date-${entry.rowId}`}
                                         type="date"
+                                        min={localToday()}
                                         value={plannedDate}
                                         onChange={(event) => setDates((current) => ({ ...current, [entry.key]: event.target.value }))}
                                         className="mt-1 block border border-paper-edge bg-transparent px-2.5 py-1.5 text-[13px] normal-case tracking-normal text-paper-foreground outline-none focus:border-engraving-ink"
@@ -957,10 +957,10 @@ export default function ReviewPage() {
                                 </div>
                             ) : (
                                 ([
-                                    // In the order the gate ranks them (sealRank); a post whose
-                                    // slot has passed waits apart until JJ gives it a new date,
-                                    // and approved rows on their way to Buffer are listed, not
-                                    // only counted.
+                                    // Grouped by family; within each group the order is the
+                                    // gate's (sealRank). A post whose slot has passed waits apart
+                                    // until JJ gives it a new date, and approved rows on their way
+                                    // to Buffer are listed, not only counted.
                                     ["Desk", "Da pubblicare · clip e script", (e: Entry) => e.family === "Desk"],
                                     ["Website", "Sito · patch", (e: Entry) => e.family === "Website"],
                                     ["Social", tr("Calendario sociale · il sigillo pubblica", "Social calendar"), (e: Entry) => e.family === "Social" && !slotPassed(e)],

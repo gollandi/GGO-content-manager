@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { capForSeal, SEAL_CAP } from "../lib/house/families";
+import { capForSeal, needsNewDate, SEAL_CAP } from "../lib/house/families";
 
 describe("capForSeal", () => {
     it("shows five, urgent desk and patches first, stale posts last", () => {
@@ -24,5 +24,23 @@ describe("capForSeal", () => {
         const { shown, held } = capForSeal([{ family: "Social", dueDays: 0 }]);
         expect(shown).toHaveLength(1);
         expect(held).toHaveLength(0);
+    });
+});
+
+describe("needsNewDate", () => {
+    const now = new Date(2026, 10, 27, 15, 0); // 27 Nov 2026, 15:00 local
+    it("asks for a new date when the day has passed, unless JJ typed one from today on", () => {
+        expect(needsNewDate({ proposed: "2026-11-20", planned: "", now })).toBe(true);
+        expect(needsNewDate({ proposed: "2026-11-20", planned: "2026-11-20", now })).toBe(true);
+        expect(needsNewDate({ proposed: "2026-11-20", planned: "2026-11-28", now })).toBe(false);
+    });
+    it("catches a date JJ moves into the past on an upcoming post", () => {
+        expect(needsNewDate({ proposed: "2026-12-01", planned: "2026-11-01", now })).toBe(true);
+    });
+    it("catches a slot earlier today, and lets a later one or a date-only today through", () => {
+        expect(needsNewDate({ proposed: new Date(2026, 10, 27, 9, 0).toISOString(), planned: "", now })).toBe(true);
+        expect(needsNewDate({ proposed: new Date(2026, 10, 27, 18, 0).toISOString(), planned: "", now })).toBe(false);
+        expect(needsNewDate({ proposed: "2026-11-27", planned: "", now })).toBe(false);
+        expect(needsNewDate({ proposed: null, planned: "", now })).toBe(false);
     });
 });

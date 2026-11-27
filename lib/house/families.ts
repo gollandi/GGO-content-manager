@@ -105,3 +105,31 @@ export function capForSeal<T extends Sealable>(entries: T[], cap = SEAL_CAP): { 
         .map((x) => x.e);
     return { shown: ranked.slice(0, cap), held: ranked.slice(cap) };
 }
+
+/** Today's date as YYYY-MM-DD in the reader's own time zone (not UTC). */
+export function localToday(now = new Date()): string {
+    const y = now.getFullYear(), m = String(now.getMonth() + 1).padStart(2, "0"), d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+}
+
+/**
+ * Whether a social post may not be sealed until JJ gives it a date from
+ * today on. Approving publishes, so a post whose day has gone would go out
+ * at once on a stale slot. Judged on the date that would be sealed: the one
+ * JJ has typed if any, else the proposed one; a proposed time already past
+ * today counts as passed too.
+ */
+export function needsNewDate(input: { proposed: string | null; planned: string; now?: Date }): boolean {
+    const now = input.now ?? new Date();
+    const today = localToday(now);
+    const day = input.planned || (input.proposed ? input.proposed.slice(0, 10) : "");
+    if (!day) return false;
+    if (day < today) return true;
+    // Same day: only the proposed slot carries a time, and only if JJ has not
+    // moved the date.
+    if (day === today && input.proposed && input.proposed.length > 10 && (!input.planned || input.planned === input.proposed.slice(0, 10))) {
+        const t = new Date(input.proposed).getTime();
+        return Number.isFinite(t) && t < now.getTime();
+    }
+    return false;
+}
