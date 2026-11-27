@@ -265,21 +265,25 @@ export function archivedText(contractSha: string): string {
     return text;
 }
 
-/** The signed copy to download: the contract text, then a signature page from the records. */
-export function signedCopy(contractorEmail: string, contractSha: string): string {
+export interface SignedCopyData {
+    text: string;
+    contractSha: string;
+    /** The contractor's acceptance and, once given, GGO Med's countersignature. */
+    records: ContractRecord[];
+    countersigned: boolean;
+    /** The record chain's head when the copy was made. */
+    chainHead: string;
+}
+
+/** Everything a signed copy shows: the exact text, verified against its hash, and the records that sign it. */
+export function signedCopyData(contractorEmail: string, contractSha: string): SignedCopyData {
     const text = archivedText(contractSha);
-    const records = readRecords().filter((r) => r.contract_sha256 === contractSha
-        && ((r.signatory_role === "contractor" && r.signatory_email === norm(contractorEmail)) || (r.signatory_role === "company" && r.countersigns === norm(contractorEmail))));
-    const lines = records.map((r) => [
-        `- ${r.signatory_role === "company" ? "For GGO Med Ltd" : "Contractor"}: ${r.signatory_name_typed} (${r.signatory_email})`,
-        `  signed ${r.accepted_at_utc} from ${r.ip_address}; version ${r.contract_version}; contract SHA-256 ${r.contract_sha256}; record ${r.record_sha256}`,
-    ].join("\n"));
-    const pending = records.some((r) => r.signatory_role === "company") ? "" : "\n\nAwaiting GGO Med's signature.";
     const all = readRecords();
     const problem = integrityProblem(all);
     if (problem) throw new ContractError(problem);
-    const head = all.at(-1)?.record_sha256 ?? "none";
-    return `${text}\n---\n\n## Electronic signatures\n\n${lines.join("\n") || "None yet."}${pending}\n\nRecord chain head when this copy was made: ${head}\n`;
+    const records = all.filter((r) => r.contract_sha256 === contractSha
+        && ((r.signatory_role === "contractor" && r.signatory_email === norm(contractorEmail)) || (r.signatory_role === "company" && r.countersigns === norm(contractorEmail))));
+    return { text, contractSha, records, countersigned: records.some((r) => r.signatory_role === "company"), chainHead: all.at(-1)?.record_sha256 ?? "none" };
 }
 
 /** Log one download of a signed copy (records are immutable, so downloads live beside them). */
