@@ -83,6 +83,35 @@ describe("reading the agreement's Markdown", () => {
     });
 });
 
+describe("laying out written line breaks", () => {
+    it("starts every written line at the paragraph's edge, even after emphasis", async () => {
+        const text = "# T\n\n1.1 The **Contractor** shall\nsend notices to\n**ACME Ltd**\n1 High Street\n";
+        const placed: { text: string; x: number | null }[] = [];
+        await renderSignedPdf({ text, contractSha: "a".repeat(64), records: [], countersigned: false, chainHead: "none" },
+            { trace: (t, _p, x) => placed.push({ text: t, x }) });
+        const x = (t: string) => placed.find((p) => p.text === t)?.x;
+        const edge = x("The ");
+        expect(edge).toEqual(expect.any(Number));
+        for (const line of ["send notices to", "ACME Ltd", "1 High Street"]) expect(x(line)).toBe(edge);
+    });
+
+    it("says GGO Med has not yet countersigned until it has", async () => {
+        const drawn: string[] = [];
+        await renderSignedPdf({ text: "# T\n", contractSha: "a".repeat(64), records: [], countersigned: false, chainHead: "none" },
+            { trace: (t) => drawn.push(t) });
+        expect(drawn.join(" ")).toContain("GGO Med Ltd has not yet countersigned it.");
+        expect(drawn.join(" ")).not.toContain("Both parties");
+    });
+
+    it("leaves no empty page for two breaks in a row", async () => {
+        const pagesDrawn = new Set<number>();
+        const pdf = await renderSignedPdf({ text: "# T\n\nA.\n\n---\n\n---\n\n## Schedule\n\nB.\n", contractSha: "a".repeat(64), records: [], countersigned: false, chainHead: "none" },
+            { trace: (t, p) => { if (t === "B." || t === "A.") pagesDrawn.add(p); } });
+        expect([...pagesDrawn]).toEqual([0, 1]);
+        expect(pages(pdf)).toBe(2); // the text, then the schedule with the (short) signature section after it
+    });
+});
+
 describe("the signed copy as a PDF", () => {
     let dir: string;
     let store: typeof import("../lib/contracts/store");

@@ -54,7 +54,7 @@ export type Block =
 // "1.1 ", "12.3 ", "1. ", "(1) ", "(A) ", "(a) ", "(iv) " open a numbered paragraph. A
 // numeric label must be followed by a capital, a quote or a bracket, so that a
 // sentence opening with a figure ("3.5 hours a week") is never drawn as a clause number.
-const LABEL = /^(?:((?:\d+\.)+\d+|\d{1,2}\.)\s+(?=["'“‘(A-Z])|(\((?:\d+|[A-Za-z]|[ivxlc]+)\))\s+)([\s\S]*)$/;
+const LABEL = /^(?:((?:\d+\.)+\d+|\d{1,2}\.)\s+(?=["'“‘(A-Z])|(\((?:\d+|[A-Za-z]|[ivxlc]+|[IVXLC]+)\))\s+)([\s\S]*)$/;
 
 export function parseAgreement(markdown: string): Block[] {
     const blocks: Block[] = [];
@@ -78,7 +78,8 @@ export function parseAgreement(markdown: string): Block[] {
         // are left alone: a "______" line is a blank to sign on, and is printed.
         if (/^(-{3,}|\*{3,})$/.test(line.trim())) { flush(); blocks.push({ kind: "break" }); continue; }
         if ((m = /^\s*[-*+]\s+(.*)$/.exec(line))) { flush(); blocks.push({ kind: "bullet", text: m[1] }); continue; }
-        // A clause written on the line after the previous one is still its own clause.
+        // A clause written on the line after the previous one is still its own clause
+        // (as Markdown reads it too: a line opening "10. " starts a numbered item).
         if (para.length > 0 && LABEL.test(line.trim())) flush();
         para.push(line.trim());
     }
@@ -120,10 +121,11 @@ export interface PdfOptions {
     /** When the copy was made; printed on the signature page. */
     now?: Date;
     /**
-     * Called with every string drawn and the page it lands on (0-based). The
-     * page text is glyph-encoded and compressed, so tests read the layout here.
+     * Called with every string drawn, the page it lands on (0-based) and the x it
+     * was placed at (null when it continues the previous run). The page text is
+     * glyph-encoded and compressed, so tests read the layout here.
      */
-    trace?: (text: string, page: number) => void;
+    trace?: (text: string, page: number, x: number | null) => void;
 }
 
 export function renderSignedPdf(data: SignedCopyData, opts: PdfOptions = {}): Promise<Buffer> {
@@ -165,7 +167,7 @@ export function renderSignedPdf(data: SignedCopyData, opts: PdfOptions = {}): Pr
         doc.on("pageAdded", () => pages.push(doc.page));
         const draw = doc.text.bind(doc) as (...a: unknown[]) => PDFKit.PDFDocument;
         (doc as unknown as { text: (...a: unknown[]) => PDFKit.PDFDocument }).text = (...a: unknown[]) => {
-            trace(String(a[0]), pages.indexOf(doc.page));
+            trace(String(a[0]), pages.indexOf(doc.page), typeof a[1] === "number" ? a[1] : null);
             return draw(...a);
         };
     }
@@ -190,14 +192,20 @@ export function renderSignedPdf(data: SignedCopyData, opts: PdfOptions = {}): Pr
     const ensure = (h: number) => { if (doc.y + h > bottom()) doc.addPage(); };
 
     const write = (text: string, x: number, w: number, face: Face, size: number, color = INK, extra: PDFKit.Mixins.TextOptions = {}) => {
-        const runs = inlineRuns(text, face);
         doc.fillColor(color).fontSize(size);
-        runs.forEach((r, i) => {
-            doc.font(r.face);
-            const opts = { width: w, lineGap: LEAD, continued: i < runs.length - 1, ...extra };
-            if (i === 0) doc.text(r.text, x, doc.y, opts);
-            else doc.text(r.text, opts);
-        });
+        // Each written line is laid out from the left edge on its own: in pdfkit's
+        // continued mode a line break inside a later run would start where the
+        // previous run ended and overprint the line above.
+        for (const line of text.split("\n")) {
+            const runs = inlineRuns(line, face);
+            if (runs.length === 0) runs.push({ text: " ", face });
+            runs.forEach((r, i) => {
+                doc.font(r.face);
+                const opts = { width: w, lineGap: LEAD, continued: i < runs.length - 1, ...extra };
+                if (i === 0) doc.text(r.text, x, doc.y, opts);
+                else doc.text(r.text, opts);
+            });
+        }
     };
     const height = (text: string, w: number, face: Face, size: number) =>
         doc.font(face).fontSize(size).heightOfString(inlineRuns(text).map((r) => r.text).join(""), { width: w, lineGap: LEAD });
