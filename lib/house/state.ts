@@ -161,7 +161,7 @@ export function computeAwaiting(state: CancelloState, needs: ContentNeedRow[], n
     const social = state.calendar.filter(
         (r) => r.status === "Review" || (r.status === "Approved" && Boolean(r.sanitySync))
     ).length;
-    const website = state.website.filter((r) => r.patch && r.patchState !== "awaiting-publish").length;
+    const website = state.website.filter((r) => r.patch && r.patchState !== "awaiting-publish" && r.patchState !== "stale").length;
     const today = now.toISOString().slice(0, 10);
     const impact = needs.filter(
         (r) =>

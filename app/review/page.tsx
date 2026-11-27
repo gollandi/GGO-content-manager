@@ -57,7 +57,7 @@ interface WebsiteArticle {
         operations: { type: string; anchorText: string | null; newText: string | null; blocksText: string | null; blocksCount: number }[];
         sanityDocId: string; batch?: string;
     } | null;
-    patchState?: "awaiting-publish" | "published";
+    patchState?: "awaiting-publish" | "published" | "stale";
     draftId?: string;
 }
 interface ReviewState { readModel?: import("../../lib/cockpit/snapshots").SnapshotFreshness;
@@ -330,7 +330,7 @@ export default function ReviewPage() {
             // Only a written patch is JJ's to seal. A proposal with no patch
             // is Edmondo's work in progress and is listed under the register.
             ...state.website
-                .filter((row) => row.patch)
+                .filter((row) => row.patch && row.patchState !== "stale")
                 .map((row): Entry => ({
                     key: `website:${row.rowId}`,
                     rowId: row.rowId,
@@ -373,8 +373,8 @@ export default function ReviewPage() {
             ...(isSocial ? [] : [{
                 label: "Sito · proposte senza patch (al lavoro di Edmondo)",
                 rows: state.website
-                    .filter((r) => !r.patch && r.proposals.length > 0)
-                    .map((r) => ({ key: `w:${r.rowId}`, title: r.title, state: `${r.proposals.length}`, url: r.url }))
+                    .filter((r) => (!r.patch && r.proposals.length > 0) || r.patchState === "stale")
+                    .map((r) => ({ key: `w:${r.rowId}`, title: r.title, state: r.patchState === "stale" ? tr("patch su versione vecchia", "patch on an old version") : `${r.proposals.length}`, url: r.url }))
             }]),
             {
                 label: tr("In lavorazione adesso", "In production now"),

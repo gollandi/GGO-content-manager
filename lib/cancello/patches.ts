@@ -135,3 +135,39 @@ export function patchAlreadyApplied(
         return false;
     });
 }
+
+/**
+ * Operations whose anchor no longer exists in the document and whose result
+ * is not there either: the patch was written against an older version of the
+ * page. The applier would refuse them (exact block match), so the register
+ * must not offer a seal that can only fail. Found 27/11/2026: four patches of
+ * July-August asked for JJ's seal the day after he had revised every page.
+ */
+export function staleOperations(
+    doc: Record<string, unknown> | null | undefined,
+    patch: PreparedPatch,
+    field = "content"
+): number {
+    if (!doc || !Array.isArray(doc[field])) return 0;
+    const keys = new Set<string>();
+    const texts = new Set<string>();
+    const collect = (node: unknown): void => {
+        if (Array.isArray(node)) { node.forEach(collect); return; }
+        if (node && typeof node === "object") {
+            const n = node as Record<string, unknown>;
+            if (typeof n._key === "string") keys.add(n._key);
+            if (n._type === "block" && Array.isArray(n.children)) {
+                texts.add((n.children as { text?: string }[]).map((c) => c.text || "").join("").trim());
+            }
+            for (const k of Object.keys(n)) collect(n[k]);
+        }
+    };
+    collect(doc[field]);
+    return patch.operations.filter((op) => {
+        const done = op.blocks?.length
+            ? op.blocks.every((b) => b._key !== undefined && keys.has(b._key))
+            : op.type === "replace-text" && !!op.newText && texts.has(op.newText.trim());
+        if (done) return false;
+        return !!op.anchorText && !texts.has(op.anchorText.trim());
+    }).length;
+}
