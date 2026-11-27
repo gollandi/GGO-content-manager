@@ -24,7 +24,7 @@ import { notion } from "../notion/client";
 import { notionConfig } from "../config";
 import { findPatchForAsset } from "./patches";
 import { runHouseScript } from "./house";
-import { isOrderedByJJ, liveDeps, sendRow } from "./buffer-send";
+import { liveDeps, sendRow } from "./buffer-send";
 import { invalidateCancelloCache } from "./state";
 import { appendNote, formatNote, type NoteKind } from "./notes";
 import { mayAct, type CancelloAct } from "../auth/permissions";
@@ -67,7 +67,12 @@ export const OWNER: Actor = { email: "", name: "JJ", role: "admin" };
 
 /** The admin is JJ; the house's roster and every existing text call him so. */
 export function actorLabel(actor: Actor): string {
-    return actor.role === "admin" ? "JJ" : (actor.name || actor.email || "unknown");
+    if (actor.role === "admin") return "JJ";
+    const label = actor.name || actor.email || "unknown";
+    // "JJ" on a notes line is the owner's decision, and an approval signed so
+    // authorises a send: nobody else may sign with it, whatever their account
+    // is called.
+    return label.trim().toUpperCase() === "JJ" ? (actor.email || "unknown") : label;
 }
 
 export class DecisionForbiddenError extends Error {
@@ -261,7 +266,11 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor):
 
         const properties: Record<string, unknown> = { Status: { select: { name: status } } };
         let notesText: string | undefined;
-        if (comment) {
+        // A calendar approval always leaves JJ's signed line, comment or not:
+        // since 27 November 2026 that line is what authorises the Buffer
+        // sweep to send the row once the house has staged it (sendAuthorised).
+        const signsApproval = target === "calendar" && decision === "approve";
+        if (comment || signsApproval) {
             const notes = await ownerNotes(rowId, target, actor, NOTE_KIND[decision] ?? "note", comment, collaboratorPage);
             if (notes.prop) properties[notes.prop] = notes.value;
             notesText = notes.text;
@@ -273,14 +282,17 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor):
         }
         await notion.pages.update({ page_id: rowId, properties: properties as never });
 
-        // On a row JJ ordered, this approval is final: if the house has
-        // already staged its drafts the hand-off happens now, otherwise the
-        // Buffer sweep sends it once staging lands. A team row waits for the
-        // second flip ("send").
-        if (target === "calendar" && decision === "approve") {
-            const facts = await liveDeps.getRow(rowId);
-            if (!isOrderedByJJ(facts)) return { rowId, status, awaitingSecondFlip: true, notes: notesText, ...(noteSkipped ? { noteSkipped } : {}) };
+        // JJ's approval is final for every row, whoever proposed it (JJ,
+        // 27 November 2026): if the house has already staged the drafts the
+        // hand-off happens now, otherwise the Buffer sweep sends the row once
+        // staging lands. The sweep knows the row is authorised from the signed
+        // line written above; if that line could not be saved, the row waits
+        // for "Invia a Buffer" and the result says so.
+        if (signsApproval) {
             const send = await sendRow(rowId, liveDeps, { budget: { immediate: 1 }, retryFailed: false });
+            if (noteSkipped && send.outcome === "awaiting-staging") {
+                return { rowId, status, send, awaitingSecondFlip: true, notes: notesText, noteSkipped };
+            }
             return { rowId, status: send.calendarStatus ?? status, send, notes: notesText, ...(noteSkipped ? { noteSkipped } : {}) };
         }
         return { rowId, status, notes: notesText, ...(noteSkipped ? { noteSkipped } : {}) };

@@ -23,7 +23,7 @@ export default function GuidePage() {
                     <li>The house&apos;s agents plan and produce each post: visuals, caption and hashtags.</li>
                     <li>When a post is ready to be judged it enters <strong>Review</strong> and appears in your <a className="underline" href="/review">Social queue</a>.</li>
                     <li>You check it, and either mark it <strong>Ready for JJ</strong>, add a note, or <strong>request changes</strong>.</li>
-                    <li>JJ decides: he approves — and <strong>approving is publishing</strong>: his approval hands the post to Buffer (for posts the team proposed, once he sends them on), which posts it at its slot — or he sends it back to the team, usually with your note.</li>
+                    <li>JJ decides: he approves — and <strong>approving is publishing</strong>: his approval publishes the post in the site&apos;s Social Planner and hands it to Buffer, which posts it at its slot — or he sends it back to the team, usually with your note.</li>
                 </ol>
             </section>
 

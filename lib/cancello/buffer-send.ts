@@ -3,12 +3,21 @@
  * Calendar row into scheduled posts, replacing the house's retired
  * `social-approved-publish` (ernesto-agents-house dd55354, 2026-09-08).
  *
- * Who authorises a send (JJ, 2026-09-26):
- *  - a row whose `Ordered By` is JJ: his first flip is the final approval,
- *    so the sweep sends it as soon as the house has staged its drafts;
- *  - any other row (the team's own proposals, or `Ordered By` unset): the
- *    first flip approves the content, and a second flip in the Cancello —
- *    "Invia a Buffer" — authorises the send.
+ * Who authorises a send (JJ, 27 November 2026, replacing his 26 September
+ * rule): JJ's approval, for every row. Whoever proposed the post — the
+ * social media manager, the house, JJ himself — his click is the publish act
+ * and nothing else is asked of him. The click sends at once when the house
+ * has staged the drafts; otherwise the sweep sends the row once staging
+ * lands, recognising the approval by JJ's signed line in the row's notes
+ * (`sendAuthorised`). Rows approved before 27 November under the old rule,
+ * and rows whose signed line could not be saved, still go only on
+ * "Invia a Buffer". A row whose `Ordered By` is JJ is sent as before.
+ *
+ * Published means published in Studio (JJ, 27 November 2026: "published e'
+ * una caratteristica di studio, non di buffer"): once Buffer has the post,
+ * the cockpit sets the socialPost's status to `published` and publishes the
+ * document, so the site's Social Planner shows it as such. Buffer's own
+ * delivery state stays in `buffer.status`.
  *
  * The route is the site's own `/api/social-posts/publish` (the path the
  * Studio's "Send to Buffer" action uses): it requires `status == approved`,
@@ -25,12 +34,15 @@
  *     between the call and the write-back would otherwise send it twice —
  *     and is reported for a human look instead.
  *
- * Everything stays a draft: the cockpit writes drafts.* only.
+ * The cockpit writes drafts.*, and publishes a socialPost document only after
+ * Buffer has accepted it on JJ's approval (sanity/social-publish.ts).
  */
 import { notion } from "../notion/client";
 import { notionConfig, sanityGgomedWriteConfig } from "../config";
 import { multiSelect, prop, relationIds, richText, select } from "../notion/extract";
 import { fetchByIds, patchDraft, patchDraftIfRevision } from "../sanity/write-client";
+import { publishSocialPost } from "../sanity/social-publish";
+import { sendAuthorised } from "./notes";
 
 type Props = Parameters<typeof prop>[0];
 
@@ -43,6 +55,8 @@ export interface CalendarRowFacts {
     /** Bare socialPost ids (no drafts. prefix) from `Sanity Sync`. */
     sanityIds: string[];
     topicIds: string[];
+    /** The row's `Notes`, where JJ's signed approval line authorises a send. */
+    notes: string;
 }
 
 export interface SocialDoc {
@@ -114,6 +128,8 @@ export interface SendDeps {
     writeBack(id: string, set: Record<string, unknown>): Promise<unknown>;
     postToSite(sanityId: string, action: "queue" | "publishNow"): Promise<SiteResult>;
     setRowStatus(rowId: string, status: string): Promise<unknown>;
+    /** Publish the socialPost in Studio: drafts.<id> becomes <id>. */
+    publish(sanityId: string): Promise<unknown>;
     getTopicStatus(topicId: string): Promise<string | null>;
     setTopicStatus(topicId: string, status: string): Promise<unknown>;
     now(): Date;
@@ -234,9 +250,19 @@ export async function sendRow(
             for (const key of ["remoteStatus", "shareMode", "postId", "channelId", "channelService", "externalLink", "dueAt", "sentAt"] as const) {
                 if (p[key]) set[`buffer.${key}`] = p[key];
             }
-            if (p.status === "published") set.status = "published";
+            // Published in Studio on JJ's approval, whatever Buffer's own
+            // delivery state: `buffer.status` keeps that.
+            set.status = "published";
             await deps.writeBack(draft._id, set);
-            posts.push({ sanityId: id, outcome: "sent", intent, bufferStatus: String(set["buffer.status"]) });
+            let detail: string | undefined;
+            try {
+                await deps.publish(id);
+            } catch (err) {
+                // Buffer has the post; only the Studio state lags. Say so
+                // rather than fail the hand-off and invite a second send.
+                detail = `sent, but not published in Studio: ${err instanceof Error ? err.message : String(err)}`;
+            }
+            posts.push({ sanityId: id, outcome: "sent", intent, bufferStatus: String(set["buffer.status"]), ...(detail ? { detail } : {}) });
         } else if (result.kind === "conflict") {
             // The site already holds a Buffer id for this post: sent by another
             // path between our read and our call. Leave the lock for a human.
@@ -288,6 +314,7 @@ export function calendarFactsFromPage(page: { id: string; properties: Props }): 
         platforms: multiSelect(prop(props, "Platform")),
         sanityIds: splitIds(richText(prop(props, "Sanity Sync"))),
         topicIds: relationIds(prop(props, "Topic")),
+        notes: richText(prop(props, "Notes")),
     };
 }
 
@@ -336,6 +363,7 @@ export const liveDeps: SendDeps = {
     lock: (id, rev, set) => patchDraftIfRevision(id, rev, set, ["buffer.lastError"]),
     writeBack: (id, set) => patchDraft(id, set),
     postToSite,
+    publish: (sanityId) => publishSocialPost(sanityId),
     setRowStatus: (rowId, status) =>
         notion.pages.update({ page_id: rowId, properties: { Status: { select: { name: status } } } as never }),
     async getTopicStatus(topicId) {
@@ -347,7 +375,7 @@ export const liveDeps: SendDeps = {
     now: () => new Date(),
 };
 
-/* ── The sweep: JJ's own orders, sent once the house has staged them ──── */
+/* ── The sweep: rows JJ approved, sent once the house has staged them ── */
 
 export interface SweepResult {
     considered: number;
@@ -372,7 +400,7 @@ export async function sweepOrderedRows(
     deps: SendDeps = liveDeps,
     listRows: () => Promise<CalendarRowFacts[]> = listApprovedStagedRows
 ): Promise<SweepResult> {
-    const rows = (await listRows()).filter(isOrderedByJJ);
+    const rows = (await listRows()).filter((row) => isOrderedByJJ(row) || sendAuthorised(row.notes));
     const budget = { immediate: 1 };
     const results: RowResult[] = [];
     for (const row of rows) {

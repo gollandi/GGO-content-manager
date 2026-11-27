@@ -37,6 +37,7 @@ const writtenNotes = () => {
 beforeEach(() => {
     retrieve.mockReset(); update.mockReset(); create.mockReset(); sendRow.mockReset(); getRow.mockReset();
     update.mockResolvedValue({});
+    sendRow.mockResolvedValue({ outcome: "awaiting-staging", posts: [] });
 });
 
 describe("the social media manager in the Cancello", () => {
@@ -148,6 +149,21 @@ describe("JJ's acts are attributed and keep the history", () => {
         const props = update.mock.calls[0][0].properties;
         expect(props.Status).toEqual({ select: { name: "Approved" } });
         expect(props.Notes).toBeUndefined();
+        // Without JJ's signed line the sweep cannot know the row is cleared:
+        // the result says it waits for "Invia a Buffer".
+        expect(result.awaitingSecondFlip).toBe(true);
+    });
+
+    it("signs JJ's approval even without a comment, and nobody else may sign as JJ", async () => {
+        retrieve.mockResolvedValue(calendarRow("Review"));
+        await applyCancelloDecision({ rowId: "r", target: "calendar", decision: "approve" }, OWNER);
+        expect(writtenNotes()).toMatch(/· JJ · approved\]$/);
+
+        update.mockReset(); update.mockResolvedValue({});
+        retrieve.mockResolvedValue(calendarRow("Review"));
+        await applyCancelloDecision({ rowId: "r", target: "calendar", decision: "ready", comment: "ok" },
+            { email: "impostor@example.com", name: "jj", role: "social" });
+        expect(writtenNotes()).toMatch(/· impostor@example\.com · ready for JJ\] ok$/);
     });
 
     it("refuses JJ's send-back when its instruction cannot be saved: the note is the order", async () => {

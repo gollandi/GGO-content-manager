@@ -50,7 +50,7 @@ export interface CalendarRow {
     platforms: string | null; date: string | null; variant: string | null;
     caption: string; hashtags: string; notes: string; canva: string | null;
     hasAssets: boolean; media: MediaRef[]; url: string; sourceUrl: string | null; createdAt: string;
-    /** `Ordered By` — "JJ" makes the first seal final; anything else needs "Invia a Buffer". */
+    /** `Ordered By`. Since 27 November 2026 every approval is final; rows approved earlier under the old rule still need "Invia a Buffer" unless JJ ordered them. */
     orderedBy: string | null;
     /** `Sanity Sync` — non-empty once the house has staged the row's drafts. */
     sanitySync: string;

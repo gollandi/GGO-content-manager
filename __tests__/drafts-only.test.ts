@@ -42,6 +42,33 @@ describe("drafts-only write boundary", () => {
         }
     });
 
+    it("the one publish path publishes a socialPost draft and nothing else", async () => {
+        process.env.SANITY_GGOMED_WRITE_TOKEN ||= "test-token";
+        const { publishSocialPost, PublishRefusedError } = await import("../lib/sanity/social-publish");
+        const writes: string[] = [];
+        const fake = (doc: Record<string, unknown> | null) => ({
+            fetch: async () => (doc ? [doc] : []),
+            transaction: () => {
+                const t = {
+                    createOrReplace: (d: { _id: string }) => { writes.push(`put ${d._id}`); return t; },
+                    delete: (id: string) => { writes.push(`delete ${id}`); return t; },
+                    commit: async () => ({}),
+                };
+                return t;
+            },
+        }) as never;
+        await expect(publishSocialPost("dedicatedPage-live", fake({ _id: "drafts.dedicatedPage-live", _type: "dedicatedPage" })))
+            .rejects.toBeInstanceOf(PublishRefusedError);
+        await expect(publishSocialPost("social-x", fake({ _id: "drafts.social-x", _type: "dedicatedPage" })))
+            .rejects.toThrow(/not a socialPost/);
+        await expect(publishSocialPost("drafts.social-x", fake(null))).rejects.toBeInstanceOf(PublishRefusedError);
+        expect(writes).toEqual([]);
+        await publishSocialPost("social-x", fake({ _id: "drafts.social-x", _type: "socialPost", _rev: "r", caption: "c" }));
+        expect(writes).toEqual(["put social-x", "delete drafts.social-x"]);
+        // The drafts-only modules stay drafts-only; publishing lives in one file.
+        expect(read("lib/sanity/social-publish.ts")).toContain('PUBLISHABLE_TYPE = "socialPost"');
+    });
+
     it("m05ykm6e (Patient-Compass) has no write path", () => {
         // The write client must be wired to the GGOMed write config only.
         const writeClient = read("lib/sanity/write-client.ts");

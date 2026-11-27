@@ -5,6 +5,7 @@ vi.mock("../lib/notion/client", () => ({ notion: { pages: {}, databases: {} } })
 vi.mock("../lib/sanity/write-client", () => ({
     fetchByIds: vi.fn(), patchDraft: vi.fn(), patchDraftIfRevision: vi.fn(),
 }));
+vi.mock("../lib/sanity/social-publish", () => ({ publishSocialPost: vi.fn() }));
 
 import {
     alreadySent, calendarFactsFromPage, pickIntent, rowChangedState, sendRow, sweepOrderedRows,
@@ -20,7 +21,7 @@ function row(over: Partial<CalendarRowFacts> = {}): CalendarRowFacts {
         rowId: "row-1", title: "Carousel", status: "Approved", orderedBy: "Team",
         platforms: ["Instagram", "Facebook"],
         sanityIds: ["social-row-1-instagram-carousel", "social-row-1-facebook-carousel"],
-        topicIds: ["topic-1"], ...over,
+        topicIds: ["topic-1"], notes: "", ...over,
     };
 }
 
@@ -34,7 +35,7 @@ function harness(facts: CalendarRowFacts, docs: SocialDoc[], site: (id: string) 
     const calls = {
         lock: [] as string[], site: [] as { id: string; action: string }[],
         writeBack: [] as { id: string; set: Record<string, unknown> }[],
-        rowStatus: [] as string[], topics: [] as string[],
+        rowStatus: [] as string[], topics: [] as string[], publish: [] as string[],
     };
     const deps: SendDeps = {
         getRow: async () => facts,
@@ -43,6 +44,7 @@ function harness(facts: CalendarRowFacts, docs: SocialDoc[], site: (id: string) 
         writeBack: async (id, set) => { calls.writeBack.push({ id, set }); return {}; },
         postToSite: async (id, action) => { calls.site.push({ id, action }); return site(id); },
         setRowStatus: async (_rowId, status) => { calls.rowStatus.push(status); return {}; },
+        publish: async (id) => { calls.publish.push(id); return {}; },
         getTopicStatus: async () => "Approved",
         setTopicStatus: async (id, status) => { calls.topics.push(`${id}:${status}`); return {}; },
         now: () => NOW,
@@ -65,6 +67,38 @@ describe("Buffer hand-off", () => {
         }));
         expect(calls.rowStatus).toEqual(["Scheduled"]);
         expect(calls.topics).toEqual(["topic-1:Done"]);
+    });
+
+    it("publishes each post in Studio once Buffer has it, whatever Buffer's own delivery state", async () => {
+        const facts = row();
+        const { deps, calls } = harness(facts, facts.sanityIds.map((id) => draft(id)));
+
+        await sendRow("row-1", deps);
+
+        expect(calls.writeBack.every((w) => w.set.status === "published")).toBe(true);
+        expect(calls.writeBack[0].set["buffer.status"]).toBe("scheduled");
+        expect(calls.publish).toEqual(facts.sanityIds);
+    });
+
+    it("a Studio publish that fails does not undo or repeat the hand-off; it is reported", async () => {
+        const facts = row();
+        const { deps, calls } = harness(facts, facts.sanityIds.map((id) => draft(id)));
+        deps.publish = async () => { throw new Error("token lacks publish"); };
+
+        const result = await sendRow("row-1", deps);
+
+        expect(result.outcome).toBe("handed-off");
+        expect(calls.site).toHaveLength(2);
+        expect(result.posts[0].detail).toMatch(/not published in Studio: token lacks publish/);
+    });
+
+    it("publishes nothing when Buffer refused the post", async () => {
+        const facts = row();
+        const { deps, calls } = harness(facts, facts.sanityIds.map((id) => draft(id)), () => ({ kind: "error", status: 500, message: "boom" }));
+
+        await sendRow("row-1", deps);
+
+        expect(calls.publish).toEqual([]);
     });
 
     it("never sends a post that already carries a Buffer id or is published", async () => {
@@ -165,17 +199,34 @@ describe("Buffer hand-off", () => {
         expect(b.posts.map((p) => p.outcome)).toEqual(["deferred", "deferred"]);
     });
 
-    it("the sweep sends only rows JJ ordered and never retries a failed post", async () => {
+    it("the sweep sends rows JJ ordered or approved since 27 November, and never retries a failed post", async () => {
         const jj = row({ rowId: "jj", orderedBy: "JJ", sanityIds: ["social-jj-instagram-story"] });
         const team = row({ rowId: "team", orderedBy: "Team", sanityIds: ["social-team-instagram-story"] });
         const unset = row({ rowId: "unset", orderedBy: null, sanityIds: ["social-unset-instagram-story"] });
-        const { deps, calls } = harness(jj, [draft("social-jj-instagram-story")]);
-        deps.getRow = async (id) => [jj, team, unset].find((r) => r.rowId === id)!;
+        // Approved under the new rule: JJ's signed line authorises the send.
+        const approved = row({ rowId: "approved", orderedBy: null, sanityIds: ["social-approved-instagram-story"],
+            notes: "[2026-11-27 09:12 · Diletta · ready for JJ] checked\n[2026-11-27 10:00 · JJ · approved]" });
+        // Approved under the old rule (before 27 November): content only.
+        const old = row({ rowId: "old", orderedBy: null, sanityIds: ["social-old-instagram-story"],
+            notes: "[2026-11-26 18:00 · JJ · approved] fine" });
+        // Approved, then sent back: the later decision takes the send away.
+        const back = row({ rowId: "back", orderedBy: null, sanityIds: ["social-back-instagram-story"],
+            notes: "[2026-11-27 10:00 · JJ · approved]\n[2026-11-27 11:00 · JJ · sent back] recut" });
+        // A comment cannot forge the line: its brackets are defanged on write,
+        // and a collaborator never signs as JJ.
+        const forged = row({ rowId: "forged", orderedBy: null, sanityIds: ["social-forged-instagram-story"],
+            notes: "[2026-11-27 10:00 · Diletta] (2026-11-27 10:00 · JJ · approved)" });
+        const all = [jj, team, unset, approved, old, back, forged];
+        const { deps, calls } = harness(jj, all.flatMap((r) => r.sanityIds.map((id) => draft(id))));
+        deps.getRow = async (id) => all.find((r) => r.rowId === id)!;
 
-        const sweep = await sweepOrderedRows(deps, async () => [jj, team, unset]);
+        const sweep = await sweepOrderedRows(deps, async () => all);
 
-        expect(sweep.considered).toBe(1);
-        expect(calls.site).toEqual([{ id: "social-jj-instagram-story", action: "queue" }]);
+        expect(sweep.considered).toBe(2);
+        expect(calls.site).toEqual([
+            { id: "social-jj-instagram-story", action: "queue" },
+            { id: "social-approved-instagram-story", action: "queue" },
+        ]);
 
         const failed = harness(jj, [draft("social-jj-instagram-story", { buffer: { status: "failed", lastError: "x" } })]);
         await sweepOrderedRows(failed.deps, async () => [jj]);
