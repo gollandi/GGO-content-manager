@@ -6,7 +6,8 @@
  *  - Writes target gxyjgvr0 ONLY. m05ykm6e (Patient-Compass) has no write
  *    client anywhere in this app.
  *  - Every document id MUST be under the `drafts.` prefix. Publishing is
- *    JJ's click in the ggomed Studio — nothing auto-publishes, ever.
+ *    JJ's act. The one publish path in the app, for a socialPost JJ has
+ *    approved, lives apart in social-publish.ts so this boundary stays whole.
  *  - No delete, no publish, no patch of published documents.
  *
  * If a test points here, do not weaken the guard — fix the caller.
@@ -95,3 +96,4 @@ export async function patchDraftIfRevision(
 export async function fetchByIds<T>(ids: string[], projection: string): Promise<T[]> {
     return writeClient().fetch<T[]>(`*[_id in $ids]${projection}`, { ids }, { perspective: "raw" });
 }
+

@@ -20,6 +20,7 @@ vi.mock("../lib/notion/client", () => ({ notion: { pages: { retrieve: m.retrieve
 vi.mock("../lib/config", () => ({ notionConfig: { dbs: { ernestoDesk: () => "desk-db", contentCalendar: () => "calendar-db" } } }));
 vi.mock("../lib/cancello/patches", () => ({ findPatchForAsset: vi.fn(() => null) }));
 vi.mock("../lib/cancello/house", () => ({ kickstartJob: vi.fn(), runHouseScript: vi.fn() }));
+vi.mock("../lib/cancello/send-orders", () => ({ recordSendOrder: vi.fn(), withdrawSendOrder: vi.fn() }));
 vi.mock("../lib/cancello/buffer-send", () => ({
     sendRow: m.sendRow, liveDeps: { getRow: vi.fn(async () => ({ orderedBy: "JJ" })) },
     isOrderedByJJ: (r: { orderedBy: string | null }) => r.orderedBy === "JJ",
@@ -69,7 +70,7 @@ describe("the decision route passes the session's actor", () => {
         m.sendRow.mockResolvedValue({ outcome: "awaiting-staging", posts: [] });
         const res = await decide(json("http://x/api/review-dashboard/decision", { rowId: "c", target: "calendar", decision: "approve" }));
         expect(res.status).toBe(200);
-        expect(m.update).toHaveBeenCalledWith(expect.objectContaining({ properties: { Status: { select: { name: "Approved" } } } }));
+        expect(m.update).toHaveBeenCalledWith(expect.objectContaining({ properties: expect.objectContaining({ Status: { select: { name: "Approved" } } }) }));
     });
 });
 

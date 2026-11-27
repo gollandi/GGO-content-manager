@@ -100,7 +100,8 @@ function describeHandOff(send: HandOff | undefined): string {
     if (send.outcome === "awaiting-staging") return "Sigillato — partirà da solo appena i post sono preparati in Sanity";
     if (send.outcome === "not-approved") return "La riga non è approvata: niente da consegnare";
     if (send.outcome === "handed-off") {
-        return send.calendarStatus === "Published" ? "Pubblicato su Buffer — topic chiuso" : "In coda su Buffer — topic chiuso";
+        const studio = send.posts.some((p) => p.detail?.includes("not published in Studio")) ? " · Studio NON aggiornato" : " · pubblicato in Studio";
+        return (send.calendarStatus === "Published" ? "Uscito su Buffer" : "In coda su Buffer") + studio + " — topic chiuso";
     }
     const problems = send.posts.filter((p) => p.outcome !== "sent" && p.outcome !== "already-sent");
     return `Consegna incompleta: ${problems.map((p) => `${p.sanityId.replace(/^social-[0-9a-f-]+-/, "")} ${p.outcome}${p.detail ? ` (${p.detail})` : ""}`).join("; ")}`;
@@ -297,9 +298,10 @@ export default function ReviewPage() {
                     mark: latestMark(row.notes ?? ""),
                     calendar: row
                 })),
-            // Approved and staged, not yet in Buffer: the team's rows wait for
-            // "Invia a Buffer"; JJ's own orders go by themselves and surface
-            // here only if the automatic hand-off could not finish.
+            // Approved and staged, not yet in Buffer. Since 27 November JJ's
+            // approval sends every row by itself, so a row here is either on its
+            // way (the next Buffer sweep sends it) or one approved under the old
+            // rule, which waits for "Invia a Buffer".
             ...state.calendar
                 .filter((row) => row.status === "Approved" && Boolean(row.sanitySync))
                 .map((row): Entry => ({
@@ -308,7 +310,7 @@ export default function ReviewPage() {
                     target: "calendar",
                     family: "Buffer",
                     title: row.title,
-                    stateLabel: [row.orderedBy === "JJ" ? "Ordine JJ · invio automatico" : "Pronto per Buffer",
+                    stateLabel: ["Approvato · non ancora su Buffer",
                         row.contentType, row.platforms, row.date].filter(Boolean).join(" · "),
                     dueDays: daysUntil(row.date),
                     hasMedia: row.media.length > 0,
@@ -761,7 +763,7 @@ export default function ReviewPage() {
                             type="button"
                         >
                             {entry.target === "calendar"
-                                ? (entry.calendar?.orderedBy === "JJ" ? "Sigilla → invio automatico" : "Sigilla → poi Invia")
+                                ? "Sigilla → pubblica"
                                 : entry.target === "website" ? (entry.website?.patch ? "Sigilla → bozza Sanity" : "Commissiona a Edmondo")
                                 : "Sigilla"}
                         </button>

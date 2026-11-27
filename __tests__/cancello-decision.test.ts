@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { retrieve, update } = vi.hoisted(() => ({ retrieve: vi.fn(), update: vi.fn() }));
 
+const { recordSendOrder, withdrawSendOrder } = vi.hoisted(() => ({ recordSendOrder: vi.fn(), withdrawSendOrder: vi.fn() }));
+vi.mock("../lib/cancello/send-orders", () => ({
+    recordSendOrder, withdrawSendOrder, sendOrderIds: () => new Set<string>(), sendOrderKey: (id: string) => id.replace(/-/g, "").toLowerCase(),
+}));
 vi.mock("../lib/notion/client", () => ({
     notion: { pages: { retrieve, update, create: vi.fn() } },
 }));
@@ -96,14 +100,15 @@ describe("Cancello decisions", () => {
         }));
     });
 
-    it("approving a team row seals it and sends nothing until the second flip", async () => {
+    it("approving any row is final since 27 November: the hand-off is attempted at once and JJ's line is signed", async () => {
         sendRow.mockReset();
+        sendRow.mockResolvedValue({ outcome: "awaiting-staging", posts: [] });
         getRow.mockResolvedValue({ orderedBy: "Team" });
 
         const result = await applyCancelloDecision({ rowId: "cal", target: "calendar", decision: "approve" }, OWNER);
 
-        expect(result).toEqual(expect.objectContaining({ status: "Approved", awaitingSecondFlip: true }));
-        expect(sendRow).not.toHaveBeenCalled();
+        expect(sendRow).toHaveBeenCalledTimes(1);
+        expect(result).toEqual(expect.objectContaining({ status: "Approved" }));
     });
 
     it("approving a row JJ ordered is final: the hand-off is attempted at once", async () => {

@@ -155,7 +155,7 @@ export function computeAwaiting(state: CancelloState, needs: ContentNeedRow[], n
     const gateIds = gateCalendarIds(state.calendar);
     const editorialDesk = pending.filter((r) => deskFamily(r.type, carries(r)) === "editorial" && !shadowedByCalendar(r, gateIds));
     const questionDesk = pending.filter((r) => deskFamily(r.type, carries(r)) === "question");
-    // Review rows to seal, plus approved staged rows waiting for "Invia a Buffer".
+    // Review rows to seal, plus approved staged rows not yet in Buffer.
     const social = state.calendar.filter(
         (r) => r.status === "Review" || (r.status === "Approved" && Boolean(r.sanitySync))
     ).length;

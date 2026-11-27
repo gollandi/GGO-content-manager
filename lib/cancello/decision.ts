@@ -24,7 +24,8 @@ import { notion } from "../notion/client";
 import { notionConfig } from "../config";
 import { findPatchForAsset } from "./patches";
 import { runHouseScript } from "./house";
-import { isOrderedByJJ, liveDeps, sendRow } from "./buffer-send";
+import { alreadySent, liveDeps, sendRow } from "./buffer-send";
+import { recordSendOrder, withdrawSendOrder } from "./send-orders";
 import { invalidateCancelloCache } from "./state";
 import { appendNote, formatNote, type NoteKind } from "./notes";
 import { mayAct, type CancelloAct } from "../auth/permissions";
@@ -67,7 +68,15 @@ export const OWNER: Actor = { email: "", name: "JJ", role: "admin" };
 
 /** The admin is JJ; the house's roster and every existing text call him so. */
 export function actorLabel(actor: Actor): string {
-    return actor.role === "admin" ? "JJ" : (actor.name || actor.email || "unknown");
+    if (actor.role === "admin") return "JJ";
+    const label = actor.name || actor.email || "unknown";
+    // "JJ" on a notes line is the owner's decision, and an approval signed so
+    // authorises a send: nobody else may sign with it, whatever their account
+    // is called.
+    // Compared after Unicode folding, without zero-width or punctuation, so
+    // "J J", "JJ\u200b" or full-width letters cannot pass for the owner.
+    const folded = label.normalize("NFKC").replace(/[^\p{L}\p{N}]/gu, "").toUpperCase();
+    return folded === "JJ" ? (actor.email || "unknown") : label;
 }
 
 export class DecisionForbiddenError extends Error {
@@ -181,6 +190,24 @@ async function ownerNotes(
     }
 }
 
+/**
+ * Whether the row's staging may be cleared so the house stages it afresh.
+ * Only a row still being worked on (Review or Draft): an Approved row is on
+ * its way, and a Scheduled or Published one is found by its `Sanity Sync`
+ * (social-publish-sync). And never while any of its staged posts is with
+ * Buffer, half-sent or sent: re-staging rewrites the draft, and that draft is
+ * the only record that stops a second send.
+ */
+async function mayRestage(rowId: string): Promise<boolean> {
+    const page = await notion.pages.retrieve({ page_id: rowId }) as { properties?: Record<string, unknown> } | undefined;
+    const status = page ? statusOf(page) : null;
+    if (status !== "Review" && status !== "Draft") return false;
+    const facts = await liveDeps.getRow(rowId);
+    if (!facts?.sanityIds?.length) return true;
+    const docs = await liveDeps.fetchDocs(facts.sanityIds.flatMap((id) => [`drafts.${id}`, id]));
+    return !docs.some((d) => alreadySent(d) || d.buffer?.status === "sending");
+}
+
 export async function applyCancelloDecision(input: DecisionInput, actor: Actor): Promise<DecisionResult> {
     const { rowId, decision, target = "desk" } = input;
     const comment = typeof input.comment === "string" ? input.comment.trim() : "";
@@ -227,6 +254,7 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor):
                 archived: true,
                 ...(Object.keys(properties).length > 0 ? { properties: properties as never } : {}),
             });
+            if (target === "calendar") withdrawSendOrder(rowId);
             return { rowId, status: "Deleted", archived: true, ...(noteSkipped ? { noteSkipped } : {}) };
         }
 
@@ -243,6 +271,7 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor):
         if (decision === "send") {
             if (target !== "calendar") throw new Error("send applies to calendar rows only");
             const send = await sendRow(rowId, liveDeps, { budget: { immediate: 1 }, retryFailed: true });
+            if (send.outcome === "handed-off") withdrawSendOrder(rowId);
             return { rowId, status: send.calendarStatus ?? "Approved", send };
         }
 
@@ -261,7 +290,11 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor):
 
         const properties: Record<string, unknown> = { Status: { select: { name: status } } };
         let notesText: string | undefined;
-        if (comment) {
+        // A calendar approval always leaves JJ's signed line in the notes,
+        // comment or not, for the row's history. What authorises the send is
+        // the order recorded below on the cockpit's disk, not this line.
+        const signsApproval = target === "calendar" && decision === "approve";
+        if (comment || signsApproval) {
             const notes = await ownerNotes(rowId, target, actor, NOTE_KIND[decision] ?? "note", comment, collaboratorPage);
             if (notes.prop) properties[notes.prop] = notes.value;
             notesText = notes.text;
@@ -271,16 +304,29 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor):
         if (target === "calendar" && typeof input.date === "string" && input.date.trim()) {
             properties.Date = { date: { start: input.date.trim() } };
         }
+        // What JJ approves is what he sees: the row as it stands in Notion.
+        // Drafts staged earlier (before a send-back and rework, or before a
+        // date change) must not go out in its place, so an approval or a
+        // send-back clears the staging and the house stages the row afresh
+        // (notion-to-sanity-sync picks rows whose Sanity Sync is empty).
+        if (target === "calendar" && actor.role === "admin" && await mayRestage(rowId)) {
+            properties["Sanity Sync"] = { rich_text: [] };
+        }
         await notion.pages.update({ page_id: rowId, properties: properties as never });
+        if (target === "calendar") {
+            // Any decision of his replaces the one before: an approval records
+            // the order to send, anything else withdraws it.
+            if (signsApproval) recordSendOrder(rowId, actor.email || "JJ");
+            else if (actor.role === "admin") withdrawSendOrder(rowId);
+        }
 
-        // On a row JJ ordered, this approval is final: if the house has
-        // already staged its drafts the hand-off happens now, otherwise the
-        // Buffer sweep sends it once staging lands. A team row waits for the
-        // second flip ("send").
-        if (target === "calendar" && decision === "approve") {
-            const facts = await liveDeps.getRow(rowId);
-            if (!isOrderedByJJ(facts)) return { rowId, status, awaitingSecondFlip: true, notes: notesText, ...(noteSkipped ? { noteSkipped } : {}) };
+        // JJ's approval is final for every row, whoever proposed it (JJ,
+        // 27 November 2026): if the drafts are staged the hand-off happens
+        // now, otherwise the Buffer sweep sends the row once staging lands,
+        // knowing it from the order recorded above.
+        if (signsApproval) {
             const send = await sendRow(rowId, liveDeps, { budget: { immediate: 1 }, retryFailed: false });
+            if (send.outcome === "handed-off") withdrawSendOrder(rowId);
             return { rowId, status: send.calendarStatus ?? status, send, notes: notesText, ...(noteSkipped ? { noteSkipped } : {}) };
         }
         return { rowId, status, notes: notesText, ...(noteSkipped ? { noteSkipped } : {}) };
