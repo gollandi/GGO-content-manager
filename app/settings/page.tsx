@@ -166,7 +166,9 @@ export default function SettingsPage() {
 
   const setAccess = async (u: Collaborator, disabled: boolean) => {
     const question = disabled
-      ? `Switch off ${u.name}'s access now? Their next request is refused. Nothing is deleted.`
+      // Once switched off they cannot sign in to fetch their signed agreement:
+      // it must reach them first (contract record-keeping, JJ 27 Nov 2026).
+      ? `Switch off ${u.name}'s access now? Their next request is refused. Nothing is deleted.\n\nBefore you do: if they signed an agreement, download their signed copy under Agreements below and send it to them. Once switched off, they can no longer download it from the cockpit.`
       : `Switch ${u.name}'s access back on?`;
     if (!window.confirm(question)) return;
     setBusy(true);
