@@ -29,7 +29,7 @@ import { listRetros } from "../retro/run";
 import { settle } from "../settle";
 import { cached, withFreshReads } from "../cache";
 import { snapshot as persistentSnapshot, snapshotsEnabled, type SnapshotFreshness } from "../cockpit/snapshots";
-import { deskFamily, gateCalendarIds, shadowedByCalendar } from "./families";
+import { deskFamily, gateCalendarIds, SEAL_CAP, shadowedByCalendar } from "./families";
 
 /* ── Shape ─────────────────────────────────────────────────────────────── */
 
@@ -37,6 +37,8 @@ export interface Awaiting {
     /** Editorial acts at Il Cancello: publish approvals, clips, social in
      *  Review, website patches — the gate's own entry list. */
     total: number;
+    /** Acts beyond the gate's cap, held in queue by the agents (SEAL_CAP). */
+    held: number;
     social: number;
     /** Desk rows of the editorial family (publish-approval, clip-script…). */
     desk: number;
@@ -174,8 +176,10 @@ export function computeAwaiting(state: CancelloState, needs: ContentNeedRow[], n
     };
     const questionsByKind: Record<string, number> = {};
     for (const r of questionDesk) questionsByKind[r.type] = (questionsByKind[r.type] ?? 0) + 1;
+    const raw = editorialDesk.length + social + website;
     return {
-        total: editorialDesk.length + social + website,
+        total: Math.min(raw, SEAL_CAP),
+        held: Math.max(0, raw - SEAL_CAP),
         social,
         desk: editorialDesk.length,
         website,

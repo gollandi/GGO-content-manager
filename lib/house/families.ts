@@ -56,3 +56,47 @@ export function gateCalendarIds(calendar: { rowId: string; status: string | null
 export function shadowedByCalendar(row: { calendarRowIds?: string[] }, gateIds: Set<string>): boolean {
     return (row.calendarRowIds ?? []).some((id) => gateIds.has(bareId(id)));
 }
+
+/**
+ * How many acts Il Cancello puts in front of JJ at once.
+ *
+ * JJ, 27 November 2026, with 246 acts on the register: "o me li porti a 5
+ * oppure il cockpit chiude". A register he will never read is not a gate, it
+ * is a backlog shaped like one. The gate shows five; the rest wait in a queue
+ * the agents hold, and the next one rises as each is sealed. Nothing is hidden
+ * — the queue is listed under the register — and nothing is decided on his
+ * behalf: every publish still needs his seal.
+ */
+export const SEAL_CAP = 5;
+
+export interface Sealable {
+    family: string;
+    /** Days to the slot or due date; negative once it has passed. */
+    dueDays: number | null;
+    priority?: string | null;
+}
+
+/**
+ * The order the gate offers acts in. Urgent desk acts first, then website
+ * patches already written (they carry clinical fixes), then social posts
+ * whose slot is still ahead (nearest first), then the rest of the desk, and
+ * last the posts whose slot has passed — a stale slot is the agents' to
+ * reschedule, not JJ's to hurry.
+ */
+export function sealRank(e: Sealable): [number, number] {
+    const d = e.dueDays;
+    if (e.family === "Desk" && e.priority === "Urgent") return [0, -(d ?? 0)];
+    if (e.family === "Website") return [1, 0];
+    if (e.family === "Social" && d !== null && d >= 0) return [2, d];
+    if (e.family !== "Social") return [3, -(d ?? 0)];
+    return [4, -(d ?? 0)];
+}
+
+/** Split the register into the acts shown and the acts held in queue. */
+export function capForSeal<T extends Sealable>(entries: T[], cap = SEAL_CAP): { shown: T[]; held: T[] } {
+    const ranked = entries
+        .map((e, i) => ({ e, i, k: sealRank(e) }))
+        .sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.i - b.i)
+        .map((x) => x.e);
+    return { shown: ranked.slice(0, cap), held: ranked.slice(cap) };
+}
