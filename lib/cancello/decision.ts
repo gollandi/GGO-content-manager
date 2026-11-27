@@ -24,7 +24,7 @@ import { notion } from "../notion/client";
 import { notionConfig } from "../config";
 import { findPatchForAsset } from "./patches";
 import { runHouseScript } from "./house";
-import { liveDeps, sendRow } from "./buffer-send";
+import { alreadySent, liveDeps, sendRow } from "./buffer-send";
 import { recordSendOrder, withdrawSendOrder } from "./send-orders";
 import { invalidateCancelloCache } from "./state";
 import { appendNote, formatNote, type NoteKind } from "./notes";
@@ -190,10 +190,22 @@ async function ownerNotes(
     }
 }
 
-/** The row's current status, read before JJ's decision changes it. */
-async function calendarStatus(rowId: string): Promise<string | null> {
+/**
+ * Whether the row's staging may be cleared so the house stages it afresh.
+ * Only a row still being worked on (Review or Draft): an Approved row is on
+ * its way, and a Scheduled or Published one is found by its `Sanity Sync`
+ * (social-publish-sync). And never while any of its staged posts is with
+ * Buffer, half-sent or sent: re-staging rewrites the draft, and that draft is
+ * the only record that stops a second send.
+ */
+async function mayRestage(rowId: string): Promise<boolean> {
     const page = await notion.pages.retrieve({ page_id: rowId }) as { properties?: Record<string, unknown> } | undefined;
-    return page ? statusOf(page) : null;
+    const status = page ? statusOf(page) : null;
+    if (status !== "Review" && status !== "Draft") return false;
+    const facts = await liveDeps.getRow(rowId);
+    if (!facts?.sanityIds?.length) return true;
+    const docs = await liveDeps.fetchDocs(facts.sanityIds.flatMap((id) => [`drafts.${id}`, id]));
+    return !docs.some((d) => alreadySent(d) || d.buffer?.status === "sending");
 }
 
 export async function applyCancelloDecision(input: DecisionInput, actor: Actor): Promise<DecisionResult> {
@@ -297,7 +309,7 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor):
         // date change) must not go out in its place, so an approval or a
         // send-back clears the staging and the house stages the row afresh
         // (notion-to-sanity-sync picks rows whose Sanity Sync is empty).
-        if (target === "calendar" && actor.role === "admin" && await calendarStatus(rowId) !== "Approved") {
+        if (target === "calendar" && actor.role === "admin" && await mayRestage(rowId)) {
             properties["Sanity Sync"] = { rich_text: [] };
         }
         await notion.pages.update({ page_id: rowId, properties: properties as never });

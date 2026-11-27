@@ -13,9 +13,11 @@ vi.mock("../lib/config", () => ({
 vi.mock("../lib/cancello/patches", () => ({ findPatchForAsset: vi.fn(() => null) }));
 vi.mock("../lib/cancello/house", () => ({ kickstartJob: vi.fn(), runHouseScript: vi.fn() }));
 vi.mock("../lib/cancello/state", () => ({ invalidateCancelloCache: vi.fn() }));
-const { sendRow, getRow } = vi.hoisted(() => ({ sendRow: vi.fn(), getRow: vi.fn() }));
+const { sendRow, getRow, fetchDocs } = vi.hoisted(() => ({ sendRow: vi.fn(), getRow: vi.fn(), fetchDocs: vi.fn() }));
 vi.mock("../lib/cancello/buffer-send", () => ({
-    sendRow, liveDeps: { getRow }, isOrderedByJJ: (row: { orderedBy: string | null }) => row.orderedBy === "JJ",
+    sendRow, liveDeps: { getRow, fetchDocs }, isOrderedByJJ: (row: { orderedBy: string | null }) => row.orderedBy === "JJ",
+    alreadySent: (d: { status?: string; buffer?: { postId?: string; status?: string } } | undefined) =>
+        Boolean(d) && (d!.status === "published" || (Boolean(d!.buffer?.postId) && d!.buffer?.status !== "failed")),
 }));
 
 import { applyCancelloDecision, DecisionForbiddenError, OWNER } from "../lib/cancello/decision";
@@ -159,6 +161,24 @@ describe("JJ's acts are attributed and keep the history", () => {
         // staging is cleared so the house stages the row as JJ saw it.
         expect(recordSendOrder).toHaveBeenCalledWith("r", expect.any(String));
         expect(props["Sanity Sync"]).toEqual({ rich_text: [] });
+    });
+
+    it("never clears the staging of a row with a post already with Buffer, nor of a row past Review", async () => {
+        retrieve.mockResolvedValue(calendarRow("Review"));
+        getRow.mockResolvedValue({ orderedBy: null, sanityIds: ["social-r-instagram-post"] });
+        fetchDocs.mockResolvedValue([{ _id: "drafts.social-r-instagram-post", status: "approved", buffer: { status: "sending" } }]);
+        await applyCancelloDecision({ rowId: "r", target: "calendar", decision: "approve" }, OWNER);
+        expect(update.mock.calls[0][0].properties["Sanity Sync"]).toBeUndefined();
+
+        update.mockReset(); update.mockResolvedValue({});
+        fetchDocs.mockResolvedValue([{ _id: "drafts.social-r-instagram-post", status: "draft", buffer: null }]);
+        await applyCancelloDecision({ rowId: "r", target: "calendar", decision: "approve" }, OWNER);
+        expect(update.mock.calls[0][0].properties["Sanity Sync"]).toEqual({ rich_text: [] });
+
+        update.mockReset(); update.mockResolvedValue({});
+        retrieve.mockResolvedValue(calendarRow("Scheduled"));
+        await applyCancelloDecision({ rowId: "r", target: "calendar", decision: "done" }, OWNER);
+        expect(update.mock.calls[0][0].properties["Sanity Sync"]).toBeUndefined();
     });
 
     it("a send-back withdraws the send order (the re-approval of the rework clears the staging)", async () => {
