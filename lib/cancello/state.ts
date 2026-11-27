@@ -22,7 +22,7 @@ import {
     extractVideoPaths, isPathWithinRoots, resolveLocalMediaPath, IMAGE_EXTS, VIDEO_EXTS,
 } from "./paths";
 import {
-    findPatchForAsset, patchAlreadyApplied, operationViews,
+    findPatchForAsset, patchAlreadyApplied, staleOperations, operationViews,
     type PreparedPatch, type PatchOperationView,
 } from "./patches";
 import type {
@@ -85,7 +85,7 @@ export interface WebsiteArticle {
         id: string; title: string | null; rationale: string | null; sources: string[];
         operations: PatchOperationView[]; sanityDocId: string; batch: string;
     } | null;
-    patchState?: "awaiting-publish" | "published";
+    patchState?: "awaiting-publish" | "published" | "stale";
     draftId?: string;
 }
 export interface CancelloState {
@@ -735,6 +735,9 @@ async function loadWebsiteReview(warnings: string[], context: ReadContext): Prom
                 a.draftId = `drafts.${full.sanityDocId}`;
             } else if (published && patchAlreadyApplied(published, full, field)) {
                 a.patchState = "published";
+            } else if (!draft && published && staleOperations(published, full, field) > 0) {
+                // Written against an older page: not JJ's to seal; Edmondo re-bases it.
+                a.patchState = "stale";
             }
         }
     }

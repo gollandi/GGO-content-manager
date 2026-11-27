@@ -44,3 +44,18 @@ describe("needsNewDate", () => {
         expect(needsNewDate({ proposed: null, planned: "", now })).toBe(false);
     });
 });
+
+import { staleOperations } from "../lib/cancello/patches";
+describe("staleOperations", () => {
+    const doc = { content: [{ _type: "block", _key: "k1", children: [{ text: "Current paragraph JJ revised." }] }] };
+    const base = { id: "p", sanityDocId: "d", batch: "b", file: "f" };
+    it("counts an anchor the page no longer has", () => {
+        expect(staleOperations(doc, { ...base, operations: [{ type: "replace-text", anchorText: "Old paragraph.", newText: "New." }] })).toBe(1);
+    });
+    it("does not count an anchor still present, or an operation already applied", () => {
+        expect(staleOperations(doc, { ...base, operations: [
+            { type: "replace-text", anchorText: "Current paragraph JJ revised.", newText: "Fix." },
+            { type: "replace-text", anchorText: "Gone.", newText: "Current paragraph JJ revised." },
+        ] })).toBe(0);
+    });
+});
