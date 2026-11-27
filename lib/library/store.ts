@@ -1,5 +1,6 @@
-import { existsSync, readFileSync, statSync } from "fs";
+import { readFileSync } from "fs";
 import path from "path";
+import type { Role } from "../auth/roles";
 
 /**
  * The library: internal reference documents the cockpit hands to signed-in
@@ -33,11 +34,22 @@ export type LibraryRead =
     | { kind: "unknown" }
     | { kind: "missing"; document: LibraryDocument };
 
-/** Read one listed document. "missing" means it is listed but not on this server. */
+/** Read one listed document. "missing" means it is listed but not on this server; an unreadable one throws. */
 export function readDocument(id: string): LibraryRead {
     const document = Object.prototype.hasOwnProperty.call(LIBRARY, id) ? LIBRARY[id] : undefined;
     if (!document) return { kind: "unknown" };
     const full = path.join(libraryDir(), document.file);
-    if (!existsSync(full) || !statSync(full).isFile()) return { kind: "missing", document };
-    return { kind: "ok", document, body: readFileSync(full) };
+    try {
+        return { kind: "ok", document, body: readFileSync(full) };
+    } catch (err) {
+        // Only "not there" is missing. A file that is there and cannot be
+        // read (wrong owner, a directory in its place) is an error to raise.
+        if ((err as NodeJS.ErrnoException).code === "ENOENT") return { kind: "missing", document };
+        throw err;
+    }
+}
+
+/** Internal documents are for people who work on the content, not for a viewer. */
+export function mayReadLibrary(role: Role | undefined): boolean {
+    return role === "admin" || role === "editor" || role === "social";
 }

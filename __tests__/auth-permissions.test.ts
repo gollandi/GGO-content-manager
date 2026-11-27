@@ -62,6 +62,12 @@ describe("the social role's fence", () => {
         expect(routes.length).toBeGreaterThan(60);
     });
 
+    it("reaches the library only below its prefix", () => {
+        expect(canReach("social", "/api/social/library/social-media-guide").ok).toBe(true);
+        expect(canReach("social", "/api/social/library")).toEqual({ ok: false });
+        expect(canReach("social", "/api/social/librarything")).toEqual({ ok: false });
+    });
+
     it("is refused the routes the middleware otherwise exempts or leaves to the session", () => {
         for (const p of ["/api/views/editorial-content", "/api/llm/guard", "/api/board", "/api/board/sync",
             "/api/cache/invalidate", "/api/notion/patient-journeys", "/api/house/state", "/api/collaborators",

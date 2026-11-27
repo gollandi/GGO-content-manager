@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { LIBRARY, libraryDir, readDocument } from "../lib/library/store";
+import { LIBRARY, libraryDir, mayReadLibrary, readDocument } from "../lib/library/store";
 
 describe("the library", () => {
     let dir: string;
@@ -44,6 +44,12 @@ describe("the library", () => {
         for (const id of ["secret.txt", "../auth/users.json", "..", "", "constructor", "toString", "__proto__"]) {
             expect(readDocument(id).kind).toBe("unknown");
         }
+    });
+
+    it("is for the people who work on the content, not for a viewer", () => {
+        expect(["admin", "editor", "social"].map((r) => mayReadLibrary(r as never))).toEqual([true, true, true]);
+        expect(mayReadLibrary("viewer")).toBe(false);
+        expect(mayReadLibrary(undefined)).toBe(false);
     });
 
     it("lists file names with no path in them", () => {

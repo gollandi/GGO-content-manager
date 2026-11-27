@@ -303,7 +303,9 @@ curl -s -H "Authorization: Bearer $COCKPIT_SERVICE_TOKEN" http://127.0.0.1:3010/
 
 Since 26 November 2026 the cockpit admits collaborators besides the env
 operator. Today the only role offered is `social` (the Social Media
-Manager): the social queue, Il Carico and `/guida`, nothing else. Design:
+Manager): the rooms and routes listed for it in `lib/auth/permissions.ts`
+(the social queue, Il Carico, `/guida` and the library among them), nothing
+else. Design:
 `docs/SOCIAL-COLLABORATOR-PLAN-2026-11.md`.
 
 - **Store.** `$COCKPIT_AUTH_DIR/users.json`, else
@@ -349,14 +351,22 @@ public, so they are **not in git**: they live in `$COCKPIT_LIBRARY_DIR`, else
 of what may be served is `lib/library/store.ts`; a file that is not listed
 there is never served, and a listed file that is absent answers 404.
 
-Place or replace a document (a new edition keeps the same file name):
+Place or replace a document (a new edition keeps the same file name). The
+first command creates the folder if it is not there; each file goes up under
+a temporary name and is moved into place, so no request reads half a file:
 
 ```bash
-scp -i ~/.ssh/ionos_ggo_xl GGO-Med-Social-Media-Guide.html GGO-Med-Social-Media-Guide.pdf \
-  root@85.215.37.39:/var/lib/ggo-cockpit/library/
 ssh -i ~/.ssh/ionos_ggo_xl root@85.215.37.39 \
-  'chown -R jj:jj /var/lib/ggo-cockpit/library && chmod 700 /var/lib/ggo-cockpit/library && chmod 600 /var/lib/ggo-cockpit/library/*'
+  'install -d -m 700 -o jj -g jj /var/lib/ggo-cockpit/library'
+for f in GGO-Med-Social-Media-Guide.html GGO-Med-Social-Media-Guide.pdf; do
+  scp -i ~/.ssh/ionos_ggo_xl "$f" root@85.215.37.39:/var/lib/ggo-cockpit/library/.incoming-"$f" &&
+  ssh -i ~/.ssh/ionos_ggo_xl root@85.215.37.39 \
+    "cd /var/lib/ggo-cockpit/library && chown jj:jj '.incoming-$f' && chmod 600 '.incoming-$f' && mv '.incoming-$f' '$f'"
+done
 ```
+
+A file the service cannot read answers 503 and logs `[social/library]`; a
+file that is not there answers 404.
 
 No restart is needed: the route reads the file on each request.
 
