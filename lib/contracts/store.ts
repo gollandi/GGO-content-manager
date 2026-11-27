@@ -286,17 +286,6 @@ export function signedCopyData(contractorEmail: string, contractSha: string): Si
     return { text, contractSha, records, countersigned: records.some((r) => r.signatory_role === "company"), chainHead: all.at(-1)?.record_sha256 ?? "none" };
 }
 
-/** The signed copy as plain text: the contract text, then a signature page from the records. */
-export function signedCopy(contractorEmail: string, contractSha: string): string {
-    const { text, records, countersigned, chainHead } = signedCopyData(contractorEmail, contractSha);
-    const lines = records.map((r) => [
-        `- ${r.signatory_role === "company" ? "For GGO Med Ltd" : "Contractor"}: ${r.signatory_name_typed} (${r.signatory_email})`,
-        `  signed ${r.accepted_at_utc} from ${r.ip_address}; version ${r.contract_version}; contract SHA-256 ${r.contract_sha256}; record ${r.record_sha256}`,
-    ].join("\n"));
-    const pending = countersigned ? "" : "\n\nAwaiting GGO Med's signature.";
-    return `${text}\n---\n\n## Electronic signatures\n\n${lines.join("\n") || "None yet."}${pending}\n\nRecord chain head when this copy was made: ${chainHead}\n`;
-}
-
 /** Log one download of a signed copy (records are immutable, so downloads live beside them). */
 export function logDownload(entry: { by: string; contractor: string; contract_sha256: string; at: string; ip: string }): void {
     mkdirSync(authDir(), { recursive: true });

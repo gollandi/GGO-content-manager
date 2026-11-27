@@ -25,6 +25,13 @@ function streamsOfType(pdf: Buffer, type: string): Buffer[] {
 
 const pages = (pdf: Buffer) => (pdf.toString("latin1").match(/\/Type \/Page\b/g) ?? []).length;
 
+/** Render and collect what was drawn on each page. */
+async function traced(data: Parameters<typeof renderSignedPdf>[0]) {
+    const drawn: string[][] = [];
+    const pdf = await renderSignedPdf(data, { trace: (t, p) => { (drawn[p] ??= []).push(t); } });
+    return { pdf, drawn };
+}
+
 describe("reading the agreement's Markdown", () => {
     it("turns headings, numbered clauses, bullets and the schedule break into blocks", () => {
         const blocks = parseAgreement([
@@ -44,8 +51,28 @@ describe("reading the agreement's Markdown", () => {
             { kind: "break" },
             { kind: "section", text: "Schedule 1" },
             { kind: "para", label: "1.", text: "Channels. Instagram." },
-            { kind: "para", label: null, text: "A line that continues." },
+            { kind: "para", label: null, text: "A line\nthat continues." },
         ]);
+    });
+
+    it("never invents a clause number, merges two clauses or drops a signing blank", () => {
+        expect(parseAgreement("3.5 hours a week are expected.")).toEqual([{ kind: "para", label: null, text: "3.5 hours a week are expected." }]);
+        expect(parseAgreement("2.1 First clause.\n2.2 Second clause.")).toEqual([
+            { kind: "para", label: "2.1", text: "First clause." },
+            { kind: "para", label: "2.2", text: "Second clause." },
+        ]);
+        expect(parseAgreement("ACME Ltd\n1 High Street\nLondon")).toEqual([{ kind: "para", label: null, text: "ACME Ltd\n1 High Street\nLondon" }]);
+        expect(parseAgreement("Signed:\n\n________")).toEqual([
+            { kind: "para", label: null, text: "Signed:" },
+            { kind: "para", label: null, text: "________" },
+        ]);
+    });
+
+    it("leaves asterisks that are not emphasis exactly as written", () => {
+        const plain = (t: string) => inlineRuns(t).map((r) => r.text).join("");
+        expect(inlineRuns("rate 2*3*4 units")).toEqual([{ text: "rate 2*3*4 units", face: "regular" }]);
+        expect(plain("a \\*literal\\* b")).toBe("a *literal* b");
+        expect(plain("snake_case_name and 5 * 3")).toBe("snake_case_name and 5 * 3");
     });
 
     it("keeps every character of the words: only the emphasis markers become typography", () => {
@@ -81,9 +108,19 @@ describe("the signed copy as a PDF", () => {
         expect(data.countersigned).toBe(false);
         expect(data.records.map((r) => r.signatory_role)).toEqual(["contractor"]);
 
-        const pdf = await renderSignedPdf(data, { now: new Date("2030-01-02T03:04:05Z") });
+        const { pdf, drawn } = await traced(data);
         expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
-        expect(pages(pdf)).toBeGreaterThanOrEqual(1);
+        const n = pages(pdf);
+        expect(drawn.length).toBe(n);
+        drawn.forEach((texts, i) => {
+            // Every page carries the footer: its number, the contract and the signed text's hash.
+            expect(texts).toContain(`Page ${i + 1} of ${n}`);
+            expect(texts).toContain(`Signed text SHA-256 ${s.view.sha256}`);
+            // And something besides the running head and foot: no blank page from writing in a margin.
+            const furniture = new Set([`Page ${i + 1} of ${n}`, `Signed text SHA-256 ${s.view.sha256}`, "GGO Med Ltd"]);
+            expect(texts.filter((t) => !furniture.has(t) && !t.includes(" · version ")).length).toBeGreaterThan(0);
+        });
+        expect(drawn.flat()).toContain("Awaiting GGO Med's signature.");
         const [attached] = streamsOfType(pdf, "EmbeddedFile");
         expect(attached.toString("utf8")).toBe(data.text);
         expect(sha256(attached.toString("utf8"))).toBe(s.view.sha256);
@@ -100,8 +137,16 @@ describe("the signed copy as a PDF", () => {
         const data = store.signedCopyData("d@example.com", s.view.sha256);
         expect(data.countersigned).toBe(true);
         expect(data.records.map((r) => r.signatory_role).sort()).toEqual(["company", "contractor"]);
-        const pdf = await renderSignedPdf(data);
-        expect(pdf.length).toBeLessThan(400_000); // the logo is embedded once, the fonts subset
+        const { pdf, drawn } = await traced(data);
+        const all = drawn.flat();
+        expect(all).toContain("For GGO Med Ltd");
+        expect(all).toContain("Giangiacomo Ollandini");
+        expect(all).toContain("Director, for and on behalf of GGO Med Ltd");
+        expect(all).not.toContain("Awaiting GGO Med's signature.");
+        const records = data.records.map((r) => r.record_sha256);
+        for (const h of records) expect(all).toContain(h);
+        // The logo is embedded once however many pages there are: one image and its alpha mask.
+        expect((pdf.toString("latin1").match(/\/Subtype \/Image/g) ?? []).length).toBe(2);
     });
 
     it("refuses a copy whose archived text no longer matches its hash", async () => {
@@ -112,5 +157,16 @@ describe("the signed copy as a PDF", () => {
         const { writeFileSync } = await import("node:fs");
         writeFileSync(path.join(dir, "contract-copies", `${s.view.sha256}.md`), "tampered");
         expect(() => store.signedCopyData("d@example.com", s.view.sha256)).toThrow(/does not match/);
+    });
+
+    it("refuses a copy when the acceptance records have been altered", async () => {
+        installContract(dir, "d@example.com");
+        const s = store.contractStanding("d@example.com");
+        if (s.kind !== "required") throw new Error("setup");
+        await accept.acceptContract(acceptanceFor(s.view), ctx);
+        const { readFileSync, writeFileSync } = await import("node:fs");
+        const log = path.join(dir, "contract-records.jsonl");
+        writeFileSync(log, readFileSync(log, "utf8") + readFileSync(log, "utf8"));
+        expect(() => store.signedCopyData("d@example.com", s.view.sha256)).toThrow();
     });
 });

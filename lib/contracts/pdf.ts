@@ -4,10 +4,10 @@
  *
  * Integrity stays on the text, never on the file: the signed text is the
  * Markdown whose SHA-256 the acceptance records name. This module only lays
- * that text out. It prints every character of it (Markdown markers such as
- * `#`, `- ` and `*` become typography, nothing else is dropped or changed),
- * prints the hash on every page, and embeds the exact Markdown as a file
- * inside the PDF so anyone can extract it and check the hash themselves.
+ * that text out: the words are printed as written, while the Markdown markers
+ * (`#`, `- `, `*`, `---`) and line wrapping become typography. Because a
+ * layout is not the text, the PDF prints the hash on every page and embeds the
+ * exact Markdown as a file, so anyone can extract it and check the hash.
  *
  * Brand: the GGO Med Design System kit (Plus Jakarta Sans, GGO Med purple,
  * the approved purple-on-white logo), copied unchanged into assets/brand.
@@ -51,17 +51,20 @@ export type Block =
     | { kind: "bullet"; text: string }
     | { kind: "break" };
 
-// "1.1 ", "12.3 ", "1. ", "(1) ", "(A) ", "(a) ", "(iv) " open a numbered paragraph.
-const LABEL = /^((?:\d+\.)+\d+|\d{1,2}\.|\((?:\d+|[A-Za-z]|[ivxlc]+)\))\s+(.*)$/;
+// "1.1 ", "12.3 ", "1. ", "(1) ", "(A) ", "(a) ", "(iv) " open a numbered paragraph. A
+// numeric label must be followed by a capital, a quote or a bracket, so that a
+// sentence opening with a figure ("3.5 hours a week") is never drawn as a clause number.
+const LABEL = /^(?:((?:\d+\.)+\d+|\d{1,2}\.)\s+(?=["'“‘(A-Z])|(\((?:\d+|[A-Za-z]|[ivxlc]+)\))\s+)([\s\S]*)$/;
 
 export function parseAgreement(markdown: string): Block[] {
     const blocks: Block[] = [];
     let para: string[] = [];
     const flush = () => {
         if (para.length === 0) return;
-        const joined = para.join(" ");
+        // Hard line breaks are kept as written (an address block stays a block).
+        const joined = para.join("\n");
         const m = LABEL.exec(joined);
-        blocks.push(m ? { kind: "para", label: m[1], text: m[2] } : { kind: "para", label: null, text: joined });
+        blocks.push(m ? { kind: "para", label: m[1] ?? m[2], text: m[3] } : { kind: "para", label: null, text: joined });
         para = [];
     };
     for (const raw of markdown.replace(/\r\n/g, "\n").split("\n")) {
@@ -71,22 +74,31 @@ export function parseAgreement(markdown: string): Block[] {
         if ((m = /^#\s+(.*)$/.exec(line))) { flush(); blocks.push({ kind: "title", text: m[1] }); continue; }
         if ((m = /^##\s+(.*)$/.exec(line))) { flush(); blocks.push({ kind: "section", text: m[1] }); continue; }
         if ((m = /^#{3,6}\s+(.*)$/.exec(line))) { flush(); blocks.push({ kind: "clause", text: m[1] }); continue; }
-        if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) { flush(); blocks.push({ kind: "break" }); continue; }
+        // A thematic break (the line before the schedules) starts a new page. Underscores
+        // are left alone: a "______" line is a blank to sign on, and is printed.
+        if (/^(-{3,}|\*{3,})$/.test(line.trim())) { flush(); blocks.push({ kind: "break" }); continue; }
         if ((m = /^\s*[-*+]\s+(.*)$/.exec(line))) { flush(); blocks.push({ kind: "bullet", text: m[1] }); continue; }
+        // A clause written on the line after the previous one is still its own clause.
+        if (para.length > 0 && LABEL.test(line.trim())) flush();
         para.push(line.trim());
     }
     flush();
     return blocks;
 }
 
-/** Inline emphasis: `**bold**` and `*italic*` / `_italic_`; everything else is literal. */
+/**
+ * Inline emphasis: `**bold**` and `*italic*` / `_italic_`, only where the markers
+ * stand at a word's edge; everything else is literal, so `2*3*4` stays `2*3*4`.
+ * `\*` is an escaped asterisk and prints as `*`.
+ */
 export function inlineRuns(text: string, base: Face = "regular"): { text: string; face: Face }[] {
     const runs: { text: string; face: Face }[] = [];
-    const re = /\*\*([^*]+)\*\*|\*([^*\s][^*]*?)\*|(?<![A-Za-z0-9])_([^_\s][^_]*?)_(?![A-Za-z0-9])/g;
+    const re = /(?<![\w\\*])\*\*(?=\S)([^*]+?)(?<=\S)\*\*(?![\w*])|(?<![\w\\*])\*(?=[^\s*])([^*]+?)(?<=[^\s\\])\*(?![\w*])|(?<![\w\\])_(?=[^\s_])([^_]+?)(?<=\S)_(?!\w)|\\([*_\\])/g;
     let at = 0;
     for (let m = re.exec(text); m; m = re.exec(text)) {
         if (m.index > at) runs.push({ text: text.slice(at, m.index), face: base });
-        if (m[1] !== undefined) runs.push({ text: m[1], face: "bold" });
+        if (m[4] !== undefined) runs.push({ text: m[4], face: base });
+        else if (m[1] !== undefined) runs.push({ text: m[1], face: "bold" });
         else runs.push({ text: m[2] ?? m[3], face: base === "bold" || base === "semibold" ? base : "italic" });
         at = m.index + m[0].length;
     }
@@ -107,6 +119,11 @@ const longDate = (iso: string) => {
 export interface PdfOptions {
     /** When the copy was made; printed on the signature page. */
     now?: Date;
+    /**
+     * Called with every string drawn and the page it lands on (0-based). The
+     * page text is glyph-encoded and compressed, so tests read the layout here.
+     */
+    trace?: (text: string, page: number) => void;
 }
 
 export function renderSignedPdf(data: SignedCopyData, opts: PdfOptions = {}): Promise<Buffer> {
@@ -142,6 +159,16 @@ export function renderSignedPdf(data: SignedCopyData, opts: PdfOptions = {}): Pr
     // Opened once: a Buffer passed to image() on every page would be embedded on every page.
     // (openImage is public pdfkit API the type package omits.)
     const logo = (doc as unknown as { openImage(src: Buffer): never }).openImage(readFileSync(path.join(dir, "ggo-med-logo-purple.png")));
+    if (opts.trace) {
+        const trace = opts.trace;
+        const pages: unknown[] = [doc.page];
+        doc.on("pageAdded", () => pages.push(doc.page));
+        const draw = doc.text.bind(doc) as (...a: unknown[]) => PDFKit.PDFDocument;
+        (doc as unknown as { text: (...a: unknown[]) => PDFKit.PDFDocument }).text = (...a: unknown[]) => {
+            trace(String(a[0]), pages.indexOf(doc.page));
+            return draw(...a);
+        };
+    }
 
     const chunks: Buffer[] = [];
     doc.on("data", (c: Buffer) => chunks.push(c));
@@ -173,7 +200,7 @@ export function renderSignedPdf(data: SignedCopyData, opts: PdfOptions = {}): Pr
         });
     };
     const height = (text: string, w: number, face: Face, size: number) =>
-        doc.font(face).fontSize(size).heightOfString(text.replace(/\*\*|\*|_/g, ""), { width: w, lineGap: LEAD });
+        doc.font(face).fontSize(size).heightOfString(inlineRuns(text).map((r) => r.text).join(""), { width: w, lineGap: LEAD });
 
     // Page 1 masthead: the approved logo, the company, the document.
     const logoH = 70;
@@ -232,7 +259,8 @@ export function renderSignedPdf(data: SignedCopyData, opts: PdfOptions = {}): Pr
                 break;
             }
             case "break":
-                doc.addPage();
+                // Two breaks in a row must not leave a page with nothing on it.
+                if (doc.y > PAGE.margins.top + 1) doc.addPage();
                 break;
         }
         if (b.kind === "section") first = false;
@@ -267,14 +295,20 @@ export function renderSignedPdf(data: SignedCopyData, opts: PdfOptions = {}): Pr
 }
 
 function signaturePage(doc: PDFKit.PDFDocument, data: SignedCopyData, { left, width, now }: { left: number; width: number; now: Date }) {
-    // Follow on when the heading, the explanation and the first signature fit; otherwise a fresh page.
-    if (doc.y + 360 > doc.page.height - doc.page.margins.bottom) doc.addPage();
+    // The signatures are read together: follow on only when the whole section fits
+    // (heading, explanation, every signature, the pending panel and the closing lines);
+    // otherwise it starts on a fresh page.
+    const section = 150 + data.records.reduce((h, r) => h + boxHeight(doc, r, width) + 14, 0) + (data.countersigned ? 0 : 72) + 90;
+    if (doc.y + 30 + section > doc.page.height - doc.page.margins.bottom) doc.addPage();
     else doc.moveDown(2.2);
     doc.font("bold").fontSize(15).fillColor(PURPLE).text("Electronic signatures", left, doc.y, { width });
     doc.moveTo(left, doc.y + 3).lineTo(left + 36, doc.y + 3).lineWidth(1.4).strokeColor(PURPLE).stroke();
     doc.moveDown(0.9);
     doc.font("regular").fontSize(BODY).fillColor(INK).text(
-        "Each party accepted this Agreement electronically in the GGO Cockpit. Every acceptance is an entry in GGO Med Ltd's "
+        (data.countersigned
+            ? "Both parties accepted this Agreement electronically in the GGO Cockpit."
+            : "The Contractor accepted this Agreement electronically in the GGO Cockpit; GGO Med Ltd has not yet countersigned it.")
+        + " Every acceptance is an entry in GGO Med Ltd's "
         + "hash-chained acceptance record. What was signed is the text itself: its SHA-256, printed below and at the foot of "
         + "every page, is the hash each acceptance names. The exact text is attached to this PDF as a file, so the hash can be "
         + "checked from this document alone.",
@@ -309,9 +343,11 @@ function signaturePage(doc: PDFKit.PDFDocument, data: SignedCopyData, { left, wi
     }
 }
 
-function signatureBox(doc: PDFKit.PDFDocument, r: ContractRecord, left: number, width: number) {
+const BOX = { pad: 14, keyW: 112, size: 8, gap: 0.8, rowGap: 2.6 };
+
+function boxRows(r: ContractRecord): [string, string][] {
     const company = r.signatory_role === "company";
-    const rows: [string, string][] = [
+    return [
         ["Name", r.signatory_name_typed],
         ["Role", company ? "Director, for and on behalf of GGO Med Ltd" : "Contractor"],
         ["Email", r.signatory_email],
@@ -323,12 +359,22 @@ function signatureBox(doc: PDFKit.PDFDocument, r: ContractRecord, left: number, 
         ["Acceptance record", r.record_id],
         ["Record SHA-256", r.record_sha256],
     ];
-    const pad = 16;
-    const keyW = 112;
+}
+
+function boxHeight(doc: PDFKit.PDFDocument, r: ContractRecord, width: number): number {
+    const valW = width - BOX.pad * 2 - BOX.keyW;
+    doc.font("regular").fontSize(BOX.size);
+    const rowsH = boxRows(r).reduce((h, [, v]) => h + doc.heightOfString(v, { width: valW, lineGap: BOX.gap }) + BOX.rowGap, 0);
+    return BOX.pad + 18 + rowsH + BOX.pad - BOX.rowGap;
+}
+
+function signatureBox(doc: PDFKit.PDFDocument, r: ContractRecord, left: number, width: number) {
+    const company = r.signatory_role === "company";
+    const rows = boxRows(r);
+    const pad = BOX.pad;
+    const keyW = BOX.keyW;
     const valW = width - pad * 2 - keyW;
-    doc.font("regular").fontSize(8.2);
-    const rowsH = rows.reduce((h, [, v]) => h + doc.heightOfString(v, { width: valW, lineGap: 1.6 }) + 4, 0);
-    const boxH = pad + 18 + rowsH + pad - 4;
+    const boxH = boxHeight(doc, r, width);
     if (doc.y + boxH > doc.page.height - doc.page.margins.bottom) doc.addPage();
     const y = doc.y;
     doc.roundedRect(left, y, width, boxH, 4).fillColor(PANEL).fill();
@@ -337,8 +383,8 @@ function signatureBox(doc: PDFKit.PDFDocument, r: ContractRecord, left: number, 
     let ry = y + pad + 18;
     for (const [k, v] of rows) {
         doc.font("semibold").fontSize(7.8).fillColor(MUTED).text(k, left + pad, ry + 0.6, { width: keyW - 8 });
-        doc.font("regular").fontSize(8.2).fillColor(INK).text(v, left + pad + keyW, ry, { width: valW, lineGap: 1.6 });
-        ry = doc.y + 4;
+        doc.font("regular").fontSize(BOX.size).fillColor(INK).text(v, left + pad + keyW, ry, { width: valW, lineGap: BOX.gap });
+        ry = doc.y + BOX.rowGap;
     }
     doc.y = y + boxH + 14;
 }
