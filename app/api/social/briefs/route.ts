@@ -21,7 +21,7 @@ async function who(): Promise<{ error: NextResponse } | { handle: string }> {
     if (!auth.authenticated) return { error: auth.response };
     if (auth.role !== "social") return { error: NextResponse.json({ error: "Briefs are for collaborators; JJ writes from La Bacheca." }, { status: 403 }) };
     if (!auth.houseHandle) {
-        return { error: NextResponse.json({ error: "Briefs are not set up for you yet: JJ gives you a name on the house board in Settings." }, { status: 409 }) };
+        return { error: NextResponse.json({ error: "I brief non sono ancora attivi per te: JJ ti assegna un nome sulla bacheca della casa, in Impostazioni." }, { status: 409 }) };
     }
     return { handle: auth.houseHandle };
 }
@@ -33,7 +33,7 @@ export async function GET() {
         return NextResponse.json({ handle: me.handle, recipients: await collaboratorRecipients(), board: readBoardFor(me.handle) }, { headers: noStore });
     } catch (err) {
         console.error("[social/briefs]", err);
-        return NextResponse.json({ error: "Could not read the board" }, { status: 500 });
+        return NextResponse.json({ error: "Non riesco a leggere la bacheca" }, { status: 500 });
     }
 }
 
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     try {
         if (body.mode !== "open") {
             const mine = readBoardFor(me.handle).threads.some((t) => t.threadId === body.threadId);
-            if (!mine) return NextResponse.json({ error: "That thread is not yours." }, { status: 403 });
+            if (!mine) return NextResponse.json({ error: "Questa conversazione non è tua." }, { status: 403 });
         }
         const input = toCompose(body, me.handle, await collaboratorRecipients(), new Date());
         const result = await submit(input, new Date(), me.handle);
@@ -60,6 +60,6 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: err.message }, { status: 422 });
         }
         console.error("[social/briefs]", err);
-        return NextResponse.json({ error: "Could not queue the brief" }, { status: 500 });
+        return NextResponse.json({ error: "Non sono riuscito a mettere in coda il brief" }, { status: 500 });
     }
 }

@@ -76,9 +76,9 @@ export default function Onboarding({ view, mode, onSigned }: OnboardingProps) {
         } finally { setBusy(false); }
     };
 
-    const nav = (back: Step | null, next: Step | null, nextLabel = "Next") => (
+    const nav = (back: Step | null, next: Step | null, nextLabel = "Avanti") => (
         <div className="mt-5 flex justify-between gap-3">
-            {back ? <button type="button" className="act-quiet" style={onPaper} onClick={() => setStep(back)}>Back</button> : <span />}
+            {back ? <button type="button" className="act-quiet" style={onPaper} onClick={() => setStep(back)}>Indietro</button> : <span />}
             {next && <button type="button" className="act-void" style={onPaper} onClick={() => setStep(next)}>{nextLabel}</button>}
         </div>
     );
@@ -88,28 +88,28 @@ export default function Onboarding({ view, mode, onSigned }: OnboardingProps) {
             case "welcome":
                 return (
                     <>
-                        <h1 className="document-title text-[24px]">Welcome</h1>
+                        <h1 className="document-title text-[24px]">Ti diamo il benvenuto</h1>
                         <p className="mt-3">{view.welcome}</p>
-                        {nav(null, { kind: "how" }, "Start")}
+                        {nav(null, { kind: "how" }, "Inizia")}
                     </>
                 );
             case "how":
                 return (
                     <>
-                        <div className={label}>How we work</div>
+                        <div className={label}>Come lavoriamo</div>
                         <ul className="list-disc space-y-2 pl-5">{view.howWeWork.map((t) => <li key={t}>{t}</li>)}</ul>
                         <div className="mt-4 border-t border-paper-edge pt-3 text-[14px]">
-                            <div className={label}>In the cockpit you can</div>
+                            <div className={label}>Nel cockpit puoi</div>
                             <ul className="list-disc space-y-1 pl-5">
-                                <li>review the social queue and mark posts ready for JJ, or ask for changes;</li>
-                                <li>brief the house&apos;s agents and set the social strategy;</li>
-                                <li>suggest replies to YouTube comments;</li>
-                                <li>read the numbers and every page of the website;</li>
-                                <li>upload footage.</li>
+                                <li>rivedere la coda social e segnare i post pronti per JJ, o chiedere modifiche;</li>
+                                <li>dare brief agli agenti della casa e impostare la strategia social;</li>
+                                <li>suggerire risposte ai commenti su YouTube;</li>
+                                <li>leggere i numeri e ogni pagina del sito;</li>
+                                <li>caricare video.</li>
                             </ul>
-                            <p className="mt-2"><strong>What waits for JJ:</strong> publishing, in every form — a post, a reply to a comment, a website page, a newsletter. Nothing goes public without his yes.</p>
+                            <p className="mt-2"><strong>Cosa aspetta JJ:</strong> la pubblicazione, in ogni forma — un post, una risposta a un commento, una pagina del sito, una newsletter. Niente diventa pubblico senza il suo sì.</p>
                         </div>
-                        {nav({ kind: "welcome" }, { kind: "card", i: 0 }, "Read the agreement")}
+                        {nav({ kind: "welcome" }, { kind: "card", i: 0 }, "Leggi l'accordo")}
                     </>
                 );
             case "card": {
@@ -117,11 +117,11 @@ export default function Onboarding({ view, mode, onSigned }: OnboardingProps) {
                 const last = step.i === view.cards.length - 1;
                 return (
                     <>
-                        <div className={label}>The agreement · {step.i + 1} of {view.cards.length}</div>
+                        <div className={label}>L&apos;accordo · {step.i + 1} di {view.cards.length}</div>
                         <h2 className="document-title text-[20px]">{card.title}</h2>
                         <p className="mt-3">{card.summary}</p>
                         <button type="button" className="mt-3 text-[13px] underline" onClick={() => setOpen(open === step.i ? null : step.i)} aria-expanded={open === step.i}>
-                            {open === step.i ? "Hide the full clause" : "Read the full clause"}
+                            {open === step.i ? "Nascondi la clausola completa" : "Leggi la clausola completa"}
                         </button>
                         {open === step.i && (
                             <div className="mt-2 max-h-[45vh] overflow-y-auto border-l-2 border-paper-edge pl-3 text-[13px]">
@@ -131,8 +131,8 @@ export default function Onboarding({ view, mode, onSigned }: OnboardingProps) {
                             </div>
                         )}
                         <div className="mt-5 flex justify-between gap-3">
-                            <button type="button" className="act-quiet" style={onPaper} onClick={() => setStep(step.i === 0 ? { kind: "how" } : { kind: "card", i: step.i - 1 })}>Back</button>
-                            <button type="button" className="act-void" style={onPaper} onClick={() => { seen(card.title); setOpen(null); setStep(last ? { kind: "full" } : { kind: "card", i: step.i + 1 }); }}>Got it</button>
+                            <button type="button" className="act-quiet" style={onPaper} onClick={() => setStep(step.i === 0 ? { kind: "how" } : { kind: "card", i: step.i - 1 })}>Indietro</button>
+                            <button type="button" className="act-void" style={onPaper} onClick={() => { seen(card.title); setOpen(null); setStep(last ? { kind: "full" } : { kind: "card", i: step.i + 1 }); }}>Ho capito</button>
                         </div>
                     </>
                 );
@@ -141,17 +141,17 @@ export default function Onboarding({ view, mode, onSigned }: OnboardingProps) {
                 return (
                     <>
                         <div className="flex flex-wrap items-baseline justify-between gap-2">
-                            <div className={label}>The whole agreement · version {view.version}</div>
-                            <button type="button" className="act-void" style={onPaper} onClick={download}>Download a copy</button>
+                            <div className={label}>L&apos;accordo completo · versione {view.version}</div>
+                            <button type="button" className="act-void" style={onPaper} onClick={download}>Scarica una copia</button>
                         </div>
-                        <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap border border-paper-edge p-3 text-[13px]" tabIndex={0} aria-label="The agreement">
+                        <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap border border-paper-edge p-3 text-[13px]" tabIndex={0} aria-label="L'accordo">
                             {view.text}
-                            <div ref={endRef} aria-hidden="true">· end of the agreement ·</div>
+                            <div ref={endRef} aria-hidden="true">· fine dell&apos;accordo ·</div>
                         </div>
-                        <p className="mt-2 text-[12px]">{reachedEndAt ? "You have reached the end." : "Scroll to the end to continue."}</p>
+                        <p className="mt-2 text-[12px]">{reachedEndAt ? "Hai raggiunto la fine." : "Scorri fino alla fine per continuare."}</p>
                         <div className="mt-5 flex justify-between gap-3">
-                            <button type="button" className="act-quiet" style={onPaper} onClick={() => setStep({ kind: "card", i: view.cards.length - 1 })}>Back</button>
-                            <button type="button" className="act-void" style={onPaper} disabled={!reachedEndAt} onClick={() => setStep({ kind: "sign" })}>Continue</button>
+                            <button type="button" className="act-quiet" style={onPaper} onClick={() => setStep({ kind: "card", i: view.cards.length - 1 })}>Indietro</button>
+                            <button type="button" className="act-void" style={onPaper} disabled={!reachedEndAt} onClick={() => setStep({ kind: "sign" })}>Continua</button>
                         </div>
                     </>
                 );
@@ -177,9 +177,9 @@ export default function Onboarding({ view, mode, onSigned }: OnboardingProps) {
                         <p className="mt-3 text-[13px]">{view.acceptance.intent}</p>
                         {error && <p className="mt-3 text-[14px]" role="alert">{error}</p>}
                         <div className="mt-5 flex justify-between gap-3">
-                            <button type="button" className="act-quiet" style={onPaper} onClick={() => setStep({ kind: "full" })}>Back</button>
+                            <button type="button" className="act-quiet" style={onPaper} onClick={() => setStep({ kind: "full" })}>Indietro</button>
                             <button type="button" className="act-seal" disabled={!ready || busy} onClick={sign}>
-                                {mode === "invite" ? `${view.acceptance.button}, then choose a password` : view.acceptance.button}
+                                {mode === "invite" ? `${view.acceptance.button}, poi scegli una password` : view.acceptance.button}
                             </button>
                         </div>
                     </>

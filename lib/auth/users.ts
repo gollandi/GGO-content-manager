@@ -128,10 +128,10 @@ export function findUser(email: string): StoredUser | null {
 
 export function validatePassword(password: string): string | null {
     if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
-        return `The password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+        return `La password deve avere almeno ${MIN_PASSWORD_LENGTH} caratteri.`;
     }
     if (Buffer.byteLength(password, "utf8") > MAX_PASSWORD_BYTES) {
-        return `The password must be at most ${MAX_PASSWORD_BYTES} bytes.`;
+        return `La password può avere al massimo ${MAX_PASSWORD_BYTES} byte.`;
     }
     return null;
 }
@@ -210,7 +210,7 @@ export async function redeemInvite(token: string, password: string): Promise<Pub
     const hash = await bcryptjs.hash(password, 10);
     return mutate((store) => {
         const u = matchToken(store, token);
-        if (!u) throw new Error("This link is not valid any more. Ask for a new one.");
+        if (!u) throw new Error("Questo link non è più valido. Chiedine uno nuovo.");
         u.hash = hash;
         u.invite = null;
         u.disabled = false;

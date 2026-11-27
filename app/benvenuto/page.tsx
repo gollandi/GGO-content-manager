@@ -23,18 +23,18 @@ export default function WelcomePage() {
         fetch("/api/onboarding", { cache: "no-store" })
             .then(async (r) => {
                 const j = await r.json().catch(() => ({}));
-                setState(r.ok ? j : { kind: "error", message: j.error || "The agreement could not be opened." });
+                setState(r.ok ? j : { kind: "error", message: j.error || "Non riesco ad aprire l'accordo." });
             })
-            .catch(() => setState({ kind: "error", message: "The cockpit could not be reached." }));
+            .catch(() => setState({ kind: "error", message: "Non riesco a raggiungere il cockpit." }));
     }, []);
 
-    if (state.kind === "loading") return <p className="column-label p-8">Opening…</p>;
+    if (state.kind === "loading") return <p className="column-label p-8">Apro…</p>;
     if (state.kind === "required") {
         return (
             <Onboarding view={state.view} mode="session" onSigned={async (acceptance) => {
                 const r = await fetch("/api/onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acceptance }) });
                 const j = await r.json().catch(() => ({}));
-                if (!r.ok) return j.error || "Not signed. Try again.";
+                if (!r.ok) return j.error || "Non firmato. Riprova.";
                 window.location.assign("/guida");
                 return null;
             }} />
@@ -44,12 +44,12 @@ export default function WelcomePage() {
     if (state.kind === "accepted") {
         return (
             <div className={box}>
-                <p>Your agreement (version {state.version}) is signed.{state.countersigned ? " GGO Med has countersigned it." : " Awaiting GGO Med's signature."}</p>
-                <p className="mt-3"><a className="underline" href="/api/contract/signed">Download your signed copy</a> · <a className="underline" href="/review">Go to the social queue</a></p>
+                <p>Il tuo accordo (versione {state.version}) è firmato.{state.countersigned ? " GGO Med lo ha controfirmato." : " In attesa della firma di GGO Med."}</p>
+                <p className="mt-3"><a className="underline" href="/api/contract/signed">Scarica la tua copia firmata</a> · <a className="underline" href="/review">Vai alla coda social</a></p>
             </div>
         );
     }
-    if (state.kind === "unassigned") return <div className={box}><p>Your agreement is still being prepared. GGO Med will be in touch; the cockpit opens once it is signed.</p></div>;
+    if (state.kind === "unassigned") return <div className={box}><p>Il tuo accordo è ancora in preparazione. GGO Med ti contatterà; il cockpit si apre quando è firmato.</p></div>;
     if (state.kind === "owner") return <div className={box}><p>The owner has no agreement to sign here. Collaborators&apos; signatures are in Settings.</p></div>;
     return <div className={box}><p role="alert">{state.message}</p></div>;
 }

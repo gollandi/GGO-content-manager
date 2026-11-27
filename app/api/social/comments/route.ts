@@ -30,7 +30,7 @@ export async function GET() {
         return NextResponse.json({ rows, unreadable, mayApprove: mayPublish(auth.role, "comment-reply") }, { headers: noStore });
     } catch (err) {
         console.error("[social/comments]", (err as Error).message);
-        return NextResponse.json({ error: "Could not read the comments" }, { status: 502 });
+        return NextResponse.json({ error: "Non riesco a leggere i commenti" }, { status: 502 });
     }
 }
 
@@ -73,10 +73,10 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ error: "Unknown act" }, { status: 400 });
         }
     } catch (err) {
-        if (err instanceof CommentActError || /Write the suggested|Keep a suggestion/.test((err as Error).message)) {
+        if (err instanceof CommentActError || /Prima scrivi la risposta|Tieni il suggerimento/.test((err as Error).message)) {
             return NextResponse.json({ error: (err as Error).message }, { status: 422 });
         }
         console.error("[social/comments]", (err as Error).message);
-        return NextResponse.json({ error: "Could not save that" }, { status: 502 });
+        return NextResponse.json({ error: "Non sono riuscito a salvare" }, { status: 502 });
     }
 }

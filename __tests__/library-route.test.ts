@@ -70,7 +70,7 @@ it("answers 404 for an id that is not in the table and for a listed file that is
     rmSync(path.join(dir, LIBRARY["social-media-guide.pdf"].file));
     const res = await call("social-media-guide.pdf");
     expect(res.status).toBe(404);
-    expect((await res.json()).error).toMatch(/not on the server yet/);
+    expect((await res.json()).error).toMatch(/non è ancora sul server/);
 });
 
 it("answers 503, not 404, when the file is there and cannot be read", async () => {

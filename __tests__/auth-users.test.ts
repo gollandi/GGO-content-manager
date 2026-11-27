@@ -32,7 +32,7 @@ describe("collaborators — the user store", () => {
         expect(await users.verifyStoredCredentials("diletta@example.com", "a wrong password!")).toBeNull();
         // The link is spent.
         expect(users.describeInvite(token)).toBeNull();
-        await expect(users.redeemInvite(token, "another long password")).rejects.toThrow(/not valid/);
+        await expect(users.redeemInvite(token, "another long password")).rejects.toThrow(/non è più valido/);
     });
 
     it("stores no token and no password, only their hashes, in a 0600 file", async () => {
@@ -51,7 +51,7 @@ describe("collaborators — the user store", () => {
         vi.useFakeTimers();
         vi.setSystemTime(Date.now() + users.INVITE_TTL_MS + 1000);
         expect(users.describeInvite(token)).toBeNull();
-        await expect(users.redeemInvite(token, PASSWORD)).rejects.toThrow(/not valid/);
+        await expect(users.redeemInvite(token, PASSWORD)).rejects.toThrow(/non è più valido/);
     });
 
     it("never takes the owner's or the admin's address", async () => {
@@ -65,8 +65,8 @@ describe("collaborators — the user store", () => {
 
     it("enforces the password rules", async () => {
         const { token } = await users.inviteUser({ email: "d@example.com", name: "D", role: "social", by: "o" });
-        await expect(users.redeemInvite(token, "short")).rejects.toThrow(/at least 12/);
-        await expect(users.redeemInvite(token, "x".repeat(73))).rejects.toThrow(/at most 72/);
+        await expect(users.redeemInvite(token, "short")).rejects.toThrow(/almeno 12/);
+        await expect(users.redeemInvite(token, "x".repeat(73))).rejects.toThrow(/al massimo 72/);
     });
 
     it("a switched-off collaborator cannot sign in and their standing is revoked", async () => {

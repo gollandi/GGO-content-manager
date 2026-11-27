@@ -29,8 +29,8 @@ describe("a brief becomes a board event", () => {
         expect(routeRecipients(["ginevra"], "brief", ALLOWED)).toEqual(["ginevra"]);
         expect(routeRecipients(["natascia"], "strategy", ALLOWED)).toEqual(["ernesto", "natascia", "jj"]);
         expect(() => routeRecipients(["house"], "brief", ALLOWED)).toThrow(BriefError);
-        expect(() => routeRecipients(["ambrogio"], "brief", ALLOWED)).toThrow(/cannot address/);
-        expect(() => routeRecipients([], "brief", ALLOWED)).toThrow(/at least one/);
+        expect(() => routeRecipients(["ambrogio"], "brief", ALLOWED)).toThrow(/Non puoi scrivere/);
+        expect(() => routeRecipients([], "brief", ALLOWED)).toThrow(/almeno un destinatario/);
     });
 
     it("makes a valid thread id and tags a strategy", () => {
@@ -43,8 +43,8 @@ describe("a brief becomes a board event", () => {
         const b = toCompose({ mode: "reply", threadId: "t", to: ["ernesto"], body: BODY }, "diletta", ALLOWED, NOW);
         expect(a.id).not.toBe(b.id);
         expect(c.lang).toBe("en");
-        expect(() => toCompose({ mode: "open", title: "x", to: ["ernesto"], body: BODY }, "diletta", ALLOWED, NOW)).toThrow(/title/);
-        expect(() => toCompose({ mode: "open", title: "Reels", to: ["ernesto"], body: " " }, "diletta", ALLOWED, NOW)).toThrow(/Write/);
+        expect(() => toCompose({ mode: "open", title: "x", to: ["ernesto"], body: BODY }, "diletta", ALLOWED, NOW)).toThrow(/titolo/);
+        expect(() => toCompose({ mode: "open", title: "Reels", to: ["ernesto"], body: " " }, "diletta", ALLOWED, NOW)).toThrow(/Prima scrivi/);
     });
 });
 
@@ -131,7 +131,7 @@ describe("/api/social/briefs", () => {
         route = await import("../app/api/social/briefs/route");
         const res = await route.GET();
         expect(res.status).toBe(409);
-        expect((await res.json()).error).toMatch(/not set up/);
+        expect((await res.json()).error).toMatch(/non sono ancora attivi/);
     });
 
     it("queues a brief signed by the collaborator, and refuses a thread that is not theirs", async () => {
@@ -147,5 +147,16 @@ describe("/api/social/briefs", () => {
         expect(theirs.status).toBe(403);
         const close = await route.POST(post({ mode: "close", threadId: "jj-private" }) as never);
         expect(close.status).toBe(403);
+    });
+});
+
+describe("the language tag follows what she wrote", () => {
+    it("tags Italian as it and English as en, and the board accepts both", async () => {
+        const { langOf, toCompose } = await import("../lib/social/briefs");
+        expect(langOf("Vorrei tre reel sulla varicocele per la prossima settimana, con il tono della pagina")).toBe("it");
+        expect(langOf("Please plan three reels on varicocele for next week, in the tone of the page")).toBe("en");
+        const now = new Date("2026-11-27T10:00:00Z");
+        const it_ = toCompose({ mode: "open", kind: "brief", title: "Reel varicocele", body: "Vorrei tre reel sulla varicocele per la prossima settimana, con il tono della pagina", to: ["ernesto"] }, "diletta", ["ernesto"], now, 1);
+        expect(it_.lang).toBe("it");
     });
 });

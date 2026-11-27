@@ -101,14 +101,14 @@ describe("the social media manager in the Cancello", () => {
             update.mockReset();
             retrieve.mockResolvedValue(calendarRow("Approved"));
             await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision, comment: "x" }, diletta))
-                .rejects.toThrow(/only a post in Review/);
+                .rejects.toThrow(/solo su un post in revisione/);
             expect(update).not.toHaveBeenCalled();
         }
     });
 
     it("requires a note to request changes or comment", async () => {
-        await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "request" }, diletta)).rejects.toThrow(/requires a note/);
-        await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "comment", comment: "  " }, diletta)).rejects.toThrow(/requires a note/);
+        await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "request" }, diletta)).rejects.toThrow(/serve una nota/);
+        await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "comment", comment: "  " }, diletta)).rejects.toThrow(/serve una nota/);
     });
 
     it("keeps each act on one line", async () => {
@@ -119,7 +119,7 @@ describe("the social media manager in the Cancello", () => {
 
     it("cannot move a publish date", async () => {
         await expect(applyCancelloDecision({ rowId: "r", target: "calendar", decision: "ready", date: "2026-12-01" }, diletta))
-            .rejects.toThrow(/publish date/);
+            .rejects.toThrow(/data di pubblicazione/);
     });
 
     it("cannot write to a page outside the Content Calendar", async () => {

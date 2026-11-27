@@ -131,7 +131,7 @@ describe("collaborator management and the invitation", () => {
         installContract(dir, "d@example.com", { status: "PENDING_JJ_FINAL_READ" });
         const { view } = await (await inviteContract(json("http://x/api/auth-invite/contract", { token }))).json();
         expect(view.signable).toBe(false);
-        expect(view.notSignableReason).toMatch(/not final yet/);
+        expect(view.notSignableReason).toMatch(/non è ancora definitiva/);
         expect((await redeem(json("http://x/api/auth-invite/redeem", { token, password: "a long enough pass", acceptance: acceptanceFor(view) }))).status).toBe(422);
         installContract(dir, "d@example.com");
         const final = (await (await inviteContract(json("http://x/api/auth-invite/contract", { token }))).json()).view;

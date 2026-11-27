@@ -2,7 +2,7 @@
  * The guide for the social media manager — what it shows, what each button
  * does, and what stays with JJ. Static: nothing here reads or writes data.
  */
-export const metadata = { title: "Guide — GGO Med cockpit" };
+export const metadata = { title: "Guida — cockpit GGO Med" };
 
 const section = "paper mb-5 border border-paper-edge p-5 text-[14px] leading-relaxed text-paper-foreground";
 const h2 = "column-label column-label-paper mb-2";
@@ -12,89 +12,89 @@ export default function GuidePage() {
         <div className="mx-auto max-w-2xl p-8 max-sm:p-4">
             <header className="page-header">
                 <div>
-                    <h1 className="page-title">Guide</h1>
-                    <p className="page-subtitle">How the GGO Med social work flows through this cockpit.</p>
+                    <h1 className="page-title">Guida</h1>
+                    <p className="page-subtitle">Come scorre il lavoro social di GGO Med in questo cockpit.</p>
                 </div>
             </header>
 
             <section className={section}>
-                <h2 className={h2}>Brand and social media guide</h2>
-                <p>The GGO Med standard for social work, approved by JJ: the four rules that do not bend, voice, how to name JJ, logos and colours, formats and sizes, caption patterns, the channels, and the checklist to run before you schedule.</p>
-                <p className="mt-2"><a className="underline" href="/api/social/library/social-media-guide" target="_blank" rel="noopener">Open the interactive guide</a> (format picker, colours that copy on a click, a caption screen, a checklist that remembers your ticks) or <a className="underline" href="/api/social/library/social-media-guide.pdf">download the PDF</a>.</p>
-                <p className="mt-2">It is internal: do not forward it or post any part of it.</p>
+                <h2 className={h2}>Guida al brand e ai social</h2>
+                <p>Lo standard GGO Med per il lavoro social, approvato da JJ: le quattro regole che non si piegano, la voce, come nominare JJ, loghi e colori, formati e dimensioni, schemi per le didascalie, i canali e la checklist da seguire prima di programmare.</p>
+                <p className="mt-2"><a className="underline" href="/api/social/library/social-media-guide" target="_blank" rel="noopener">Apri la guida interattiva</a> (scelta del formato, colori che si copiano con un clic, una schermata per le didascalie, una checklist che ricorda le tue spunte) oppure <a className="underline" href="/api/social/library/social-media-guide.pdf">scarica il PDF</a>.</p>
+                <p className="mt-2">È interna: non inoltrarla e non pubblicarne nessuna parte.</p>
             </section>
 
             <section className={section}>
-                <h2 className={h2}>How the work moves</h2>
+                <h2 className={h2}>Come si muove il lavoro</h2>
                 <ol className="list-decimal space-y-1 pl-5">
-                    <li>The house&apos;s agents plan and produce each post: visuals, caption and hashtags.</li>
-                    <li>When a post is ready to be judged it enters <strong>Review</strong> and appears in your <a className="underline" href="/review">Social queue</a>.</li>
-                    <li>You check it, and either mark it <strong>Ready for JJ</strong>, add a note, or <strong>request changes</strong>.</li>
-                    <li>JJ decides: he approves — and <strong>approving is publishing</strong>: his approval publishes the post in the site&apos;s Social Planner and hands it to Buffer, which posts it at its slot — or he sends it back to the team, usually with your note.</li>
+                    <li>Gli agenti della casa pianificano e producono ogni post: immagini, didascalia e hashtag.</li>
+                    <li>Quando un post è pronto per essere giudicato entra in <strong>Review</strong> e compare nella tua <a className="underline" href="/review">Coda social</a>.</li>
+                    <li>Lo controlli e lo segni <strong>Pronto per JJ</strong>, aggiungi una nota, oppure <strong>chiedi modifiche</strong>.</li>
+                    <li>Decide JJ: approva — e <strong>approvare è pubblicare</strong>: la sua approvazione pubblica il post nel Social Planner del sito e lo passa a Buffer, che lo pubblica nel suo slot — oppure lo rimanda al team, di solito con la tua nota.</li>
                 </ol>
             </section>
 
             <section className={section}>
-                <h2 className={h2}>The three buttons</h2>
+                <h2 className={h2}>I tre pulsanti</h2>
                 <dl className="space-y-3">
                     <div>
-                        <dt className="font-semibold">Ready for JJ</dt>
-                        <dd>You have checked the post and think it can go. Add a short note if anything is worth his attention. JJ sees &ldquo;Checked by&rdquo; with your name and the time. It does not publish anything.</dd>
+                        <dt className="font-semibold">Pronto per JJ</dt>
+                        <dd>Hai controllato il post e pensi che possa uscire. Aggiungi una breve nota se c&apos;è qualcosa che merita la sua attenzione. JJ vede &ldquo;Controllato da&rdquo; con il tuo nome e l&apos;ora. Non pubblica niente.</dd>
                     </div>
                     <div>
-                        <dt className="font-semibold">Add note</dt>
-                        <dd>Leaves a remark in the post&apos;s history without changing its status — a question, a suggestion, a fact to verify.</dd>
+                        <dt className="font-semibold">Aggiungi nota</dt>
+                        <dd>Lascia un commento nella storia del post senza cambiarne lo stato — una domanda, un suggerimento, un fatto da verificare.</dd>
                     </div>
                     <div>
-                        <dt className="font-semibold">Request changes</dt>
-                        <dd>The post needs work. Write what should change (a note is required). JJ sees &ldquo;Changes requested&rdquo; with your name on the post and sends it back to the team; the post stays in the queue until he does.</dd>
+                        <dt className="font-semibold">Chiedi modifiche</dt>
+                        <dd>Il post va rilavorato. Scrivi cosa va cambiato (la nota è obbligatoria). JJ vede &ldquo;Modifiche chieste&rdquo; con il tuo nome sul post e lo rimanda al team; il post resta in coda finché non lo fa.</dd>
                     </div>
                 </dl>
             </section>
 
             <section className={section}>
-                <h2 className={h2}>What stays with JJ</h2>
-                <p>Publishing, in every form — a post, a reply to a comment, a website page, a newsletter — is JJ&apos;s. Approving, scheduling or sending to Buffer, sending a post back, rejecting, closing and deleting posts, and changing a publish date are JJ&apos;s alone. You act on posts in Review — the ones in your queue. The buttons for them are not shown to you, and the server refuses them if asked. This is deliberate: GGO Med is a medical practice, and nothing reaches the public without the clinician&apos;s approval.</p>
+                <h2 className={h2}>Cosa resta a JJ</h2>
+                <p>Pubblicare, in ogni forma — un post, una risposta a un commento, una pagina del sito, una newsletter — spetta a JJ. Approvare, programmare o inviare a Buffer, rimandare un post, rifiutarlo, chiuderlo o eliminarlo, e cambiare una data di pubblicazione spettano solo a lui. Tu agisci sui post in Review — quelli della tua coda. I pulsanti per il resto non ti vengono mostrati, e il server li rifiuta se richiesti. È voluto: GGO Med è uno studio medico, e niente arriva al pubblico senza l&apos;approvazione del clinico.</p>
             </section>
 
             <section className={section}>
-                <h2 className={h2}>Notes are a shared history</h2>
-                <p>Every note is added to the post with the date, time and the author&apos;s name, on one line, and nothing is ever overwritten. The field is shared and short (1,600 characters for people, the rest kept for the agents), so keep notes brief. Write as you would on a shared document: clear, specific, kind. Notes are written in British English, as is everything GGO Med publishes.</p>
-                <p className="mt-2">Square brackets are turned into round ones: the agents use bracketed markers in the same field.</p>
+                <h2 className={h2}>Le note sono una storia condivisa</h2>
+                <p>Ogni nota si aggiunge al post con data, ora e nome di chi la scrive, su una riga, e niente viene mai sovrascritto. Il campo è condiviso e corto (1.600 caratteri per le persone, il resto è riservato agli agenti), quindi tieni le note brevi. Scrivi come su un documento condiviso: chiara, precisa, gentile. Puoi scrivere le note e i brief in italiano; ciò che GGO Med pubblica resta in inglese britannico.</p>
+                <p className="mt-2">Le parentesi quadre diventano tonde: gli agenti usano marcatori tra parentesi quadre nello stesso campo.</p>
             </section>
 
             <section className={section}>
-                <h2 className={h2}>Directing the house</h2>
-                <p><a className="underline" href="/briefs">Briefs</a> is where you tell the agents what to make. Choose who it is for — Ernesto plans and runs social production; Samantha writes captions, Greta cuts real footage and Titti splits raw recordings, all through Ernesto; Ginevra makes generative reels; Natascia answers questions about the numbers — and write what you want, for whom, by when and why. Your brief is signed with your name. The agents read it at their next slot (Ernesto at 07:15, 13:00 and 18:00) and answer in the same thread.</p>
-                <p className="mt-2">A <strong>social strategy</strong> goes to Ernesto and shapes every plan he makes until you close it or replace it. If JJ has a strategy of his own open, his comes first.</p>
-                <p className="mt-2">What a brief cannot do: publish anything, approve a post, spend beyond the house&apos;s weekly budget for generated video (Ernesto asks JJ), or change the house&apos;s rules. Every draft still goes through the house&apos;s clinical and compliance check, and every post still waits for JJ&apos;s approval. You can send twenty messages a day.</p>
+                <h2 className={h2}>Dare la direzione alla casa</h2>
+                <p>Nei <a className="underline" href="/briefs">Brief</a> dici agli agenti cosa produrre. Scegli a chi è rivolto — Ernesto pianifica e gestisce la produzione social; Samantha scrive le didascalie, Greta monta il girato reale e Titti divide le registrazioni grezze, tutti tramite Ernesto; Ginevra crea reel generativi; Natascia risponde alle domande sui numeri — e scrivi cosa vuoi, per chi, entro quando e perché. Il tuo brief è firmato con il tuo nome. Gli agenti lo leggono al loro prossimo turno (Ernesto alle 07:15, 13:00 e 18:00) e rispondono nella stessa conversazione.</p>
+                <p className="mt-2">Una <strong>strategia social</strong> va a Ernesto e orienta ogni piano che fa finché non la chiudi o la sostituisci. Se JJ ha aperta una sua strategia, la sua viene prima.</p>
+                <p className="mt-2">Cosa un brief non può fare: pubblicare qualcosa, approvare un post, spendere oltre il budget settimanale della casa per i video generati (Ernesto chiede a JJ), o cambiare le regole della casa. Ogni bozza passa comunque dal controllo clinico e di conformità della casa, e ogni post aspetta comunque l&apos;approvazione di JJ. Puoi mandare venti messaggi al giorno.</p>
             </section>
 
             <section className={section}>
-                <h2 className={h2}>Comments</h2>
-                <p><a className="underline" href="/comments">Comments</a> lists the YouTube comments waiting for a reply, each with Samantha&apos;s draft. <strong>Suggest reply</strong> gives her your wording or what the reply should say: she drafts again from it at the next run, and the new draft goes through the house&apos;s clinical and compliance check like every other. <strong>Ready for JJ</strong> tells him you have checked the draft on screen. A reply is posted only when JJ approves it — approving is publishing — and exactly the draft he approved is posted. If a draft failed the compliance check, only JJ can ask for another.</p>
-                <p className="mt-2"><strong>Health details.</strong> If a comment mentions someone&apos;s health, press <strong>Health details: handle by hand</strong>: no agent drafts for it again, and JJ sees the mark. Never paste health details into a suggestion, a brief or any AI tool.</p>
-                <p className="mt-2">Instagram and Facebook comments are not read by the house yet.</p>
+                <h2 className={h2}>Commenti</h2>
+                <p>In <a className="underline" href="/comments">Commenti</a> trovi i commenti YouTube in attesa di risposta, ognuno con la bozza di Samantha. <strong>Suggerisci risposta</strong> le dà le tue parole o cosa dovrebbe dire la risposta: lei riscrive la bozza al giro successivo, e la nuova bozza passa dal controllo clinico e di conformità della casa come tutte le altre. <strong>Pronto per JJ</strong> gli dice che hai controllato la bozza a schermo. Una risposta viene pubblicata solo quando JJ la approva — approvare è pubblicare — e viene pubblicata esattamente la bozza che ha approvato. Se una bozza non ha passato il controllo di conformità, solo JJ può chiederne un&apos;altra.</p>
+                <p className="mt-2"><strong>Dati sanitari.</strong> Se un commento parla della salute di qualcuno, premi <strong>Dati sanitari: gestisci a mano</strong>: nessun agente prepara più bozze, e JJ vede il segno. Non incollare mai dati sanitari in un suggerimento, in un brief o in uno strumento di intelligenza artificiale.</p>
+                <p className="mt-2">La casa non legge ancora i commenti di Instagram e Facebook.</p>
             </section>
 
             <section className={section}>
-                <h2 className={h2}>Numbers and the website</h2>
-                <p><a className="underline" href="/performance">Performance</a> shows Natascia&apos;s weekly reading and the numbers the house collects every Sunday (search, the website, Instagram and Facebook, YouTube, the newsletter). <a className="underline" href="/website">Website</a> lists every page of ggomed.co.uk with its state. Both are read-only; if something there should change, send a brief.</p>
+                <h2 className={h2}>Numeri e sito</h2>
+                <p>In <a className="underline" href="/performance">Risultati</a> trovi la lettura settimanale di Natascia e i numeri che la casa raccoglie ogni domenica (ricerca, sito, Instagram e Facebook, YouTube, newsletter). <a className="underline" href="/website">Sito</a> elenca ogni pagina di ggomed.co.uk con il suo stato. Sono entrambi in sola lettura; se lì qualcosa andrebbe cambiato, manda un brief.</p>
             </section>
 
             <section className={section}>
-                <h2 className={h2}>Uploading media</h2>
-                <p><a className="underline" href="/carico">Upload media</a> takes video and audio (MP4, MOV, M4V, WebM, MKV, AVI, M4A, MP3, WAV), straight from your phone if you like. Large files go up in pieces and resume if the signal drops: press <em>Resume</em>. The team&apos;s worker prepares the footage for editing. You can cancel only your own uploads.</p>
-                <p className="mt-2">Never upload anything that shows or identifies a patient.</p>
+                <h2 className={h2}>Caricare i media</h2>
+                <p><a className="underline" href="/carico">Carica media</a> accetta video e audio (MP4, MOV, M4V, WebM, MKV, AVI, M4A, MP3, WAV), anche direttamente dal telefono. I file grandi salgono a pezzi e ripartono se il segnale cade: premi <em>Riprendi</em>. Il worker del team prepara il girato per il montaggio. Puoi annullare solo i tuoi caricamenti.</p>
+                <p className="mt-2">Non caricare mai niente che mostri o renda riconoscibile un paziente.</p>
             </section>
 
             <section className={section}>
-                <h2 className={h2}>Your account</h2>
+                <h2 className={h2}>Il tuo account</h2>
                 <ul className="list-disc space-y-1 pl-5">
-                    <li>Your password is yours: no one else knows it. If you forget it, ask JJ for a new link.</li>
-                    <li>After several wrong passwords, sign-in pauses for fifteen minutes.</li>
-                    <li>Everything you do here is recorded with your name.</li>
-                    <li>Your signed agreement: <a className="underline" href="/api/contract/signed">download your copy</a> (it opens in any text editor and prints to PDF), or see its status on the <a className="underline" href="/benvenuto">welcome page</a>.</li>
+                    <li>La tua password è tua: nessun altro la conosce. Se la dimentichi, chiedi a JJ un nuovo link.</li>
+                    <li>Dopo diverse password sbagliate, l&apos;accesso si blocca per quindici minuti.</li>
+                    <li>Tutto quello che fai qui viene registrato con il tuo nome.</li>
+                    <li>Il tuo accordo firmato: <a className="underline" href="/api/contract/signed">scarica la tua copia</a> (si apre con qualsiasi editor di testo e si stampa in PDF), oppure guardane lo stato nella <a className="underline" href="/benvenuto">pagina di benvenuto</a>.</li>
                 </ul>
             </section>
         </div>

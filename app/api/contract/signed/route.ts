@@ -17,16 +17,16 @@ export async function GET(req: NextRequest) {
     const asked = req.nextUrl.searchParams.get("email");
     const email = (auth.role === "admin" && asked ? asked : auth.email).trim().toLowerCase();
     if (auth.role !== "admin" && asked && asked.trim().toLowerCase() !== email) {
-        return NextResponse.json({ error: "Not yours" }, { status: 403 });
+        return NextResponse.json({ error: "Non è tuo" }, { status: 403 });
     }
     let mine, body: string;
     try {
         mine = readRecords().filter((r) => r.signatory_role === "contractor" && r.signatory_email === email).at(-1);
-        if (!mine) return NextResponse.json({ error: "No signed agreement yet" }, { status: 404 });
+        if (!mine) return NextResponse.json({ error: "Non c'è ancora un accordo firmato" }, { status: 404 });
         body = signedCopy(email, mine.contract_sha256);
     } catch (err) {
         console.error("[contract/signed]", (err as Error).message);
-        return NextResponse.json({ error: "The signed copy could not be prepared." }, { status: 503 });
+        return NextResponse.json({ error: "Non sono riuscito a preparare la copia firmata." }, { status: 503 });
     }
     logDownload({ by: auth.email.trim().toLowerCase(), contractor: email, contract_sha256: mine.contract_sha256, at: new Date().toISOString(), ip: clientIp(req) });
     return new NextResponse(body, {

@@ -36,16 +36,16 @@ export async function POST(req: NextRequest) {
         if (body.password === undefined) {
             const invite = describeInvite(token);
             if (!invite) {
-                return NextResponse.json({ error: "This link is not valid any more. Ask for a new one." }, { status: 404, headers: noStore });
+                return NextResponse.json({ error: "Questo link non è più valido. Chiedine uno nuovo." }, { status: 404, headers: noStore });
             }
             return NextResponse.json({ ...invite, minPasswordLength: MIN_PASSWORD_LENGTH }, { headers: noStore });
         }
         if (typeof body.password !== "string") {
-            return NextResponse.json({ error: "A password is required." }, { status: 400, headers: noStore });
+            return NextResponse.json({ error: "Serve una password." }, { status: 400, headers: noStore });
         }
         const invite = describeInvite(token);
         if (!invite) {
-            return NextResponse.json({ error: "This link is not valid any more. Ask for a new one." }, { status: 404, headers: noStore });
+            return NextResponse.json({ error: "Questo link non è più valido. Chiedine uno nuovo." }, { status: 404, headers: noStore });
         }
         // A password that would be refused is refused before anything is signed.
         const problem = validatePassword(body.password);
@@ -70,8 +70,8 @@ export async function POST(req: NextRequest) {
         const message = (err as Error).message;
         // The user store's own refusals are written for the invitee; anything
         // else stays in the server log (it can quote a file).
-        if (/password|link|not valid/i.test(message) && !/[{}\/]/.test(message)) return NextResponse.json({ error: message }, { status: 400, headers: noStore });
+        if (/password|link|not valid|non è più valido/i.test(message) && !/[{}\/]/.test(message)) return NextResponse.json({ error: message }, { status: 400, headers: noStore });
         console.error("[auth-invite/redeem]", message);
-        return NextResponse.json({ error: "Something went wrong on our side. Nothing was changed; try again later." }, { status: 500, headers: noStore });
+        return NextResponse.json({ error: "Qualcosa non ha funzionato da parte nostra. Non è cambiato niente; riprova più tardi." }, { status: 500, headers: noStore });
     }
 }

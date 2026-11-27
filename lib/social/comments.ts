@@ -141,8 +141,8 @@ export const MAX_SUGGESTION_CHARS = 1500;
 /** The Notion blocks of a suggestion: the marker line, then the words as a quote. */
 export function suggestionBlocks(commentId: string, k: number, byLabel: string, text: string, at: Date) {
     const words = defang(text);
-    if (!words) throw new Error("Write the suggested reply or the direction first.");
-    if (words.length > MAX_SUGGESTION_CHARS) throw new Error(`Keep a suggestion under ${MAX_SUGGESTION_CHARS} characters.`);
+    if (!words) throw new Error("Prima scrivi la risposta che suggerisci o la direzione.");
+    if (words.length > MAX_SUGGESTION_CHARS) throw new Error(`Tieni il suggerimento sotto i ${MAX_SUGGESTION_CHARS} caratteri.`);
     const stamp = at.toISOString().slice(0, 16).replace("T", " ") + " UTC";
     return [
         { object: "block", type: "callout", callout: {

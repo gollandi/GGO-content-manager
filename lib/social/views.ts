@@ -14,7 +14,7 @@ export function summariseWeek(rows: PerformanceSnapshotRow[]) {
     const bySource = new Map<string, { rows: number; impressions: number; clicks: number; sessions: number }>();
     for (const r of rows) {
         if (day(r.weekOf) !== latest) continue;
-        const key = r.source || r.channel || "Other";
+        const key = r.source || r.channel || "Altro";
         const acc = bySource.get(key) ?? { rows: 0, impressions: 0, clicks: 0, sessions: 0 };
         acc.rows += 1;
         acc.impressions += r.impressions ?? 0;
