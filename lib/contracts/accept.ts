@@ -34,21 +34,21 @@ const iso = (v: unknown): string | null => (typeof v === "string" && Number.isFi
 /** Validate and record a contractor's acceptance of the version in force. */
 export async function acceptContract(input: AcceptanceInput, ctx: SigningContext): Promise<ContractRecord> {
     const view = viewFor(ctx.email);
-    if (!view) throw new ContractError("No agreement has been prepared for you yet. GGO Med will be in touch.", true);
-    if (!view.signable) throw new ContractError(view.notSignableReason ?? "This version cannot be signed.", true);
+    if (!view) throw new ContractError("Non è ancora stato preparato un accordo per te. GGO Med ti contatterà.", true);
+    if (!view.signable) throw new ContractError(view.notSignableReason ?? "Questa versione non si può firmare.", true);
     if (input?.contractId !== view.contractId || input.version !== view.version || input.sha256 !== view.sha256) {
-        throw new ContractError("The agreement has changed since this page was opened. Reload it and read the current version.", true);
+        throw new ContractError("L'accordo è cambiato da quando hai aperto la pagina. Ricaricala e leggi la versione attuale.", true);
     }
-    if (input.acceptanceSha256 !== view.acceptanceSha256) throw new ContractError("The acceptance wording has changed. Reload the page.", true);
+    if (input.acceptanceSha256 !== view.acceptanceSha256) throw new ContractError("Il testo di accettazione è cambiato. Ricarica la pagina.", true);
     const ticks = Array.isArray(input.checkboxes) ? input.checkboxes.map((c) => iso(c?.checkedAt)) : [];
-    if (ticks.length !== view.acceptance.checkboxes.length || ticks.some((t) => !t)) throw new ContractError("Tick each statement to accept.", true);
+    if (ticks.length !== view.acceptance.checkboxes.length || ticks.some((t) => !t)) throw new ContractError("Spunta ogni dichiarazione per accettare.", true);
     const reached = iso(input.reachedEndAt);
-    if (!reached) throw new ContractError("Read the agreement to the end before signing.", true);
+    if (!reached) throw new ContractError("Leggi l'accordo fino in fondo prima di firmare.", true);
     const typed = String(input.typedName ?? "").trim();
     // The full name only: a first name alone is weak evidence of an intent
     // to sign (contract copy v1.2).
     if (!sameName(typed, view.signatoryName)) {
-        throw new ContractError(`Type your full name as it appears in the agreement (${view.signatoryName}).`, true);
+        throw new ContractError(`Scrivi il tuo nome completo come compare nell'accordo (${view.signatoryName}).`, true);
     }
     const email = ctx.email.trim().toLowerCase();
     const now = ctx.now ?? new Date();
@@ -81,7 +81,7 @@ export async function acceptContract(input: AcceptanceInput, ctx: SigningContext
         // place is refused rather than signed under a label it no longer means.
         const same = records.filter((r) => r.contract_id === view.contractId && r.contract_version === view.version);
         if (same.some((r) => r.contract_sha256 !== view.sha256 || (r.onboarding_copy_sha256 && r.onboarding_copy_sha256 !== view.copySha256))) {
-            throw new ContractError("This version was changed after it was signed; GGO Med must issue it under a new version number.", true);
+            throw new ContractError("Questa versione è stata modificata dopo la firma; GGO Med deve emetterla con un nuovo numero di versione.", true);
         }
         return records.find((r) => r.signatory_role === "contractor" && r.signatory_email === email && r.contract_sha256 === view.sha256) ?? null;
     });

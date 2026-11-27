@@ -95,11 +95,11 @@ async function loadRow(rowId: string): Promise<{ page: PageObjectResponse; row: 
     const page = await notion.pages.retrieve({ page_id: rowId }) as PageObjectResponse;
     const parent = page.parent as { type?: string; database_id?: string };
     if (parent?.type !== "database_id" || (parent.database_id ?? "").replace(/-/g, "") !== notionConfig.dbs.ernestoDesk().replace(/-/g, "")) {
-        throw new CommentActError("That is not a row of the Ernesto Desk.");
+        throw new CommentActError("Questa non è una riga dell'Ernesto Desk.");
     }
-    if (x.select(x.prop(page.properties, "Type")) !== DESK_TYPE) throw new CommentActError("That row is not a reply awaiting approval.");
+    if (x.select(x.prop(page.properties, "Type")) !== DESK_TYPE) throw new CommentActError("Questa riga non è una risposta in attesa di approvazione.");
     const commentId = commentIdFromTitle(x.anyTitle(page.properties));
-    if (!commentId) throw new CommentActError("That row is not a YouTube comment.");
+    if (!commentId) throw new CommentActError("Questa riga non è un commento YouTube.");
     return { page, row: parseCommentRow(await listBlocks(rowId), commentId), status: x.select(x.prop(page.properties, "Status")) };
 }
 
@@ -108,8 +108,8 @@ export interface CommentActor { label: string }
 /** A collaborator's suggested reply or direction: appended, signed; the row stays Pending. */
 export async function suggestReply(rowId: string, actor: CommentActor, text: string, now = new Date()): Promise<{ k: number }> {
     const { row, status } = await loadRow(rowId);
-    if (status !== "Pending") throw new CommentActError(`Only a comment waiting for a reply can take a suggestion (this one is ${status ?? "without a status"}).`);
-    if (row.manual) throw new CommentActError("This comment carries health details and is handled by hand: no agent drafts for it.");
+    if (status !== "Pending") throw new CommentActError(`Si può suggerire solo su un commento in attesa di risposta (questo è ${status ?? "senza stato"}).`);
+    if (row.manual) throw new CommentActError("Questo commento contiene dati sanitari ed è gestito a mano: nessun agente prepara bozze.");
     const k = (row.suggestions.at(-1)?.k ?? 0) + 1;
     await notion.blocks.children.append({ block_id: rowId, children: suggestionBlocks(row.commentId, k, actor.label, text, now) as never });
     invalidateCache(CACHE_KEY);
@@ -123,7 +123,7 @@ export async function suggestReply(rowId: string, actor: CommentActor, text: str
  */
 export async function markManual(rowId: string, actor: CommentActor, now = new Date()): Promise<void> {
     const { row, status } = await loadRow(rowId);
-    if (status !== "Pending") throw new CommentActError(`Only a comment waiting for a reply can be marked (this one is ${status ?? "without a status"}).`);
+    if (status !== "Pending") throw new CommentActError(`Si può segnare solo un commento in attesa di risposta (questo è ${status ?? "senza stato"}).`);
     if (row.manual) return;
     await notion.blocks.children.append({ block_id: rowId, children: [manualBlock(row.commentId, actor.label, now)] as never });
     invalidateCache(CACHE_KEY);
@@ -132,9 +132,9 @@ export async function markManual(rowId: string, actor: CommentActor, now = new D
 /** "I checked the latest draft": a signed mark for JJ. Never asks for a new draft. */
 export async function markReady(rowId: string, actor: CommentActor, draftSeen: number, now = new Date()): Promise<void> {
     const { row, status } = await loadRow(rowId);
-    if (status !== "Pending") throw new CommentActError(`Only a comment waiting for a reply can be marked (this one is ${status ?? "without a status"}).`);
-    if (!row.latestDraft) throw new CommentActError("There is no draft to check yet.");
-    if (row.latestDraft.n !== draftSeen) throw new CommentActError(`A newer draft (${row.latestDraft.n}) has arrived; read it first.`);
+    if (status !== "Pending") throw new CommentActError(`Si può segnare solo un commento in attesa di risposta (questo è ${status ?? "senza stato"}).`);
+    if (!row.latestDraft) throw new CommentActError("Non c'è ancora una bozza da controllare.");
+    if (row.latestDraft.n !== draftSeen) throw new CommentActError(`È arrivata una bozza più recente (${row.latestDraft.n}): leggi prima quella.`);
     await notion.blocks.children.append({ block_id: rowId, children: [readyBlock(row.commentId, actor.label, draftSeen, now)] as never });
     invalidateCache(CACHE_KEY);
 }

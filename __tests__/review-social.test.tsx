@@ -30,15 +30,15 @@ const state = {
 it("offers the social media manager the three speaking acts and none of JJ's", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, headers: new Headers(), json: async () => state }) as Response));
     render(<ReviewPage />);
-    expect(await screen.findByText("One post is waiting for review")).toBeTruthy();
+    expect(await screen.findByText("Un post è in attesa di revisione")).toBeTruthy();
     // The approved, staged row waiting for Buffer is JJ's business.
     expect(screen.queryByText("Approved one")).toBeNull();
 
     fireEvent.click(screen.getByText("Varicocele: three signs"));
     // The document renders as the desktop leaf and the phone sheet, hence getAll.
-    expect(screen.getAllByRole("button", { name: "Ready for JJ" }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: "Add note" }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: "Request changes" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Pronto per JJ" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Aggiungi nota" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Chiedi modifiche" }).length).toBeGreaterThan(0);
     for (const label of [/Sigilla/, /Rifiuta/, /archivia/, /Elimina/, /Invia a Buffer/, /Apri in Notion/, /Le Questioni/, /Timbra/, /Send back/]) {
         expect(screen.queryByText(label)).toBeNull();
     }
@@ -55,7 +55,7 @@ it("offers the social media manager the three speaking acts and none of JJ's", a
     expect(slides.length).toBeGreaterThanOrEqual(2);
     expect(slides[0].getAttribute("src")).toContain("slide-one");
     for (const s of slides) expect(s.getAttribute("alt") ?? "").not.toMatch(/IMG_|\.png/);
-    expect(screen.getAllByText(/Image 1 of 2|1 \/ 2/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Immagine 1 di 2|1 \/ 2/).length).toBeGreaterThan(0);
     // The note box starts empty rather than holding the history.
-    for (const box of screen.getAllByPlaceholderText(/What should change/)) expect((box as HTMLInputElement).value).toBe("");
+    for (const box of screen.getAllByPlaceholderText(/Cosa va cambiato/)) expect((box as HTMLInputElement).value).toBe("");
 });

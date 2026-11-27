@@ -151,15 +151,15 @@ describe("acceptance records", () => {
         writeFileSync(p, readFileSync(p, "utf8").replace("100 example units", "90 example units"));
         const e = store.contractStanding("e@example.com");
         if (e.kind !== "required") throw new Error("setup");
-        await expect(accept.acceptContract(acceptanceFor(e.view), { ...ctx, email: "e@example.com" })).rejects.toThrow(/new version number/);
+        await expect(accept.acceptContract(acceptanceFor(e.view), { ...ctx, email: "e@example.com" })).rejects.toThrow(/nuovo numero di versione/);
     });
 
     it("a first name alone is not a signature", async () => {
         installContract(dir, "d@example.com");
         const s = store.contractStanding("d@example.com");
         if (s.kind !== "required") throw new Error("setup");
-        await expect(accept.acceptContract(acceptanceFor(s.view, "Diletta"), { ...ctx, storeName: "Diletta" })).rejects.toThrow(/full name/);
-        await expect(accept.acceptContract(acceptanceFor(s.view, "Test"), ctx)).rejects.toThrow(/full name/);
+        await expect(accept.acceptContract(acceptanceFor(s.view, "Diletta"), { ...ctx, storeName: "Diletta" })).rejects.toThrow(/nome completo/);
+        await expect(accept.acceptContract(acceptanceFor(s.view, "Test"), ctx)).rejects.toThrow(/nome completo/);
     });
 
     it("refuses to sign when the archived copy would not match", async () => {

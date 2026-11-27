@@ -118,8 +118,8 @@ function daysUntil(due: string | null): number | null {
 function socialLine(row: { platforms: string | null; date: string | null }): string {
     const when = row.date
         ? new Date(row.date.length === 10 ? `${row.date}T12:00:00` : row.date)
-            .toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })
-        : "no date yet";
+            .toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" })
+        : "data non ancora fissata";
     return [row.platforms, when].filter(Boolean).join(" · ");
 }
 
@@ -149,8 +149,12 @@ export default function ReviewPage() {
     // would be refused.
     const { data: session, status: sessionStatus } = useSession();
     const isSocial = session?.user?.role === "social";
-    /** The register speaks Italian to JJ and English to the social media manager. */
-    const tr = useCallback((it: string, en: string) => (isSocial ? en : it), [isSocial]);
+    /**
+     * The register speaks Italian to everyone (JJ, 27/11/2026). The first
+     * form is addressed to JJ, who seals; the second to the social media
+     * manager, who checks, comments and asks for changes but never seals.
+     */
+    const tr = useCallback((jj: string, social: string) => (isSocial ? social : jj), [isSocial]);
     // load() reads the language through a ref, so a session resolving after
     // the first read does not trigger a second one.
     const trRef = useRef(tr);
@@ -208,7 +212,7 @@ export default function ReviewPage() {
             res = await fetch(`/api/review-dashboard/state${refresh ? "?refresh=1" : ""}`, { cache: "no-store" });
         } catch {
             if (!current()) return;
-            setError(trRef.current("Review dashboard non raggiungibile.", "The queue cannot be reached."));
+            setError(trRef.current("Review dashboard non raggiungibile.", "Non riesco a raggiungere la coda."));
             setRetry({ seconds: STATE_RETRY_SECONDS });
             return;
         }
@@ -216,7 +220,7 @@ export default function ReviewPage() {
             // A proxy error page (502/504 while the service restarts) is not JSON.
             const data = await res.json().catch(() => ({})) as { error?: string; code?: string };
             if (!current()) return;
-            setError(trRef.current(data.error ?? `Review dashboard non disponibile (${res.status})`, "The queue is not available right now."));
+            setError(trRef.current(data.error ?? `Review dashboard non disponibile (${res.status})`, "La coda al momento non è disponibile."));
             if (isTransientStateFailure(res.status, data)) {
                 setRetry({ seconds: retryAfterSeconds(res.headers.get("retry-after")) });
             }
@@ -228,7 +232,7 @@ export default function ReviewPage() {
         } catch {
             // A body cut off mid-restart: say so and ask again, never render it.
             if (!current()) return;
-            setError(trRef.current("Review dashboard: risposta incompleta.", "The queue answered incompletely; trying again."));
+            setError(trRef.current("Review dashboard: risposta incompleta.", "La coda ha risposto a metà: riprovo."));
             setRetry({ seconds: STATE_RETRY_SECONDS });
             return;
         }
@@ -297,7 +301,7 @@ export default function ReviewPage() {
                     title: row.title,
                     // The slot date is shown, and a passed slot ages like any
                     // overdue item: a Review row whose day is gone is stale.
-                    stateLabel: [row.orderedBy === "JJ" ? tr("Ordine JJ", "Ordered by JJ") : null, row.contentType, row.platforms, row.date]
+                    stateLabel: [row.orderedBy === "JJ" ? tr("Ordine JJ", "Ordine di JJ") : null, row.contentType, row.platforms, row.date]
                         .filter(Boolean).join(" · ") || "Social",
                     dueDays: daysUntil(row.date),
                     hasMedia: row.media.length > 0,
@@ -365,7 +369,7 @@ export default function ReviewPage() {
         if (!state) return [];
         return [
             ...(held.length > 0 ? [{
-                label: tr("In coda — salgono man mano che sigilli", "Queued — they rise as you seal"),
+                label: tr("In coda — salgono man mano che sigilli", "In coda — salgono man mano che JJ sigilla"),
                 rows: held.map((e) => ({ key: `h:${e.key}`, title: e.title, state: e.stateLabel, url: e.notionUrl }))
             }] : []),
             // The website and the desk are JJ's: the social media manager's
@@ -377,7 +381,7 @@ export default function ReviewPage() {
                     .map((r) => ({ key: `w:${r.rowId}`, title: r.title, state: r.patchState === "stale" ? tr("patch su versione vecchia", "patch on an old version") : `${r.proposals.length}`, url: r.url }))
             }]),
             {
-                label: tr("In lavorazione adesso", "In production now"),
+                label: tr("In lavorazione adesso", "In lavorazione adesso"),
                 rows: [
                     ...state.calendar
                         .filter((r) => r.status === "In Production" || r.status === "Draft")
@@ -394,7 +398,7 @@ export default function ReviewPage() {
                     .map((r) => ({ key: `d:${r.rowId}`, title: r.title, state: "Approved", url: r.url }))
             }]),
             {
-                label: tr("Programmati verso pubblicazione", "Scheduled for publication"),
+                label: tr("Programmati verso pubblicazione", "Programmati per la pubblicazione"),
                 rows: state.calendar
                     .filter((r) => r.status === "Scheduled")
                     .map((r) => ({ key: `c:${r.rowId}`, title: r.title, state: r.date ?? "Scheduled", url: r.url }))
@@ -415,7 +419,7 @@ export default function ReviewPage() {
         opts: { date?: string } = {}
     ) {
         if ((decision === "modify" || decision === "comment" || decision === "request") && !comment.trim()) {
-            setError(isSocial ? "Write what should change: the note goes with the post." : entry.target === "website"
+            setError(isSocial ? "Scrivi cosa va cambiato: la nota resta sul post." : entry.target === "website"
                 ? "Scrivi cosa va cambiato: il timbro porta la nota a Edmondo."
                 : "Scrivi cosa va cambiato: il timbro porta la nota a Ernesto.");
             return;
@@ -443,14 +447,14 @@ export default function ReviewPage() {
                 // The social view says what happened in plain words; a raw
                 // server or Notion message is for JJ's register only.
                 throw new Error(isSocial
-                    ? (res.status === 403 && result.error ? result.error : "Not saved. Please try again in a moment.")
+                    ? (res.status === 403 && result.error ? result.error : "Non salvato. Riprova tra un momento.")
                     : result.error ?? "Decisione non salvata");
             }
             // A note is not a decision: the row stays open for more acts.
             if (decision === "comment" || decision === "ready" || decision === "request") {
                 setNote(entry.key, "");
                 setModifyOpen(false);
-                setToast(decision === "ready" ? "Marked ready for JJ" : decision === "request" ? "Changes requested — JJ will see it" : "Note added");
+                setToast(decision === "ready" ? "Segnato pronto per JJ" : decision === "request" ? "Modifiche chieste — JJ lo vedrà" : "Nota aggiunta");
                 setTimeout(() => setToast(null), 2600);
                 await load();
                 return;
@@ -503,7 +507,7 @@ export default function ReviewPage() {
         const notesBlock = (
             <details className="mb-4 border border-paper-edge px-3 py-2" open={isSocial}>
                 <summary className="column-label column-label-paper cursor-pointer">
-                    {isSocial ? "Notes on this post" : "Note sulla riga"}
+                    {isSocial ? "Note su questo post" : "Note sulla riga"}
                 </summary>
                 <pre className="mt-2 whitespace-pre-wrap font-sans text-[12px] leading-relaxed text-paper-foreground">{history}</pre>
             </details>
@@ -526,7 +530,7 @@ export default function ReviewPage() {
                 <div className="border-b-[3px] border-double border-paper-edge px-5 pb-4 pt-5">
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                            <p className="column-label column-label-paper">{isSocial ? "Waiting for review" : `${entry.family} · atto in attesa`}</p>
+                            <p className="column-label column-label-paper">{isSocial ? "In attesa di revisione" : `${entry.family} · atto in attesa`}</p>
                             <h2 className="document-title mt-1.5 text-[22px] text-paper-foreground">{entry.title}</h2>
                         </div>
                         <Socket
@@ -544,7 +548,7 @@ export default function ReviewPage() {
                         {c?.date && !isSocial && <Mark tone="quiet" onPaper>{c.date}</Mark>}
                         {mark && (
                             <Mark tone={mark.kind === "ready" ? "sealed" : "ageing"} onPaper>
-                                {`${mark.kind === "ready" ? tr("Controllato da", "Checked by") : tr("Modifiche chieste da", "Changes requested by")} ${mark.by} · ${mark.at}`}
+                                {`${mark.kind === "ready" ? tr("Controllato da", "Controllato da") : tr("Modifiche chieste da", "Modifiche chieste da")} ${mark.by} · ${mark.at}`}
                             </Mark>
                         )}
                         {!isSocial && <a
@@ -566,7 +570,7 @@ export default function ReviewPage() {
                         // where and when — composed the way the pipeline composes it.
                         <div className="flex flex-col gap-8">
                             {composePosts(c).map((post, i) => (
-                                <PostPreview key={`${c.rowId}-${i}`} post={post} date={c.date} lang={isSocial ? "en" : "it"} />
+                                <PostPreview key={`${c.rowId}-${i}`} post={post} date={c.date} lang="it" />
                             ))}
                             {!isSocial && !c.hasAssets && c.canva && (
                                 <p className="border border-sepia px-3 py-2 text-[12px] text-sepia">
@@ -690,12 +694,12 @@ export default function ReviewPage() {
                                 </label>
                             )}
                             <label className="min-w-[12rem] flex-1 text-[10px] font-condensed uppercase tracking-[0.14em] text-paper-foreground-soft">
-                                {isSocial ? "Your note" : <>Nota a {entry.target === "website" ? "Edmondo" : "Ernesto"}</>}
+                                {isSocial ? "La tua nota" : <>Nota a {entry.target === "website" ? "Edmondo" : "Ernesto"}</>}
                                 <input
                                     id={`note-${entry.rowId}`}
                                     value={note}
                                     onChange={(event) => setNote(entry.key, event.target.value)}
-                                    placeholder={isSocial ? "What should change, or what you checked…" : "Facoltativa per il sigillo, obbligatoria per il timbro…"}
+                                    placeholder={isSocial ? "Cosa va cambiato, o cosa hai controllato…" : "Facoltativa per il sigillo, obbligatoria per il timbro…"}
                                     className="mt-1 block w-full border border-paper-edge bg-transparent px-2.5 py-1.5 text-[13px] normal-case tracking-normal text-paper-foreground outline-none placeholder:text-paper-foreground-soft focus:border-engraving-ink"
                                 />
                             </label>
@@ -745,9 +749,9 @@ export default function ReviewPage() {
                             onClick={() => void decide(entry, "ready", note)}
                             className="act-seal flex-1 min-w-[8rem]"
                             type="button"
-                            title="Tells JJ you have checked this post; your note goes with it. It does not publish."
+                            title="Dice a JJ che hai controllato questo post; la tua nota va con lui. Non pubblica."
                         >
-                            Ready for JJ
+                            Pronto per JJ
                         </button>
                         <button
                             disabled={busy || !note.trim()}
@@ -755,9 +759,9 @@ export default function ReviewPage() {
                             className="act-void flex-1 min-w-[7rem]"
                             type="button"
                             style={{ color: "var(--paper-fg)", borderColor: "var(--paper-edge)" }}
-                            title="Adds your note to the post's history without changing its status"
+                            title="Aggiunge la tua nota alla storia del post senza cambiarne lo stato"
                         >
-                            Add note
+                            Aggiungi nota
                         </button>
                         <button
                             disabled={busy}
@@ -765,9 +769,9 @@ export default function ReviewPage() {
                             className="act-stamp flex-1 min-w-[7rem]"
                             type="button"
                             style={{ color: "var(--stamp)", borderColor: "var(--stamp)" }}
-                            title="Asks for changes with your note; JJ decides whether to send the post back"
+                            title="Chiede modifiche con la tua nota; JJ decide se rimandare il post"
                         >
-                            Request changes
+                            Chiedi modifiche
                         </button>
                     </div>
                     ) : (
@@ -875,9 +879,9 @@ export default function ReviewPage() {
                 <header className="relative border-b border-plate-rule px-8 pb-4 pt-7 max-sm:px-4">
                     <div className="flex flex-wrap items-end justify-between gap-3">
                         <div>
-                            <p className="column-label">{tr("Il Cancello · le proposte editoriali", "Social queue · posts waiting for review")}</p>
+                            <p className="column-label">{tr("Il Cancello · le proposte editoriali", "Coda social · post in attesa di revisione")}</p>
                             <h1 className="document-title mt-1.5 text-[30px] text-plate-foreground-strong max-sm:text-[24px]">
-                                {state && isSocial ? (pendingEntries.length === 0 ? "No posts are waiting for review" : pendingEntries.length === 1 ? "One post is waiting for review" : `${pendingEntries.length} posts are waiting for review`) : !state && isSocial ? (error ? "The queue could not be loaded" : "Opening the queue…") : state ? (pendingEntries.length === 0 ? "Niente aspetta il tuo sigillo" : pendingEntries.length === 1 ? "Un atto aspetta il tuo sigillo" : `${pendingEntries.length} atti aspettano il tuo sigillo`) : error ? "Il registro non si apre" : "Apro il registro…"}
+                                {state && isSocial ? (pendingEntries.length === 0 ? "Nessun post in attesa di revisione" : pendingEntries.length === 1 ? "Un post è in attesa di revisione" : `${pendingEntries.length} post sono in attesa di revisione`) : !state && isSocial ? (error ? "Non sono riuscito a caricare la coda" : "Apro la coda…") : state ? (pendingEntries.length === 0 ? "Niente aspetta il tuo sigillo" : pendingEntries.length === 1 ? "Un atto aspetta il tuo sigillo" : `${pendingEntries.length} atti aspettano il tuo sigillo`) : error ? "Il registro non si apre" : "Apro il registro…"}
                             </h1>
                             {state && !isSocial && pendingEntries.length > 0 && (() => {
                                 // The registrar's line: what stands at the gate, in one sentence.
@@ -900,7 +904,7 @@ export default function ReviewPage() {
                             })()}
                             {state && (
                                 <p className="mt-1.5 font-condensed text-[10px] uppercase tracking-[0.14em] text-plate-foreground-soft">
-                                    {tr("aggiornato", "updated")} {new Date(state.generatedAt).toLocaleTimeString(isSocial ? "en-GB" : "it-IT")}{!isSocial && state.cached ? " · cache" : ""}{!isSocial && <SnapshotFreshness value={state.readModel} />}
+                                    {tr("aggiornato", "aggiornato alle")} {new Date(state.generatedAt).toLocaleTimeString("it-IT")}{!isSocial && state.cached ? " · cache" : ""}{!isSocial && <SnapshotFreshness value={state.readModel} />}
                                 </p>
                             )}
                         </div>
@@ -909,7 +913,7 @@ export default function ReviewPage() {
                                 Domande, piani e raccomandazioni → Le Questioni
                             </Link>}
                             <button onClick={() => void load(true)} className="act-quiet" type="button">
-                                {tr("Rileggi da Notion", "Refresh")}
+                                {tr("Rileggi da Notion", "Aggiorna")}
                             </button>
                         </div>
                     </div>
@@ -923,7 +927,7 @@ export default function ReviewPage() {
                 {error && (
                     <div className="relative mx-8 mt-4 border border-sepia px-4 py-3 text-[13px] text-sepia-bright max-sm:mx-4" role="alert">
                         {error}
-                        {retry !== null && (isSocial ? ` Trying again in ${retry.seconds} s.` : ` Nuovo tentativo automatico tra ${retry.seconds} s.`)}
+                        {retry !== null && (isSocial ? ` Riprovo tra ${retry.seconds} s.` : ` Nuovo tentativo automatico tra ${retry.seconds} s.`)}
                     </div>
                 )}
 
@@ -945,14 +949,14 @@ export default function ReviewPage() {
                             {!state ? (
                                 <p className="px-4 py-8 text-center font-condensed text-[11px] uppercase tracking-[0.14em] text-paper-foreground-soft">
                                     {error
-                                        ? tr("Nessun dato: vedi il messaggio sopra.", "Nothing to show yet. The page tries again by itself; if it still fails, tell JJ.")
-                                        : tr("Carico ciò che aspetta il tuo giudizio…", "Loading the queue…")}
+                                        ? tr("Nessun dato: vedi il messaggio sopra.", "Ancora niente da mostrare. La pagina riprova da sola; se continua a non andare, avvisa JJ.")
+                                        : tr("Carico ciò che aspetta il tuo giudizio…", "Carico la coda…")}
                                 </p>
                             ) : entries.length === 0 ? (
                                 <div className="px-4 py-12 text-center">
                                     <Socket sealed size={40} />
                                     <p className="mt-3 text-[13px] text-paper-foreground-soft">
-                                        {tr("Ogni atto è deciso. Il resto della casa è qui sotto.", "Nothing is waiting for review. What is in progress is below.")}
+                                        {tr("Ogni atto è deciso. Il resto della casa è qui sotto.", "Nessun post in attesa di revisione. Quello che è in lavorazione è qui sotto.")}
                                     </p>
                                 </div>
                             ) : (
@@ -963,9 +967,9 @@ export default function ReviewPage() {
                                     // to Buffer are listed, not only counted.
                                     ["Desk", "Da pubblicare · clip e script", (e: Entry) => e.family === "Desk"],
                                     ["Website", "Sito · patch", (e: Entry) => e.family === "Website"],
-                                    ["Social", tr("Calendario sociale · il sigillo pubblica", "Social calendar"), (e: Entry) => e.family === "Social" && !slotPassed(e)],
+                                    ["Social", tr("Calendario sociale · il sigillo pubblica", "Calendario social"), (e: Entry) => e.family === "Social" && !slotPassed(e)],
                                     ["Buffer", "Approvati · non ancora su Buffer", (e: Entry) => e.family === "Buffer"],
-                                    ["SocialPast", tr("Data passata · scegli una nuova data", "Publish date has passed"), (e: Entry) => e.family === "Social" && slotPassed(e)],
+                                    ["SocialPast", tr("Data passata · scegli una nuova data", "Data di uscita passata · JJ ne sceglie una nuova"), (e: Entry) => e.family === "Social" && slotPassed(e)],
                                 ] as const).map(([family, label, belongs]) => {
                                     const rows = entries.filter(belongs);
                                     if (rows.length === 0) return null;
@@ -1008,8 +1012,8 @@ export default function ReviewPage() {
                                                             {entry.mark && (
                                                                 <span className={`font-condensed text-[10px] uppercase tracking-[0.12em] ${entry.mark.kind === "ready" ? "text-engraving-ink" : "text-stamp"}`}>
                                                                     · {entry.mark.kind === "ready"
-                                                                        ? tr("controllato da", "checked by")
-                                                                        : tr("modifiche chieste da", "changes requested by")} {entry.mark.by}
+                                                                        ? tr("controllato da", "controllato da")
+                                                                        : tr("modifiche chieste da", "modifiche chieste da")} {entry.mark.by}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -1094,7 +1098,7 @@ export default function ReviewPage() {
                     <div className="fixed inset-0 z-[60] hidden max-lg:flex flex-col bg-plate-deep/80">
                         <button
                             type="button"
-                            aria-label={tr("Chiudi il documento", "Close the post")}
+                            aria-label={tr("Chiudi il documento", "Chiudi il post")}
                             className="h-14 flex-none"
                             onClick={() => setOpenKey(null)}
                         />
@@ -1105,7 +1109,7 @@ export default function ReviewPage() {
                                     onClick={() => setOpenKey(null)}
                                     className="absolute -top-10 right-2 z-10 border border-plate-rule bg-plate px-3 py-1.5 font-condensed text-[11px] font-bold uppercase tracking-[0.14em] text-plate-foreground"
                                 >
-                                    {tr("Chiudi", "Close")}
+                                    {tr("Chiudi", "Chiudi")}
                                 </button>
                                 <DocumentLeaf entry={open} />
                             </div>
@@ -1116,12 +1120,12 @@ export default function ReviewPage() {
                 {/* The stamp dialog: what must change, and to whom it goes back. */}
                 {modifyOpen && open && (
                     <div className="fixed inset-0 z-[75] flex items-center justify-center bg-plate-deep/85 p-4">
-                        <section className="paper w-full max-w-lg border border-paper-edge" role="dialog" aria-modal="true" aria-label="Timbra e rimanda">
+                        <section className="paper w-full max-w-lg border border-paper-edge" role="dialog" aria-modal="true" aria-label={isSocial ? "Chiedi modifiche" : "Timbra e rimanda"}>
                             <div className="border-b-[3px] border-double border-paper-edge px-5 py-4">
                                 <p className="column-label" style={{ color: "var(--stamp)" }}>
-                                    {isSocial ? "Request changes · note for JJ and the team" : <>Timbro · nota a {open.target === "website" ? "Edmondo" : "Ernesto"}</>}
+                                    {isSocial ? "Chiedi modifiche · nota per JJ e il team" : <>Timbro · nota a {open.target === "website" ? "Edmondo" : "Ernesto"}</>}
                                 </p>
-                                <h2 className="document-title mt-1 text-[19px] text-paper-foreground">{isSocial ? "What should change?" : "Cosa va modificato?"}</h2>
+                                <h2 className="document-title mt-1 text-[19px] text-paper-foreground">{isSocial ? "Cosa va cambiato?" : "Cosa va modificato?"}</h2>
                                 <p className="mt-1 truncate text-[13px] text-paper-foreground-soft">{open.title}</p>
                             </div>
                             <div className="px-5 py-4">
@@ -1130,14 +1134,14 @@ export default function ReviewPage() {
                                     onChange={(event) => setNote(open.key, event.target.value)}
                                     rows={6}
                                     autoFocus
-                                    placeholder={isSocial ? "Write what the team should change, regenerate or correct…" : open.target === "website"
+                                    placeholder={isSocial ? "Scrivi cosa il team deve cambiare, rigenerare o correggere…" : open.target === "website"
                                         ? "Scrivi a Edmondo cosa deve rilavorare, correggere o verificare…"
                                         : "Scrivi a Ernesto cosa deve cambiare, rigenerare o correggere…"}
                                     className="w-full border border-paper-edge bg-transparent px-3 py-2 text-[13px] text-paper-foreground outline-none placeholder:text-paper-foreground-soft focus:border-engraving-ink"
                                 />
                                 <div className="mt-4 flex justify-end gap-2">
                                     <button onClick={() => setModifyOpen(false)} className="act-void" type="button" style={{ color: "var(--paper-fg-soft)", borderColor: "var(--paper-edge)" }}>
-                                        {isSocial ? "Cancel" : "Annulla"}
+                                        {"Annulla"}
                                     </button>
                                     <button
                                         disabled={busyKey === open.key || !(notes[open.key] ?? "").trim()}
@@ -1146,7 +1150,7 @@ export default function ReviewPage() {
                                         type="button"
                                         style={{ color: "var(--stamp)", borderColor: "var(--stamp)" }}
                                     >
-                                        {isSocial ? "Request changes" : "Timbra e rimanda"}
+                                        {isSocial ? "Chiedi modifiche" : "Timbra e rimanda"}
                                     </button>
                                 </div>
                             </div>

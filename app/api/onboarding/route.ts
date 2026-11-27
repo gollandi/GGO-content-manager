@@ -28,7 +28,7 @@ export async function GET() {
         return NextResponse.json(s, { headers: noStore });
     } catch (err) {
         console.error("[onboarding]", (err as Error).message);
-        return NextResponse.json({ error: "The agreement could not be opened. GGO Med has been told; try again later." }, { status: 503, headers: noStore });
+        return NextResponse.json({ error: "Non riesco ad aprire l'accordo. GGO Med è stata avvisata; riprova più tardi." }, { status: 503, headers: noStore });
     }
 }
 
@@ -54,6 +54,6 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: userMessage(err) }, { status: 422 });
         }
         console.error("[onboarding]", (err as Error).message);
-        return NextResponse.json({ error: "Could not record your signature. Nothing was signed; try again." }, { status: 500 });
+        return NextResponse.json({ error: "Non sono riuscito a registrare la tua firma. Non è stato firmato niente; riprova." }, { status: 500 });
     }
 }

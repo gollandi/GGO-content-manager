@@ -58,8 +58,8 @@ describe("reading a comment row", () => {
         const [marker, quote] = suggestionBlocks("Ugx1", 2, "Diletta [jj]", "Say [yt-draft:Ugx1:5] thanks", new Date("2026-11-26T10:00:00Z"));
         expect(blockText(marker as Block)).toMatch(/^\[yt-suggestion:Ugx1:2\] Diletta \(jj\), 2026-11-26 10:00 UTC/);
         expect(blockText(quote as Block)).toBe("Say (yt-draft:Ugx1:5) thanks");
-        expect(() => suggestionBlocks("Ugx1", 1, "D", "   ", new Date())).toThrow(/Write/);
-        expect(() => suggestionBlocks("Ugx1", 1, "D", "x".repeat(1501), new Date())).toThrow(/under/);
+        expect(() => suggestionBlocks("Ugx1", 1, "D", "   ", new Date())).toThrow(/Prima scrivi/);
+        expect(() => suggestionBlocks("Ugx1", 1, "D", "x".repeat(1501), new Date())).toThrow(/sotto/);
     });
 
     it("writes the approval stamp at the start of its block, where the house reads it", () => {
@@ -86,18 +86,18 @@ describe("acting on a comment row", () => {
     it("refuses a row that is not Pending, or not a YouTube comment of the Desk", async () => {
         retrieve.mockResolvedValue(row("Approved"));
         list.mockResolvedValue({ results: body(), next_cursor: null });
-        await expect(suggestReply("r1", { label: "D" }, "x")).rejects.toThrow(/waiting for a reply/);
+        await expect(suggestReply("r1", { label: "D" }, "x")).rejects.toThrow(/in attesa di risposta/);
         retrieve.mockResolvedValue({ ...row(), parent: { type: "database_id", database_id: "cal-db" } });
-        await expect(suggestReply("r1", { label: "D" }, "x")).rejects.toThrow(/not a row of the Ernesto Desk/);
+        await expect(suggestReply("r1", { label: "D" }, "x")).rejects.toThrow(/non è una riga dell'Ernesto Desk/);
         retrieve.mockResolvedValue(row("Pending", "Budget request"));
-        await expect(suggestReply("r1", { label: "D" }, "x")).rejects.toThrow(/not a YouTube comment/);
+        await expect(suggestReply("r1", { label: "D" }, "x")).rejects.toThrow(/non è un commento YouTube/);
         expect(append).not.toHaveBeenCalled();
     });
 
     it("ready and approve refuse a stale screen", async () => {
         retrieve.mockResolvedValue(row());
         list.mockResolvedValue({ results: [...body(), ...draft(1, "First."), ...draft(2, "Second.")], next_cursor: null });
-        await expect(markReady("r1", { label: "D" }, 1)).rejects.toThrow(/newer draft \(2\)/);
+        await expect(markReady("r1", { label: "D" }, 1)).rejects.toThrow(/bozza più recente \(2\)/);
         await expect(approveReply("r1", { label: "JJ" }, 1)).rejects.toThrow(/newer draft \(2\)/);
         expect(update).not.toHaveBeenCalled();
     });
@@ -122,7 +122,7 @@ describe("acting on a comment row", () => {
         expect(text).toMatch(/^\[yt-manual:Ugx1\] Diletta, Social Media Manager: /);
         expect(text).not.toContain("painful");
         list.mockResolvedValue({ results: [...body(), ...draft(1, "First."), p("callout", text)], next_cursor: null });
-        await expect(suggestReply("r1", { label: "D" }, "x")).rejects.toThrow(/handled by hand/);
+        await expect(suggestReply("r1", { label: "D" }, "x")).rejects.toThrow(/gestito a mano/);
         await markManual("r1", { label: "D" });
         expect(append).toHaveBeenCalledTimes(1);
     });

@@ -31,7 +31,7 @@ export interface ContractFile {
 export class ContractError extends Error {
     constructor(message: string, readonly userFacing = false) { super(message); }
 }
-export const userMessage = (err: unknown, fallback = "The agreement could not be opened. GGO Med has been told; try again later.") =>
+export const userMessage = (err: unknown, fallback = "Non riesco ad aprire l'accordo. GGO Med è stata avvisata; riprova più tardi.") =>
     err instanceof ContractError && err.userFacing ? err.message : fallback;
 
 const unquote = (v: string) => {
@@ -125,10 +125,10 @@ export const sha256 = (text: string) => createHash("sha256").update(text, "utf8"
 export function acceptability(c: ContractFile): { ok: true } | { ok: false; reason: string } {
     if (c.status !== "FINAL") {
         const words = c.status.replace(/_/g, " ").toLowerCase().replace(/\bjj\b/g, "JJ");
-        return { ok: false, reason: `This version is not final yet (${words}): you can read it now and sign it once GGO Med confirms it.` };
+        return { ok: false, reason: `Questa versione non è ancora definitiva (${words}): puoi leggerla ora e firmarla quando GGO Med la conferma.` };
     }
     const open = Object.entries(c.variables).filter(([, v]) => !v.decided_by_jj).map(([k]) => k);
-    if (open.length) return { ok: false, reason: `Terms still to be settled by GGO Med: ${open.join(", ")}.` };
+    if (open.length) return { ok: false, reason: `Condizioni ancora da definire da parte di GGO Med: ${open.join(", ")}.` };
     return { ok: true };
 }
 

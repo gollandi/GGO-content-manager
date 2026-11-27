@@ -62,17 +62,17 @@ const ROLE_LABELS: Record<string, string> = {
 
 /**
  * The margin for the social media manager: the places of the role and
- * nothing else. In English — they work in it daily and the rooms' Italian names
- * would mean little to a newcomer.
+ * nothing else. In plain Italian (JJ, 27/11/2026) — not the rooms' names,
+ * which would mean little to a newcomer.
  */
 const SOCIAL_LINKS = [
-  { href: "/review", label: "Social queue", hint: "Posts waiting for review" },
-  { href: "/carico", label: "Upload media", hint: "Footage and audio for the team" },
-  { href: "/comments", label: "Comments", hint: "YouTube comments and replies" },
-  { href: "/briefs", label: "Briefs", hint: "Direct the agents; set the strategy" },
-  { href: "/performance", label: "Performance", hint: "The numbers, with Natascia's readings" },
-  { href: "/website", label: "Website", hint: "Every page and its state" },
-  { href: "/guida", label: "Guide", hint: "How this works" },
+  { href: "/review", label: "Coda social", hint: "Post in attesa di revisione" },
+  { href: "/carico", label: "Carica media", hint: "Video e audio per il team" },
+  { href: "/comments", label: "Commenti", hint: "Commenti e risposte su YouTube" },
+  { href: "/briefs", label: "Brief", hint: "Dai la direzione agli agenti; imposta la strategia" },
+  { href: "/performance", label: "Risultati", hint: "I numeri, con le letture di Natascia" },
+  { href: "/website", label: "Sito", hint: "Ogni pagina e il suo stato" },
+  { href: "/guida", label: "Guida", hint: "Come funziona" },
 ];
 
 /**
@@ -116,14 +116,14 @@ function SocialMargin({ name, isActive }: { name: string; isActive: (href: strin
           ))}
           {/* Phone only. Wrapped, because .act-quiet's own display is
               unlayered and beats Tailwind's \`hidden\` on the same element:
-              the desktop showed two Sign out buttons. */}
+              the desktop showed two sign-out buttons. */}
           <div className="hidden max-lg:block">
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
               className="act-quiet whitespace-nowrap"
               type="button"
             >
-              Sign out
+              Esci
             </button>
           </div>
         </nav>
@@ -134,7 +134,7 @@ function SocialMargin({ name, isActive }: { name: string; isActive: (href: strin
           <span className="column-label">{ROLE_LABELS.social}</span>
         </div>
         <button onClick={() => signOut({ callbackUrl: "/login" })} className="act-quiet w-full" type="button">
-          Sign out
+          Esci
         </button>
       </div>
     </aside>

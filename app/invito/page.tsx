@@ -38,7 +38,7 @@ export default function InvitationPage() {
     const t = window.location.hash.replace(/^#/, "");
     setToken(t);
     if (!t) {
-      setPhase({ kind: "invalid", message: "This page needs the full link from your invitation." });
+      setPhase({ kind: "invalid", message: "Questa pagina ha bisogno del link completo del tuo invito." });
       return;
     }
     fetch("/api/auth-invite/redeem", {
@@ -48,25 +48,25 @@ export default function InvitationPage() {
     })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) return setPhase({ kind: "invalid", message: data.error || "This link is not valid any more." });
+        if (!res.ok) return setPhase({ kind: "invalid", message: data.error || "Questo link non è più valido." });
         const c = await fetch("/api/auth-invite/contract", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token: t }),
         });
         const cdata = await c.json().catch(() => ({}));
-        if (!c.ok) return setPhase({ kind: "invalid", message: cdata.error || "Your agreement could not be opened." });
+        if (!c.ok) return setPhase({ kind: "invalid", message: cdata.error || "Non riesco ad aprire il tuo accordo." });
         setPhase({ kind: "agreement", email: data.email, name: data.name, min: data.minPasswordLength ?? 12, view: cdata.view });
       })
-      .catch(() => setPhase({ kind: "invalid", message: "The cockpit could not be reached. Try again in a minute." }));
+      .catch(() => setPhase({ kind: "invalid", message: "Non riesco a raggiungere il cockpit. Riprova tra un minuto." }));
   }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (phase.kind !== "ready") return;
     setError("");
-    if (password.length < phase.min) return setError(`Use at least ${phase.min} characters.`);
-    if (password !== confirm) return setError("The two passwords do not match.");
+    if (password.length < phase.min) return setError(`Usa almeno ${phase.min} caratteri.`);
+    if (password !== confirm) return setError("Le due password non coincidono.");
     setBusy(true);
     try {
       const res = await fetch("/api/auth-invite/redeem", {
@@ -76,7 +76,7 @@ export default function InvitationPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || "The password could not be set.");
+        setError(data.error || "Non sono riuscito a impostare la password.");
       } else {
         // Spend the fragment too, so the link is not left in the address bar.
         window.history.replaceState(null, "", "/invito");
@@ -101,11 +101,11 @@ export default function InvitationPage() {
     <Plate>
       <div className="paper border border-paper-edge">
         <div className="border-b-[3px] border-double border-paper-edge px-8 pb-5 pt-7 text-center">
-          <p className="column-label column-label-paper">Invitation</p>
+          <p className="column-label column-label-paper">Invito</p>
           <h1 className="document-title mt-2 text-[26px] text-paper-foreground">GGO Med</h1>
         </div>
         <div className="px-8 py-7 text-sm text-paper-foreground">
-          {phase.kind === "checking" && <p className="column-label text-center">Checking your link…</p>}
+          {phase.kind === "checking" && <p className="column-label text-center">Controllo il tuo link…</p>}
 
           {phase.kind === "invalid" && (
             <p role="alert" className="border border-seal px-3 py-2 text-[13px] text-seal">{phase.message}</p>
@@ -114,36 +114,36 @@ export default function InvitationPage() {
           {phase.kind === "ready" && (
             <form onSubmit={submit}>
               <p className="mb-4">
-                Last step, {phase.name}: choose the password you will use to sign in as <strong>{phase.email}</strong>.
-                Only you will know it. Your signature is recorded when you save it.
+                Ultimo passo, {phase.name}: scegli la password con cui accederai come <strong>{phase.email}</strong>.
+                La conoscerai solo tu. La tua firma viene registrata quando la salvi.
               </p>
               <label className="column-label column-label-paper mb-1.5 block" htmlFor="invite-password">
-                New password (at least {phase.min} characters)
+                Nuova password (almeno {phase.min} caratteri)
               </label>
               <input id="invite-password" type="password" autoComplete="new-password" required
                 value={password} onChange={(e) => setPassword(e.target.value)} className={field} />
               <label className="column-label column-label-paper mb-1.5 mt-4 block" htmlFor="invite-confirm">
-                Repeat it
+                Ripetila
               </label>
               <input id="invite-confirm" type="password" autoComplete="new-password" required
                 value={confirm} onChange={(e) => setConfirm(e.target.value)} className={field} />
               {error && <p role="alert" className="mt-3 border border-seal px-3 py-2 text-[13px] text-seal">{error}</p>}
               <button type="submit" disabled={busy} className="act-seal mt-6 w-full">
-                {busy ? "Saving…" : "Sign and set my password"}
+                {busy ? "Salvo…" : "Firma e imposta la mia password"}
               </button>
             </form>
           )}
 
           {phase.kind === "done" && (
             <div>
-              <p>Thank you: your agreement is signed and your password is set. Sign in with <strong>{phase.email}</strong>. Your signed copy is in the Guide.</p>
-              <a href="/login?callbackUrl=/guida" className="act-void mt-6 flex w-full" style={{ color: "var(--paper-fg)", borderColor: "var(--paper-edge)" }}>Go to sign-in</a>
+              <p>Grazie: il tuo accordo è firmato e la password è impostata. Accedi con <strong>{phase.email}</strong>. La tua copia firmata è nella Guida.</p>
+              <a href="/login?callbackUrl=/guida" className="act-void mt-6 flex w-full" style={{ color: "var(--paper-fg)", borderColor: "var(--paper-edge)" }}>Vai all&apos;accesso</a>
             </div>
           )}
         </div>
         <div className="perforation-x" />
         <p className="px-8 py-3 text-center text-[11px] text-paper-foreground-soft">
-          The link works once and expires 72 hours after it was sent.
+          Il link funziona una sola volta e scade 72 ore dopo l&apos;invio.
         </p>
       </div>
     </Plate>

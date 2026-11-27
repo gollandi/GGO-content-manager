@@ -40,10 +40,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ doc
         read = readDocument(doc);
     } catch (err) {
         console.error("[social/library]", (err as Error).message);
-        return NextResponse.json({ error: "The document could not be read." }, { status: 503 });
+        return NextResponse.json({ error: "Non riesco a leggere il documento." }, { status: 503 });
     }
-    if (read.kind === "unknown") return NextResponse.json({ error: "No such document" }, { status: 404 });
-    if (read.kind === "missing") return NextResponse.json({ error: "This document is not on the server yet." }, { status: 404 });
+    if (read.kind === "unknown") return NextResponse.json({ error: "Questo documento non esiste" }, { status: 404 });
+    if (read.kind === "missing") return NextResponse.json({ error: "Questo documento non è ancora sul server." }, { status: 404 });
     return new NextResponse(new Uint8Array(read.body), {
         headers: {
             "Content-Type": read.document.contentType,

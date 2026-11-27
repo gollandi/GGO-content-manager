@@ -22,24 +22,24 @@ export default function WebsitePage() {
         <div className="mx-auto max-w-5xl p-8 max-sm:p-4">
             <header className="page-header">
                 <div>
-                    <h1 className="page-title">Website</h1>
-                    <p className="page-subtitle">Every page of ggomed.co.uk and its state — read-only.</p>
+                    <h1 className="page-title">Sito</h1>
+                    <p className="page-subtitle">Ogni pagina di ggomed.co.uk e il suo stato — sola lettura.</p>
                 </div>
             </header>
             <section className="paper mb-5 border border-paper-edge p-5 text-[14px] text-paper-foreground">
                 <div className="mb-3 flex flex-wrap gap-3">
-                    <input aria-label="Search pages" placeholder="Search title or address" value={term} onChange={(e) => setTerm(e.target.value)}
+                    <input aria-label="Cerca pagine" placeholder="Cerca per titolo o indirizzo" value={term} onChange={(e) => setTerm(e.target.value)}
                         className="min-w-[220px] flex-1 border border-paper-edge bg-transparent px-2 py-1" />
-                    <select aria-label="Filter by state" value={status} onChange={(e) => setStatus(e.target.value)} className="border border-paper-edge bg-transparent px-2 py-1">
-                        {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
+                    <select aria-label="Filtra per stato" value={status} onChange={(e) => setStatus(e.target.value)} className="border border-paper-edge bg-transparent px-2 py-1">
+                        {statuses.map((s) => <option key={s} value={s}>{s === "All" ? "Tutti" : s}</option>)}
                     </select>
                 </div>
-                {loading ? <p>Loading…</p> : error ? <p role="alert">{error}</p> : (
+                {loading ? <p>Carico…</p> : error ? <p role="alert">{error}</p> : (
                     <>
-                        <p className="mb-2 text-[12px] text-paper-foreground-soft">{shown.length} of {items.length} pages</p>
+                        <p className="mb-2 text-[12px] text-paper-foreground-soft">{shown.length} di {items.length} pagine</p>
                         <div className="overflow-x-auto">
                             <table className="w-full text-[13px] [&_td]:border-t [&_td]:border-paper-edge [&_td]:py-1.5 [&_td]:pr-4 [&_th]:pb-1.5 [&_th]:pr-4 [&_th]:font-semibold">
-                                <thead><tr className="text-left"><th>Page</th><th>Type</th><th>State</th><th>Last reviewed</th><th>Last changed</th></tr></thead>
+                                <thead><tr className="text-left"><th>Pagina</th><th>Tipo</th><th>Stato</th><th>Ultima revisione</th><th>Ultima modifica</th></tr></thead>
                                 <tbody>
                                     {shown.map((i) => {
                                         const url = pageUrl(i.slug);
@@ -49,7 +49,7 @@ export default function WebsitePage() {
                                                 <td>{i.contentType}</td>
                                                 <td>{i.status}</td>
                                                 <td>{i.lastReviewed ? i.lastReviewed.slice(0, 10) : "—"}</td>
-                                                <td>{i.lastEditedTime ? new Date(i.lastEditedTime).toLocaleDateString("en-GB") : "—"}</td>
+                                                <td>{i.lastEditedTime ? new Date(i.lastEditedTime).toLocaleDateString("it-IT") : "—"}</td>
                                             </tr>
                                         );
                                     })}

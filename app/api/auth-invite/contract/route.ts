@@ -20,13 +20,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Invalid JSON body" }, { status: 400, headers: noStore });
     }
     const invite = describeInvite(typeof body.token === "string" ? body.token : "");
-    if (!invite) return NextResponse.json({ error: "This link is not valid any more. Ask for a new one." }, { status: 404, headers: noStore });
+    if (!invite) return NextResponse.json({ error: "Questo link non è più valido. Chiedine uno nuovo." }, { status: 404, headers: noStore });
     try {
         const view = viewFor(invite.email);
-        if (!view) return NextResponse.json({ error: "Your agreement is still being prepared. GGO Med will send you a new link when it is ready.", code: "CONTRACT_UNASSIGNED" }, { status: 409, headers: noStore });
+        if (!view) return NextResponse.json({ error: "Il tuo accordo è ancora in preparazione. GGO Med ti manderà un nuovo link quando è pronto.", code: "CONTRACT_UNASSIGNED" }, { status: 409, headers: noStore });
         return NextResponse.json({ view }, { headers: noStore });
     } catch (err) {
         console.error("[auth-invite/contract]", (err as Error).message);
-        return NextResponse.json({ error: "The agreement could not be opened. GGO Med has been told; try again later." }, { status: 503, headers: noStore });
+        return NextResponse.json({ error: "Non riesco ad aprire l'accordo. GGO Med è stata avvisata; riprova più tardi." }, { status: 503, headers: noStore });
     }
 }

@@ -215,15 +215,15 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor):
     if (target !== "desk" && target !== "calendar" && target !== "website") throw new Error(`unknown target: ${target}`);
     if (decision === "send" && target !== "calendar") throw new Error("send applies to calendar rows only");
     if (!mayAct(actor.role, target, decision)) {
-        throw new DecisionForbiddenError(`"${decision}" on ${target} rows is not available to the ${actor.role} role`);
+        throw new DecisionForbiddenError(`"${decision}" sulle righe ${target} non è disponibile per il ruolo ${actor.role}`);
     }
     // A rework order or a comment with nothing in it tells nobody anything.
     if ((decision === "modify" || decision === "comment" || decision === "request") && !comment) {
-        throw new Error(`${decision} requires a note`);
+        throw new Error(`${decision}: serve una nota`);
     }
     // Only the owner may move a publish date (it is part of his seal).
     if (actor.role !== "admin" && typeof input.date === "string" && input.date.trim()) {
-        throw new DecisionForbiddenError("only JJ may change a publish date");
+        throw new DecisionForbiddenError("solo JJ può cambiare la data di pubblicazione");
     }
     let noteSkipped: string | undefined;
     try {
@@ -235,7 +235,7 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor):
             collaboratorPage = await assertRowOf(rowId, target);
             const current = statusOf(collaboratorPage);
             if (current !== "Review") {
-                throw new DecisionForbiddenError(`only a post in Review can be acted on (this one is ${current ?? "without a status"})`);
+                throw new DecisionForbiddenError(`si può agire solo su un post in revisione (questo è ${current ?? "senza stato"})`);
             }
         }
 

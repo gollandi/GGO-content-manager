@@ -17,12 +17,12 @@ const h2 = "column-label column-label-paper mb-2";
 const onPaper = { color: "var(--paper-fg)", borderColor: "var(--paper-edge)" };
 
 const WHO: Record<string, string> = {
-    ernesto: "Social production plan — Ernesto",
-    samantha: "Captions and comment replies — Samantha (via Ernesto)",
-    ginevra: "Generative reels — Ginevra",
-    greta: "Cutting real footage — Greta (via Ernesto)",
-    titti: "Splitting raw recordings — Titti (via Ernesto)",
-    natascia: "Analytics — Natascia",
+    ernesto: "Piano di produzione social — Ernesto",
+    samantha: "Didascalie e risposte ai commenti — Samantha (tramite Ernesto)",
+    ginevra: "Reel generativi — Ginevra",
+    greta: "Montaggio del girato reale — Greta (tramite Ernesto)",
+    titti: "Divisione delle registrazioni grezze — Titti (tramite Ernesto)",
+    natascia: "Analisi dei dati — Natascia",
     jj: "JJ",
 };
 
@@ -41,18 +41,18 @@ function Thread({ t, handle, recipients, act, busy }: {
     return (
         <article className="border-t border-paper-edge pt-3">
             <header className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="font-semibold">{strategy ? "Strategy · " : ""}{t.threadId}</span>
+                <span className="font-semibold">{strategy ? "Strategia · " : ""}{t.threadId}</span>
                 <span className="text-[12px] text-paper-foreground-soft">
-                    {t.closed ? `closed by ${t.closedBy}` : "open"}{t.pending ? " · waiting for the house to sync" : ""}
+                    {t.closed ? `chiusa da ${t.closedBy}` : "aperta"}{t.pending ? " · in attesa della sincronizzazione della casa" : ""}
                 </span>
             </header>
-            {t.earlierHidden ? <p className="mt-1 text-[12px] text-paper-foreground-soft">You were added to this thread later; its earlier messages are not shown.</p> : null}
+            {t.earlierHidden ? <p className="mt-1 text-[12px] text-paper-foreground-soft">Ti hanno aggiunto a questa conversazione dopo; i messaggi precedenti non sono mostrati.</p> : null}
             <ol className="mt-2 space-y-2">
                 {t.events.map((e) => (
                     <li key={e.id} className={e.from === handle ? "pl-0" : "pl-4"}>
                         <div className="text-[12px] text-paper-foreground-soft">
-                            {e.from === handle ? "You" : e.from} · {new Date(e.date).toLocaleString("en-GB")}
-                            {e.kind === "close" ? " · closed the thread" : ""}{e.pending ? " · not yet delivered" : ""}
+                            {e.from === handle ? "Tu" : e.from} · {new Date(e.date).toLocaleString("it-IT")}
+                            {e.kind === "close" ? " · ha chiuso la conversazione" : ""}{e.pending ? " · non ancora consegnato" : ""}
                         </div>
                         <p className="whitespace-pre-wrap">{e.body}</p>
                     </li>
@@ -60,15 +60,15 @@ function Thread({ t, handle, recipients, act, busy }: {
             </ol>
             {!t.closed && (
                 <div className="mt-3 space-y-2">
-                    <textarea aria-label={`Reply in ${t.threadId}`} value={reply} onChange={(e) => setReply(e.target.value)} rows={3}
-                        className="w-full border border-paper-edge bg-transparent p-2" placeholder={others.length ? `Reply to ${others.join(", ")}` : "Reply"} />
+                    <textarea aria-label={`Rispondi in ${t.threadId}`} value={reply} onChange={(e) => setReply(e.target.value)} rows={3}
+                        className="w-full border border-paper-edge bg-transparent p-2" placeholder={others.length ? `Rispondi a ${others.join(", ")}` : "Rispondi"} />
                     <div className="flex gap-2">
                         <button type="button" className="act-void" style={onPaper} disabled={busy || !reply.trim() || others.length === 0}
-                            onClick={async () => { if (await act({ mode: "reply", threadId: t.threadId, to: others, body: reply })) setReply(""); }}>Reply</button>
+                            onClick={async () => { if (await act({ mode: "reply", threadId: t.threadId, to: others, body: reply })) setReply(""); }}>Rispondi</button>
                         {t.opener === handle && (
                             <button type="button" className="act-quiet" style={onPaper} disabled={busy}
-                                onClick={() => window.confirm("Close this thread? The agents stop reading it; a closed strategy stops governing Ernesto's plan.") && act({ mode: "close", threadId: t.threadId })}>
-                                Close thread
+                                onClick={() => window.confirm("Chiudere questa conversazione? Gli agenti smettono di leggerla; una strategia chiusa smette di orientare il piano di Ernesto.") && act({ mode: "close", threadId: t.threadId })}>
+                                Chiudi conversazione
                             </button>
                         )}
                     </div>
@@ -91,7 +91,7 @@ export default function BriefsPage() {
     const load = useCallback(async () => {
         const res = await fetch("/api/social/briefs", { cache: "no-store" });
         const json = await res.json().catch(() => ({}));
-        if (!res.ok) { setError(json.error || `Could not load (${res.status})`); return; }
+        if (!res.ok) { setError(json.error || `Caricamento non riuscito (${res.status})`); return; }
         setError("");
         setState(json);
     }, []);
@@ -102,8 +102,8 @@ export default function BriefsPage() {
         try {
             const res = await fetch("/api/social/briefs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
             const json = await res.json().catch(() => ({}));
-            if (!res.ok) { setNotice(json.error || "Not sent."); return false; }
-            setNotice("Queued. The house picks it up at its next sync (within minutes) and the agents at their next slot.");
+            if (!res.ok) { setNotice(json.error || "Non inviato."); return false; }
+            setNotice("In coda. La casa lo prende alla prossima sincronizzazione (entro pochi minuti) e gli agenti al loro prossimo turno.");
             await load();
             return true;
         } finally { setBusy(false); }
@@ -123,26 +123,26 @@ export default function BriefsPage() {
         <div className="mx-auto max-w-3xl p-8 max-sm:p-4">
             <header className="page-header">
                 <div>
-                    <h1 className="page-title">Briefs</h1>
-                    <p className="page-subtitle">Tell the house what to make. Signed with your name; nothing here publishes.</p>
+                    <h1 className="page-title">Brief</h1>
+                    <p className="page-subtitle">Di&apos; alla casa cosa produrre. Firmato con il tuo nome; da qui non si pubblica niente.</p>
                 </div>
             </header>
 
-            {error ? <section className={section}><p role="alert">{error}</p></section> : !state ? <p className="p-4">Opening…</p> : (
+            {error ? <section className={section}><p role="alert">{error}</p></section> : !state ? <p className="p-4">Apro…</p> : (
                 <>
                     <section className={section}>
-                        <h2 className={h2}>New</h2>
-                        <div className="mb-3 flex gap-4" role="radiogroup" aria-label="Kind">
-                            <label><input type="radio" name="kind" checked={kind === "brief"} onChange={() => switchKind("brief")} /> A brief to the agents</label>
-                            <label><input type="radio" name="kind" checked={kind === "strategy"} onChange={() => switchKind("strategy")} /> A social strategy</label>
+                        <h2 className={h2}>Nuovo</h2>
+                        <div className="mb-3 flex gap-4" role="radiogroup" aria-label="Tipo">
+                            <label><input type="radio" name="kind" checked={kind === "brief"} onChange={() => switchKind("brief")} /> Un brief agli agenti</label>
+                            <label><input type="radio" name="kind" checked={kind === "strategy"} onChange={() => switchKind("strategy")} /> Una strategia social</label>
                         </div>
                         {kind === "strategy" && (
-                            <p className="mb-3 text-[13px]">A strategy goes to Ernesto, with a copy to JJ, and governs every plan Ernesto makes until you close it or open a new one. If JJ has a strategy open, his comes first.</p>
+                            <p className="mb-3 text-[13px]">Una strategia va a Ernesto, con copia a JJ, e orienta ogni piano di Ernesto finché non la chiudi o ne apri una nuova. Se JJ ha una strategia aperta, la sua viene prima.</p>
                         )}
-                        <input aria-label="Title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short title, e.g. December reels on varicocele"
+                        <input aria-label="Titolo" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Titolo breve, per esempio: reel di dicembre sul varicocele"
                             className="mb-2 w-full border border-paper-edge bg-transparent px-2 py-1" />
                         <fieldset className="mb-2 flex flex-wrap gap-x-4 gap-y-1" disabled={kind === "strategy"}>
-                            <legend className="sr-only">Recipients</legend>
+                            <legend className="sr-only">Destinatari</legend>
                             {state.recipients.map((r) => (
                                 <label key={r} className="text-[13px]">
                                     <input type="checkbox" checked={to.includes(r)}
@@ -151,11 +151,11 @@ export default function BriefsPage() {
                             ))}
                         </fieldset>
                         <textarea aria-label="Brief" value={body} onChange={(e) => setBody(e.target.value)} rows={kind === "strategy" ? 10 : 6}
-                            className="w-full border border-paper-edge bg-transparent p-2" placeholder="What you want, for whom, by when, and why. Write in English." />
+                            className="w-full border border-paper-edge bg-transparent p-2" placeholder="Cosa vuoi, per chi, entro quando e perché." />
                         <div className="mt-2 flex items-center gap-3">
                             <button type="button" className="act-void" style={onPaper} disabled={busy || !title.trim() || !body.trim()}
                                 onClick={async () => { if (await act({ mode: "open", kind, title, to, body })) { setTitle(""); setBody(""); } }}>
-                                {kind === "strategy" ? "Send the strategy" : "Send the brief"}
+                                {kind === "strategy" ? "Invia la strategia" : "Invia il brief"}
                             </button>
                             {notice && <span className="text-[13px]" role="status">{notice}</span>}
                         </div>
@@ -163,22 +163,22 @@ export default function BriefsPage() {
 
                     {state.board.rejected.length > 0 && (
                         <section className={section}>
-                            <h2 className={h2}>Refused by the house</h2>
+                            <h2 className={h2}>Rifiutati dalla casa</h2>
                             {state.board.rejected.map((r) => <p key={r.event.id}><strong>{r.event.threadId}</strong>: {r.reason}</p>)}
                         </section>
                     )}
 
                     <section className={section}>
-                        <h2 className={h2}>Open threads ({open.length})</h2>
-                        {open.length === 0 ? <p>None yet.</p> : open.map((t) => <Thread key={t.threadId} t={t} handle={state.handle} recipients={state.recipients} act={act} busy={busy} />)}
+                        <h2 className={h2}>Conversazioni aperte ({open.length})</h2>
+                        {open.length === 0 ? <p>Ancora nessuna.</p> : open.map((t) => <Thread key={t.threadId} t={t} handle={state.handle} recipients={state.recipients} act={act} busy={busy} />)}
                     </section>
                     {closed.length > 0 && (
                         <section className={section}>
-                            <h2 className={h2}>Closed ({closed.length})</h2>
+                            <h2 className={h2}>Chiuse ({closed.length})</h2>
                             {closed.map((t) => <Thread key={t.threadId} t={t} handle={state.handle} recipients={state.recipients} act={act} busy={busy} />)}
                         </section>
                     )}
-                    <p className="text-[12px] text-paper-foreground-soft">Board last synced: {state.board.syncedAt ? new Date(state.board.syncedAt).toLocaleString("en-GB") : "never"}.</p>
+                    <p className="text-[12px] text-paper-foreground-soft">Ultima sincronizzazione della bacheca: {state.board.syncedAt ? new Date(state.board.syncedAt).toLocaleString("it-IT") : "mai"}.</p>
                 </>
             )}
         </div>

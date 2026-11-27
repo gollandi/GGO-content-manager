@@ -21,6 +21,6 @@ export async function GET() {
         return NextResponse.json(items.map(toPublicPage), { headers: { "Cache-Control": "private, no-store" } });
     } catch (err) {
         console.error("[social/pages]", err instanceof Error ? err.message : err);
-        return NextResponse.json({ error: "Could not read the website registry" }, { status: 502 });
+        return NextResponse.json({ error: "Non riesco a leggere il registro del sito" }, { status: 502 });
     }
 }
