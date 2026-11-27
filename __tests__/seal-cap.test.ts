@@ -59,3 +59,18 @@ describe("staleOperations", () => {
         ] })).toBe(0);
     });
 });
+
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { loadPatches } from "../lib/cancello/patches";
+describe("loadPatches", () => {
+    it("skips a settled patch", () => {
+        const root = mkdtempSync(join(tmpdir(), "patches-"));
+        mkdirSync(join(root, "b1"));
+        const op = [{ type: "replace-text", anchorText: "a", newText: "b" }];
+        writeFileSync(join(root, "b1", "01.json"), JSON.stringify({ id: "open", sanityDocId: "x", operations: op }));
+        writeFileSync(join(root, "b1", "02.json"), JSON.stringify({ id: "done", sanityDocId: "y", operations: op, settled: { on: "2026-11-27" } }));
+        expect(loadPatches(root).map((p) => p.id)).toEqual(["open"]);
+    });
+});

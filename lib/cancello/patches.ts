@@ -56,6 +56,9 @@ export function loadPatches(root = patchRoot()): PreparedPatch[] {
         for (const file of files.sort()) {
             try {
                 const spec = JSON.parse(readFileSync(join(dir, file), "utf-8"));
+                // Settled: the work is already live (often refined since by
+                // JJ); the house applier refuses it, so the gate never offers it.
+                if (spec.settled) continue;
                 patches.push({ ...spec, batch, file });
             } catch { /* an unreadable spec is skipped, not fatal */ }
         }
