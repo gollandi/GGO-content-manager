@@ -137,7 +137,7 @@ export default function InvitationPage() {
           {phase.kind === "done" && (
             <div>
               <p>Thank you: your agreement is signed and your password is set. Sign in with <strong>{phase.email}</strong>. Your signed copy is in the Guide.</p>
-              <a href="/login?callbackUrl=/guida" className="act-seal mt-6 block w-full text-center">Go to sign-in</a>
+              <a href="/login?callbackUrl=/guida" className="act-void mt-6 flex w-full" style={{ color: "var(--paper-fg)", borderColor: "var(--paper-edge)" }}>Go to sign-in</a>
             </div>
           )}
         </div>

@@ -403,14 +403,15 @@ export default function CaricoPage() {
 
                         <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-paper-edge pt-4">
                             {phase === "done" ? (
-                                <button onClick={reset} className="act-seal" type="button">
+                                <button onClick={reset} className="act-void" style={{ color: "var(--paper-fg)", borderColor: "var(--paper-edge)" }} type="button">
                                     {tr("Deposita un altro", "Upload another")}
                                 </button>
                             ) : (
                                 <button
                                     onClick={() => void start(phase === "paused" || phase === "error")}
                                     disabled={!file || busy}
-                                    className="act-seal"
+                                    className="act-void"
+                                    style={{ color: "var(--paper-fg)", borderColor: "var(--paper-edge)" }}
                                     type="button"
                                 >
                                     {phase === "uploading"

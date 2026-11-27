@@ -8,7 +8,7 @@ import MarkdownBlock from "../../components/MarkdownBlock";
 import AssetSheet from "../../components/cancello/AssetSheet";
 import PostPreview from "../../components/cancello/PostPreview";
 import { composePosts } from "../../lib/cancello/post-preview";
-import { capForSeal, deskFamily, gateCalendarIds, shadowedByCalendar } from "../../lib/house/families";
+import { capForSeal, deskFamily, gateCalendarIds, shadowedByCalendar, localToday, needsNewDate } from "../../lib/house/families";
 import { Guilloche, Socket, Mark, AgeBar, type MarkTone } from "../../components/Registro";
 import { useSession } from "next-auth/react";
 import { latestMark, type CollaboratorMark } from "../../lib/cancello/notes";
@@ -123,9 +123,16 @@ function socialLine(row: { platforms: string | null; date: string | null }): str
     return [row.platforms, when].filter(Boolean).join(" · ");
 }
 
+/** A social post in Review whose publish day is already behind us. */
+function slotPassed(entry: { family: string; dueDays: number | null }): boolean {
+    return entry.family === "Social" && entry.dueDays !== null && entry.dueDays > 0;
+}
+
 function stateTone(value: string): MarkTone {
-    if (/Urgent|Blocked|Rejected|FALLITA/i.test(value)) return "pending";
-    if (/Review|Pending|Needs|Draft|Modify/i.test(value)) return "ageing";
+    // Oxblood is the press and what has failed; a priority is a word, in
+    // sepia, so ninety-nine "urgent" rows do not drown the one real alarm.
+    if (/Blocked|Rejected|FALLITA/i.test(value)) return "pending";
+    if (/Urgent|Review|Pending|Needs|Draft|Modify/i.test(value)) return "ageing";
     if (/Approved|Scheduled|bozza|patch/i.test(value)) return "sealed";
     return "quiet";
 }
@@ -361,29 +368,31 @@ export default function ReviewPage() {
                 label: tr("In coda — salgono man mano che sigilli", "Queued — they rise as you seal"),
                 rows: held.map((e) => ({ key: `h:${e.key}`, title: e.title, state: e.stateLabel, url: e.notionUrl }))
             }] : []),
-            {
-                label: tr("Sito · proposte senza patch (al lavoro di Edmondo)", "Site · proposals without a patch (Edmondo at work)"),
+            // The website and the desk are JJ's: the social media manager's
+            // queue shows the social calendar only.
+            ...(isSocial ? [] : [{
+                label: "Sito · proposte senza patch (al lavoro di Edmondo)",
                 rows: state.website
                     .filter((r) => !r.patch && r.proposals.length > 0)
                     .map((r) => ({ key: `w:${r.rowId}`, title: r.title, state: `${r.proposals.length}`, url: r.url }))
-            },
+            }]),
             {
                 label: tr("In lavorazione adesso", "In production now"),
                 rows: [
                     ...state.calendar
                         .filter((r) => r.status === "In Production" || r.status === "Draft")
                         .map((r) => ({ key: `c:${r.rowId}`, title: r.title, state: r.status, url: r.url })),
-                    ...state.desk
+                    ...(isSocial ? [] : state.desk)
                         .filter((r) => r.status === "In production" && deskFamily(r.type, r.videos.length > 0 || (r.media?.length ?? 0) > 0) === "editorial")
                         .map((r) => ({ key: `d:${r.rowId}`, title: r.title, state: r.status, url: r.url }))
                 ]
             },
-            {
-                label: tr("In coda — approvati, in attesa di uno slot", "Queued — approved, waiting for a slot"),
+            ...(isSocial ? [] : [{
+                label: "In coda — approvati, in attesa di uno slot",
                 rows: state.desk
                     .filter((r) => r.status === "Approved" && deskFamily(r.type, r.videos.length > 0 || (r.media?.length ?? 0) > 0) === "editorial")
                     .map((r) => ({ key: `d:${r.rowId}`, title: r.title, state: "Approved", url: r.url }))
-            },
+            }]),
             {
                 label: tr("Programmati verso pubblicazione", "Scheduled for publication"),
                 rows: state.calendar
@@ -391,7 +400,7 @@ export default function ReviewPage() {
                     .map((r) => ({ key: `c:${r.rowId}`, title: r.title, state: r.date ?? "Scheduled", url: r.url }))
             }
         ];
-    }, [state, tr, held]);
+    }, [state, tr, held, isSocial]);
 
     /* ── Acts ─────────────────────────────────────────────────────────────── */
 
@@ -507,6 +516,9 @@ export default function ReviewPage() {
         const w = entry.website;
         // The publish date under JJ's pen: the proposed one until he corrects it.
         const plannedDate = dates[entry.key] ?? (c?.date ? c.date.slice(0, 10) : "");
+        // Approving publishes: a post whose day has gone would go out at
+        // once on a stale slot. The seal waits for a date from today on.
+        const needsDate = Boolean(c) && needsNewDate({ proposed: c?.date ?? null, planned: plannedDate });
 
         return (
             <div className="paper flex h-full min-h-0 flex-col border border-paper-edge">
@@ -613,7 +625,7 @@ export default function ReviewPage() {
                                                 </p>
                                                 <div className="mt-1.5 grid grid-cols-2 gap-3 max-sm:grid-cols-1">
                                                     <div className="min-w-0">
-                                                        <p className="font-condensed text-[9px] uppercase tracking-[0.14em] text-paper-foreground-soft">
+                                                        <p className="font-condensed text-[10px] uppercase tracking-[0.14em] text-paper-foreground-soft">
                                                             {op.type === "replace-text" ? "Testo attuale" : "Punto di ancoraggio"}
                                                         </p>
                                                         <p className={`mt-0.5 whitespace-pre-wrap ${op.type === "replace-text" ? "text-paper-foreground-soft line-through decoration-[var(--seal)]" : "text-paper-foreground-soft"}`}>
@@ -621,7 +633,7 @@ export default function ReviewPage() {
                                                         </p>
                                                     </div>
                                                     <div className="min-w-0 border-l border-paper-edge pl-3 max-sm:border-l-0 max-sm:border-t max-sm:pl-0 max-sm:pt-2">
-                                                        <p className="font-condensed text-[9px] uppercase tracking-[0.14em] text-engraving-ink">Correzione</p>
+                                                        <p className="font-condensed text-[10px] uppercase tracking-[0.14em] text-engraving-ink">Correzione</p>
                                                         <p className="mt-0.5 whitespace-pre-wrap text-paper-foreground">
                                                             {op.newText ?? op.blocksText ?? "—"}
                                                         </p>
@@ -670,6 +682,7 @@ export default function ReviewPage() {
                                     <input
                                         id={`date-${entry.rowId}`}
                                         type="date"
+                                        min={localToday()}
                                         value={plannedDate}
                                         onChange={(event) => setDates((current) => ({ ...current, [entry.key]: event.target.value }))}
                                         className="mt-1 block border border-paper-edge bg-transparent px-2.5 py-1.5 text-[13px] normal-case tracking-normal text-paper-foreground outline-none focus:border-engraving-ink"
@@ -771,14 +784,15 @@ export default function ReviewPage() {
                         </button>
                         ) : (
                         <button
-                            disabled={busy}
+                            disabled={busy || needsDate}
                             onClick={() => void decide(entry, "approve", note,
                                 entry.target === "calendar" && plannedDate ? { date: plannedDate } : {})}
                             className="act-seal flex-1 min-w-[8rem]"
                             type="button"
+                            title={needsDate ? "La data di uscita è passata: scegline una nuova qui sopra" : undefined}
                         >
                             {entry.target === "calendar"
-                                ? "Sigilla → pubblica"
+                                ? (needsDate ? "Scegli una nuova data" : "Sigilla → pubblica")
                                 : entry.target === "website" ? (entry.website?.patch ? "Sigilla → bozza Sanity" : "Commissiona a Edmondo")
                                 : "Sigilla"}
                         </button>
@@ -863,21 +877,23 @@ export default function ReviewPage() {
                         <div>
                             <p className="column-label">{tr("Il Cancello · le proposte editoriali", "Social queue · posts waiting for review")}</p>
                             <h1 className="document-title mt-1.5 text-[30px] text-plate-foreground-strong max-sm:text-[24px]">
-                                {state && isSocial ? (pendingEntries.length === 0 ? "No posts are waiting for review" : pendingEntries.length === 1 ? "One post is waiting for review" : `${pendingEntries.length} posts are waiting for review`) : !state && isSocial ? "Opening the queue…" : state ? (pendingEntries.length === 0 ? "Niente aspetta il tuo sigillo" : pendingEntries.length === 1 ? "Un atto aspetta il tuo sigillo" : `${pendingEntries.length} atti aspettano il tuo sigillo`) : "Apro il registro…"}
+                                {state && isSocial ? (pendingEntries.length === 0 ? "No posts are waiting for review" : pendingEntries.length === 1 ? "One post is waiting for review" : `${pendingEntries.length} posts are waiting for review`) : !state && isSocial ? (error ? "The queue could not be loaded" : "Opening the queue…") : state ? (pendingEntries.length === 0 ? "Niente aspetta il tuo sigillo" : pendingEntries.length === 1 ? "Un atto aspetta il tuo sigillo" : `${pendingEntries.length} atti aspettano il tuo sigillo`) : error ? "Il registro non si apre" : "Apro il registro…"}
                             </h1>
                             {state && !isSocial && pendingEntries.length > 0 && (() => {
                                 // The registrar's line: what stands at the gate, in one sentence.
                                 const social = pendingEntries.filter((e) => e.family === "Social").length;
                                 const deskN = pendingEntries.filter((e) => e.family === "Desk").length;
                                 const web = pendingEntries.filter((e) => e.family === "Website").length;
+                                const buffer = pendingEntries.filter((e) => e.family === "Buffer").length;
                                 const oldest = Math.max(0, ...pendingEntries.map((e) => e.dueDays ?? 0));
                                 const parts = [
                                     social > 0 && `${social === 1 ? "un atto" : `${social} atti`} dal calendario sociale`,
                                     deskN > 0 && `${deskN === 1 ? "uno" : deskN} da pubblicare o tagliare`,
-                                    web > 0 && `${web === 1 ? "una pagina" : `${web} pagine`} del sito con patch o proposte`
+                                    web > 0 && `${web === 1 ? "una pagina" : `${web} pagine`} del sito con patch o proposte`,
+                                    buffer > 0 && `${buffer === 1 ? "un post approvato" : `${buffer} post approvati`} non ancora su Buffer`
                                 ].filter(Boolean);
                                 return (
-                                    <p className="mt-2 max-w-[34rem] text-[13px] italic leading-relaxed text-plate-foreground-soft">
+                                    <p className="mt-2 max-w-[34rem] text-[13px] italic leading-relaxed text-plate-foreground-soft max-sm:hidden">
                                         {parts.join(", ")}.{oldest > 0 ? ` Il più vecchio attende da ${oldest === 1 ? "un giorno" : `${oldest} giorni`}.` : ""}
                                     </p>
                                 );
@@ -889,7 +905,7 @@ export default function ReviewPage() {
                             )}
                         </div>
                         <div className="flex items-center gap-3">
-                            {!isSocial && <Link href="/questioni" className="text-[12px] text-plate-foreground-soft hover:text-plate-foreground hover:underline">
+                            {!isSocial && <Link href="/questioni" className="text-[12px] text-plate-foreground-soft hover:text-plate-foreground hover:underline max-sm:hidden">
                                 Domande, piani e raccomandazioni → Le Questioni
                             </Link>}
                             <button onClick={() => void load(true)} className="act-quiet" type="button">
@@ -905,7 +921,7 @@ export default function ReviewPage() {
                     </div>
                 )}
                 {error && (
-                    <div className="relative mx-8 mt-4 border border-seal px-4 py-3 text-[13px] text-seal-bright max-sm:mx-4" role="alert">
+                    <div className="relative mx-8 mt-4 border border-sepia px-4 py-3 text-[13px] text-sepia-bright max-sm:mx-4" role="alert">
                         {error}
                         {retry !== null && (isSocial ? ` Trying again in ${retry.seconds} s.` : ` Nuovo tentativo automatico tra ${retry.seconds} s.`)}
                     </div>
@@ -928,7 +944,9 @@ export default function ReviewPage() {
                         <div className="min-h-0 flex-1 overflow-y-auto">
                             {!state ? (
                                 <p className="px-4 py-8 text-center font-condensed text-[11px] uppercase tracking-[0.14em] text-paper-foreground-soft">
-                                    {tr("Carico ciò che aspetta il tuo giudizio…", "Loading the queue…")}
+                                    {error
+                                        ? tr("Nessun dato: vedi il messaggio sopra.", "Nothing to show yet. The page tries again by itself; if it still fails, tell JJ.")
+                                        : tr("Carico ciò che aspetta il tuo giudizio…", "Loading the queue…")}
                                 </p>
                             ) : entries.length === 0 ? (
                                 <div className="px-4 py-12 text-center">
@@ -939,11 +957,17 @@ export default function ReviewPage() {
                                 </div>
                             ) : (
                                 ([
-                                    ["Desk", "Da pubblicare · clip e script"],
-                                    ["Social", tr("Calendario sociale", "Social calendar")],
-                                    ["Website", "Sito · patch e proposte"],
-                                ] as const).map(([family, label]) => {
-                                    const rows = entries.filter((e) => e.family === family);
+                                    // Grouped by family; within each group the order is the
+                                    // gate's (sealRank). A post whose slot has passed waits apart
+                                    // until JJ gives it a new date, and approved rows on their way
+                                    // to Buffer are listed, not only counted.
+                                    ["Desk", "Da pubblicare · clip e script", (e: Entry) => e.family === "Desk"],
+                                    ["Website", "Sito · patch", (e: Entry) => e.family === "Website"],
+                                    ["Social", tr("Calendario sociale · il sigillo pubblica", "Social calendar"), (e: Entry) => e.family === "Social" && !slotPassed(e)],
+                                    ["Buffer", "Approvati · non ancora su Buffer", (e: Entry) => e.family === "Buffer"],
+                                    ["SocialPast", tr("Data passata · scegli una nuova data", "Publish date has passed"), (e: Entry) => e.family === "Social" && slotPassed(e)],
+                                ] as const).map(([family, label, belongs]) => {
+                                    const rows = entries.filter(belongs);
                                     if (rows.length === 0) return null;
                                     return (
                                 <ul key={family}>
@@ -995,7 +1019,7 @@ export default function ReviewPage() {
                                                     </div>
                                                     {act?.decision === "modify" ? (
                                                         <span
-                                                            className="inline-block -rotate-3 border px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-[0.12em]"
+                                                            className="inline-block -rotate-3 border px-1.5 py-0.5 font-condensed text-[10px] font-bold uppercase tracking-[0.12em]"
                                                             style={{ color: "var(--stamp)", borderColor: "var(--stamp)" }}
                                                         >
                                                             Rimandato

@@ -79,7 +79,7 @@ export default function Onboarding({ view, mode, onSigned }: OnboardingProps) {
     const nav = (back: Step | null, next: Step | null, nextLabel = "Next") => (
         <div className="mt-5 flex justify-between gap-3">
             {back ? <button type="button" className="act-quiet" style={onPaper} onClick={() => setStep(back)}>Back</button> : <span />}
-            {next && <button type="button" className="act-seal" onClick={() => setStep(next)}>{nextLabel}</button>}
+            {next && <button type="button" className="act-void" style={onPaper} onClick={() => setStep(next)}>{nextLabel}</button>}
         </div>
     );
 
@@ -132,7 +132,7 @@ export default function Onboarding({ view, mode, onSigned }: OnboardingProps) {
                         )}
                         <div className="mt-5 flex justify-between gap-3">
                             <button type="button" className="act-quiet" style={onPaper} onClick={() => setStep(step.i === 0 ? { kind: "how" } : { kind: "card", i: step.i - 1 })}>Back</button>
-                            <button type="button" className="act-seal" onClick={() => { seen(card.title); setOpen(null); setStep(last ? { kind: "full" } : { kind: "card", i: step.i + 1 }); }}>Got it</button>
+                            <button type="button" className="act-void" style={onPaper} onClick={() => { seen(card.title); setOpen(null); setStep(last ? { kind: "full" } : { kind: "card", i: step.i + 1 }); }}>Got it</button>
                         </div>
                     </>
                 );
@@ -151,7 +151,7 @@ export default function Onboarding({ view, mode, onSigned }: OnboardingProps) {
                         <p className="mt-2 text-[12px]">{reachedEndAt ? "You have reached the end." : "Scroll to the end to continue."}</p>
                         <div className="mt-5 flex justify-between gap-3">
                             <button type="button" className="act-quiet" style={onPaper} onClick={() => setStep({ kind: "card", i: view.cards.length - 1 })}>Back</button>
-                            <button type="button" className="act-seal" disabled={!reachedEndAt} onClick={() => setStep({ kind: "sign" })}>Continue</button>
+                            <button type="button" className="act-void" style={onPaper} disabled={!reachedEndAt} onClick={() => setStep({ kind: "sign" })}>Continue</button>
                         </div>
                     </>
                 );

@@ -17,12 +17,12 @@ const h2 = "column-label column-label-paper mb-2";
 const onPaper = { color: "var(--paper-fg)", borderColor: "var(--paper-edge)" };
 
 const WHO: Record<string, string> = {
-    ernesto: "Ernesto — plans and runs social production",
-    samantha: "Samantha — captions and replies (via Ernesto)",
-    ginevra: "Ginevra — generative reels",
-    greta: "Greta — cuts real footage (via Ernesto)",
-    titti: "Titti — splits raw recordings (via Ernesto)",
-    natascia: "Natascia — analytics",
+    ernesto: "Social production plan — Ernesto",
+    samantha: "Captions and comment replies — Samantha (via Ernesto)",
+    ginevra: "Generative reels — Ginevra",
+    greta: "Cutting real footage — Greta (via Ernesto)",
+    titti: "Splitting raw recordings — Titti (via Ernesto)",
+    natascia: "Analytics — Natascia",
     jj: "JJ",
 };
 

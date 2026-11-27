@@ -71,7 +71,11 @@ export const SEAL_CAP = 5;
 
 export interface Sealable {
     family: string;
-    /** Days to the slot or due date; negative once it has passed. */
+    /**
+     * Days since the slot or due date, as Il Cancello computes them
+     * (daysUntil in app/review/page.tsx): positive once it has passed,
+     * zero today, negative while it is still ahead.
+     */
     dueDays: number | null;
     priority?: string | null;
 }
@@ -87,7 +91,8 @@ export function sealRank(e: Sealable): [number, number] {
     const d = e.dueDays;
     if (e.family === "Desk" && e.priority === "Urgent") return [0, -(d ?? 0)];
     if (e.family === "Website") return [1, 0];
-    if (e.family === "Social" && d !== null && d >= 0) return [2, d];
+    // A slot still ahead (or today), nearest first.
+    if (e.family === "Social" && d !== null && d <= 0) return [2, -d];
     if (e.family !== "Social") return [3, -(d ?? 0)];
     return [4, -(d ?? 0)];
 }
@@ -99,4 +104,32 @@ export function capForSeal<T extends Sealable>(entries: T[], cap = SEAL_CAP): { 
         .sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.i - b.i)
         .map((x) => x.e);
     return { shown: ranked.slice(0, cap), held: ranked.slice(cap) };
+}
+
+/** Today's date as YYYY-MM-DD in the reader's own time zone (not UTC). */
+export function localToday(now = new Date()): string {
+    const y = now.getFullYear(), m = String(now.getMonth() + 1).padStart(2, "0"), d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+}
+
+/**
+ * Whether a social post may not be sealed until JJ gives it a date from
+ * today on. Approving publishes, so a post whose day has gone would go out
+ * at once on a stale slot. Judged on the date that would be sealed: the one
+ * JJ has typed if any, else the proposed one; a proposed time already past
+ * today counts as passed too.
+ */
+export function needsNewDate(input: { proposed: string | null; planned: string; now?: Date }): boolean {
+    const now = input.now ?? new Date();
+    const today = localToday(now);
+    const day = input.planned || (input.proposed ? input.proposed.slice(0, 10) : "");
+    if (!day) return false;
+    if (day < today) return true;
+    // Same day: only the proposed slot carries a time, and only if JJ has not
+    // moved the date.
+    if (day === today && input.proposed && input.proposed.length > 10 && (!input.planned || input.planned === input.proposed.slice(0, 10))) {
+        const t = new Date(input.proposed).getTime();
+        return Number.isFinite(t) && t < now.getTime();
+    }
+    return false;
 }
