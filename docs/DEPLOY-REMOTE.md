@@ -339,6 +339,27 @@ ssh -i ~/.ssh/ionos_ggo_xl root@85.215.37.39 \
   'ls -l /var/lib/ggo-cockpit/auth/ && grep -E "\"(email|role|disabled)\"" /var/lib/ggo-cockpit/auth/users.json'
 ```
 
+## The library — internal documents for signed-in people
+
+Since 27 November 2026 `/guida` links to the GGO Med social media guide
+(interactive HTML and PDF). The files are internal and this repository is
+public, so they are **not in git**: they live in `$COCKPIT_LIBRARY_DIR`, else
+`$COCKPIT_SNAPSHOT_DIR/library` — on the VPS `/var/lib/ggo-cockpit/library`
+(directory 0700, files 0600, owner `jj`), outside the deploy tree. The table
+of what may be served is `lib/library/store.ts`; a file that is not listed
+there is never served, and a listed file that is absent answers 404.
+
+Place or replace a document (a new edition keeps the same file name):
+
+```bash
+scp -i ~/.ssh/ionos_ggo_xl GGO-Med-Social-Media-Guide.html GGO-Med-Social-Media-Guide.pdf \
+  root@85.215.37.39:/var/lib/ggo-cockpit/library/
+ssh -i ~/.ssh/ionos_ggo_xl root@85.215.37.39 \
+  'chown -R jj:jj /var/lib/ggo-cockpit/library && chmod 700 /var/lib/ggo-cockpit/library && chmod 600 /var/lib/ggo-cockpit/library/*'
+```
+
+No restart is needed: the route reads the file on each request.
+
 ## What stays on the Mac
 
 - The local resident service (LaunchAgent on `localhost:3010`) continues

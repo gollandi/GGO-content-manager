@@ -39,6 +39,9 @@ export const RESTRICTED_SURFACES: Partial<Record<Role, Surface>> = {
             // Comments: suggest and mark ready only; approving a reply is
             // PUBLISH_AUTHORITY["comment-reply"], checked in the route.
             "/api/social/comments",
+            // The library: internal reference documents (the social media
+            // guide), a fixed table read from outside the deploy tree. GET only.
+            "/api/social/library/",
             // The agreement: read and signed before anything else, and
             // downloadable after (routes run with contract "pending-ok").
             "/api/onboarding",

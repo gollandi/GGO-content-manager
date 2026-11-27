@@ -18,6 +18,13 @@ export default function GuidePage() {
             </header>
 
             <section className={section}>
+                <h2 className={h2}>Brand and social media guide</h2>
+                <p>The GGO Med standard for social work, approved by JJ: the four rules that do not bend, voice, how to name JJ, logos and colours, formats and sizes, caption patterns, the channels, and the checklist to run before you schedule.</p>
+                <p className="mt-2"><a className="underline" href="/api/social/library/social-media-guide" target="_blank" rel="noopener">Open the interactive guide</a> (format picker, colours that copy on a click, a caption screen, a checklist that remembers your ticks) or <a className="underline" href="/api/social/library/social-media-guide.pdf">download the PDF</a>.</p>
+                <p className="mt-2">It is internal: do not forward it or post any part of it.</p>
+            </section>
+
+            <section className={section}>
                 <h2 className={h2}>How the work moves</h2>
                 <ol className="list-decimal space-y-1 pl-5">
                     <li>The house&apos;s agents plan and produce each post: visuals, caption and hashtags.</li>

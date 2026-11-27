@@ -46,6 +46,7 @@ describe("the social role's fence", () => {
             "/api/review-dashboard/video",
             "/api/social/briefs",
             "/api/social/comments",
+            "/api/social/library/x",
             "/api/social/pages",
             "/benvenuto",
             "/briefs",
