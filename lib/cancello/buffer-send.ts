@@ -8,10 +8,11 @@
  * social media manager, the house, JJ himself — his click is the publish act
  * and nothing else is asked of him. The click sends at once when the house
  * has staged the drafts; otherwise the sweep sends the row once staging
- * lands, recognising the approval by JJ's signed line in the row's notes
- * (`sendAuthorised`). Rows approved before 27 November under the old rule,
- * and rows whose signed line could not be saved, still go only on
- * "Invia a Buffer". A row whose `Ordered By` is JJ is sent as before.
+ * lands, recognising the approval by the send order the click recorded on
+ * the cockpit's own disk (send-orders.ts; never read from Notion text,
+ * which several house writers append to). Rows approved before this rule
+ * have no order and still go only on "Invia a Buffer". A row whose
+ * `Ordered By` is JJ is sent as before.
  *
  * Published means published in Studio (JJ, 27 November 2026: "published e'
  * una caratteristica di studio, non di buffer"): once Buffer has the post,
@@ -42,7 +43,7 @@ import { notionConfig, sanityGgomedWriteConfig } from "../config";
 import { multiSelect, prop, relationIds, richText, select } from "../notion/extract";
 import { fetchByIds, patchDraft, patchDraftIfRevision } from "../sanity/write-client";
 import { publishSocialPost } from "../sanity/social-publish";
-import { sendAuthorised } from "./notes";
+import { sendOrderIds, sendOrderKey, withdrawSendOrder } from "./send-orders";
 
 type Props = Parameters<typeof prop>[0];
 
@@ -55,8 +56,6 @@ export interface CalendarRowFacts {
     /** Bare socialPost ids (no drafts. prefix) from `Sanity Sync`. */
     sanityIds: string[];
     topicIds: string[];
-    /** The row's `Notes`, where JJ's signed approval line authorises a send. */
-    notes: string;
 }
 
 export interface SocialDoc {
@@ -190,6 +189,19 @@ export async function sendRow(
         const draft = byId.get(`drafts.${id}`);
         const published = byId.get(id);
         if (alreadySent(draft) || alreadySent(published)) {
+            // Buffer has it, but an earlier Studio publish failed: the draft
+            // still carries status "published" with no published twin. Publish
+            // it now, so the planner catches up without a second send.
+            if (draft && !published && draft.status === "published" && draft.buffer?.postId) {
+                try {
+                    await deps.publish(id);
+                    posts.push({ sanityId: id, outcome: "already-sent", bufferStatus: draft.buffer?.status ?? undefined, detail: "published in Studio now" });
+                } catch (err) {
+                    posts.push({ sanityId: id, outcome: "already-sent", bufferStatus: draft.buffer?.status ?? undefined,
+                        detail: `sent, but not published in Studio: ${err instanceof Error ? err.message : String(err)}` });
+                }
+                continue;
+            }
             posts.push({
                 sanityId: id,
                 outcome: "already-sent",
@@ -314,7 +326,6 @@ export function calendarFactsFromPage(page: { id: string; properties: Props }): 
         platforms: multiSelect(prop(props, "Platform")),
         sanityIds: splitIds(richText(prop(props, "Sanity Sync"))),
         topicIds: relationIds(prop(props, "Topic")),
-        notes: richText(prop(props, "Notes")),
     };
 }
 
@@ -396,15 +407,26 @@ export function rowChangedState(row: RowResult): boolean {
     return row.posts.some((p) => p.intent !== undefined && p.outcome !== "deferred");
 }
 
+export interface SendOrders {
+    ids(): Set<string>;
+    withdraw(rowId: string): void;
+}
+const liveOrders: SendOrders = { ids: sendOrderIds, withdraw: withdrawSendOrder };
+
 export async function sweepOrderedRows(
     deps: SendDeps = liveDeps,
-    listRows: () => Promise<CalendarRowFacts[]> = listApprovedStagedRows
+    listRows: () => Promise<CalendarRowFacts[]> = listApprovedStagedRows,
+    orders: SendOrders = liveOrders,
 ): Promise<SweepResult> {
-    const rows = (await listRows()).filter((row) => isOrderedByJJ(row) || sendAuthorised(row.notes));
+    const ordered = orders.ids();
+    const rows = (await listRows()).filter((row) => isOrderedByJJ(row) || ordered.has(sendOrderKey(row.rowId)));
     const budget = { immediate: 1 };
     const results: RowResult[] = [];
     for (const row of rows) {
-        results.push(await sendRow(row.rowId, deps, { budget, retryFailed: false }));
+        const result = await sendRow(row.rowId, deps, { budget, retryFailed: false });
+        // Out of the gate: the order has done its work.
+        if (result.outcome === "handed-off") orders.withdraw(row.rowId);
+        results.push(result);
     }
     return { considered: rows.length, rows: results, changed: results.some(rowChangedState) };
 }

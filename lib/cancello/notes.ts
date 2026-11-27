@@ -87,32 +87,6 @@ export function latestMark(notes: string): CollaboratorMark | null {
     return last;
 }
 
-/**
- * From this date JJ's approval of a calendar row is also the order to send it
- * to Buffer, whoever proposed the post (JJ, 27 November 2026: "quando Diletta
- * pubblica e io approvo, ... senza gli altri due passaggi"). Approvals written
- * before it were approvals of content only, under the 26 September rule that
- * asked for a second flip; they never authorise a send on their own.
- */
-export const SEND_ON_APPROVAL_SINCE = "2026-11-27 00:00";
-
-/**
- * Whether JJ's latest decision on the row is an approval written under the
- * send-on-approval rule. A later decision of his (sent back, rejected) takes
- * it away. Comments cannot forge the line: `defang` turns their brackets into
- * parentheses, and only the admin signs with the label "JJ" (actorLabel).
- */
-export function sendAuthorised(notes: string): boolean {
-    let authorised = false;
-    for (const m of notes.matchAll(LINE_RE)) {
-        if (m[2].trim() !== "JJ") continue;
-        const tag = m[3]?.trim();
-        if (!tag || !OWNER_DECISIONS.has(tag)) continue;
-        authorised = tag === "approved" && m[1] >= SEND_ON_APPROVAL_SINCE;
-    }
-    return authorised;
-}
-
 /** The latest "ready for JJ" mark, if it is the row's latest mark. */
 export function latestReadyMark(notes: string): { at: string; by: string } | null {
     const m = latestMark(notes);

@@ -11,7 +11,7 @@ import { composePosts } from "../../lib/cancello/post-preview";
 import { deskFamily, gateCalendarIds, shadowedByCalendar } from "../../lib/house/families";
 import { Guilloche, Socket, Mark, AgeBar, type MarkTone } from "../../components/Registro";
 import { useSession } from "next-auth/react";
-import { latestMark, type CollaboratorMark, sendAuthorised } from "../../lib/cancello/notes";
+import { latestMark, type CollaboratorMark } from "../../lib/cancello/notes";
 
 /**
  * IL CANCELLO — the register spread.
@@ -300,8 +300,8 @@ export default function ReviewPage() {
                 })),
             // Approved and staged, not yet in Buffer. Since 27 November JJ's
             // approval sends every row by itself, so a row here is either on its
-            // way (the sweep sends it within 15 minutes) or one approved under
-            // the old rule, which still waits for "Invia a Buffer".
+            // way (the next Buffer sweep sends it) or one approved under the old
+            // rule, which waits for "Invia a Buffer".
             ...state.calendar
                 .filter((row) => row.status === "Approved" && Boolean(row.sanitySync))
                 .map((row): Entry => ({
@@ -310,7 +310,7 @@ export default function ReviewPage() {
                     target: "calendar",
                     family: "Buffer",
                     title: row.title,
-                    stateLabel: [row.orderedBy === "JJ" || sendAuthorised(row.notes ?? "") ? "Approvato · invio automatico" : "Approvato prima del 27/11 · serve «Invia a Buffer»",
+                    stateLabel: ["Approvato · non ancora su Buffer",
                         row.contentType, row.platforms, row.date].filter(Boolean).join(" · "),
                     dueDays: daysUntil(row.date),
                     hasMedia: row.media.length > 0,

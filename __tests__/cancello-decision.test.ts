@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { retrieve, update } = vi.hoisted(() => ({ retrieve: vi.fn(), update: vi.fn() }));
 
+const { recordSendOrder, withdrawSendOrder } = vi.hoisted(() => ({ recordSendOrder: vi.fn(), withdrawSendOrder: vi.fn() }));
+vi.mock("../lib/cancello/send-orders", () => ({
+    recordSendOrder, withdrawSendOrder, sendOrderIds: () => new Set<string>(), sendOrderKey: (id: string) => id.replace(/-/g, "").toLowerCase(),
+}));
 vi.mock("../lib/notion/client", () => ({
     notion: { pages: { retrieve, update, create: vi.fn() } },
 }));

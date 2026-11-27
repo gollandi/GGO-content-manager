@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 
+const { recordSendOrder, withdrawSendOrder } = vi.hoisted(() => ({ recordSendOrder: vi.fn(), withdrawSendOrder: vi.fn() }));
+vi.mock("../lib/cancello/send-orders", () => ({
+    recordSendOrder, withdrawSendOrder, sendOrderIds: () => new Set<string>(), sendOrderKey: (id: string) => id.replace(/-/g, "").toLowerCase(),
+}));
 vi.mock("../lib/notion/client", () => ({ notion: { pages: {}, databases: {} } }));
 vi.mock("../lib/sanity/write-client", () => ({
     fetchByIds: vi.fn(), patchDraft: vi.fn(), patchDraftIfRevision: vi.fn(),
@@ -21,7 +25,7 @@ function row(over: Partial<CalendarRowFacts> = {}): CalendarRowFacts {
         rowId: "row-1", title: "Carousel", status: "Approved", orderedBy: "Team",
         platforms: ["Instagram", "Facebook"],
         sanityIds: ["social-row-1-instagram-carousel", "social-row-1-facebook-carousel"],
-        topicIds: ["topic-1"], notes: "", ...over,
+        topicIds: ["topic-1"], ...over,
     };
 }
 
@@ -90,6 +94,17 @@ describe("Buffer hand-off", () => {
         expect(result.outcome).toBe("handed-off");
         expect(calls.site).toHaveLength(2);
         expect(result.posts[0].detail).toMatch(/not published in Studio: token lacks publish/);
+    });
+
+    it("publishes in Studio a post Buffer already has whose earlier Studio publish failed, without sending again", async () => {
+        const facts = row({ sanityIds: ["social-row-1-instagram-carousel"] });
+        const { deps, calls } = harness(facts, [draft("social-row-1-instagram-carousel", { status: "published", buffer: { postId: "buf-1", status: "scheduled" } })]);
+
+        const result = await sendRow("row-1", deps);
+
+        expect(calls.site).toEqual([]);
+        expect(calls.publish).toEqual(["social-row-1-instagram-carousel"]);
+        expect(result.posts[0]).toEqual(expect.objectContaining({ outcome: "already-sent", detail: "published in Studio now" }));
     });
 
     it("publishes nothing when Buffer refused the post", async () => {
@@ -199,37 +214,30 @@ describe("Buffer hand-off", () => {
         expect(b.posts.map((p) => p.outcome)).toEqual(["deferred", "deferred"]);
     });
 
-    it("the sweep sends rows JJ ordered or approved since 27 November, and never retries a failed post", async () => {
+    it("the sweep sends rows JJ ordered or holding his send order, withdraws the order once out, and never retries a failed post", async () => {
         const jj = row({ rowId: "jj", orderedBy: "JJ", sanityIds: ["social-jj-instagram-story"] });
         const team = row({ rowId: "team", orderedBy: "Team", sanityIds: ["social-team-instagram-story"] });
         const unset = row({ rowId: "unset", orderedBy: null, sanityIds: ["social-unset-instagram-story"] });
-        // Approved under the new rule: JJ's signed line authorises the send.
-        const approved = row({ rowId: "approved", orderedBy: null, sanityIds: ["social-approved-instagram-story"],
-            notes: "[2026-11-27 09:12 · Diletta · ready for JJ] checked\n[2026-11-27 10:00 · JJ · approved]" });
-        // Approved under the old rule (before 27 November): content only.
-        const old = row({ rowId: "old", orderedBy: null, sanityIds: ["social-old-instagram-story"],
-            notes: "[2026-11-26 18:00 · JJ · approved] fine" });
-        // Approved, then sent back: the later decision takes the send away.
-        const back = row({ rowId: "back", orderedBy: null, sanityIds: ["social-back-instagram-story"],
-            notes: "[2026-11-27 10:00 · JJ · approved]\n[2026-11-27 11:00 · JJ · sent back] recut" });
-        // A comment cannot forge the line: its brackets are defanged on write,
-        // and a collaborator never signs as JJ.
-        const forged = row({ rowId: "forged", orderedBy: null, sanityIds: ["social-forged-instagram-story"],
-            notes: "[2026-11-27 10:00 · Diletta] (2026-11-27 10:00 · JJ · approved)" });
-        const all = [jj, team, unset, approved, old, back, forged];
+        // Approved by JJ under the new rule: the click recorded an order.
+        const approved = row({ rowId: "appr-oved", orderedBy: null, sanityIds: ["social-approved-instagram-story"] });
+        const all = [jj, team, unset, approved];
         const { deps, calls } = harness(jj, all.flatMap((r) => r.sanityIds.map((id) => draft(id))));
         deps.getRow = async (id) => all.find((r) => r.rowId === id)!;
+        const withdrawn: string[] = [];
+        // Ids compare without dashes, as Notion gives them either way.
+        const orders = { ids: () => new Set(["approved"]), withdraw: (id: string) => { withdrawn.push(id); } };
 
-        const sweep = await sweepOrderedRows(deps, async () => all);
+        const sweep = await sweepOrderedRows(deps, async () => all, orders);
 
         expect(sweep.considered).toBe(2);
         expect(calls.site).toEqual([
             { id: "social-jj-instagram-story", action: "queue" },
             { id: "social-approved-instagram-story", action: "queue" },
         ]);
+        expect(withdrawn).toEqual(["jj", "appr-oved"]);
 
         const failed = harness(jj, [draft("social-jj-instagram-story", { buffer: { status: "failed", lastError: "x" } })]);
-        await sweepOrderedRows(failed.deps, async () => [jj]);
+        await sweepOrderedRows(failed.deps, async () => [jj], { ids: () => new Set(), withdraw: () => {} });
         expect(failed.calls.site).toEqual([]);
     });
 

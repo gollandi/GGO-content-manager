@@ -25,6 +25,7 @@ import { notionConfig } from "../config";
 import { findPatchForAsset } from "./patches";
 import { runHouseScript } from "./house";
 import { liveDeps, sendRow } from "./buffer-send";
+import { recordSendOrder, withdrawSendOrder } from "./send-orders";
 import { invalidateCancelloCache } from "./state";
 import { appendNote, formatNote, type NoteKind } from "./notes";
 import { mayAct, type CancelloAct } from "../auth/permissions";
@@ -72,7 +73,10 @@ export function actorLabel(actor: Actor): string {
     // "JJ" on a notes line is the owner's decision, and an approval signed so
     // authorises a send: nobody else may sign with it, whatever their account
     // is called.
-    return label.trim().toUpperCase() === "JJ" ? (actor.email || "unknown") : label;
+    // Compared after Unicode folding, without zero-width or punctuation, so
+    // "J J", "JJ\u200b" or full-width letters cannot pass for the owner.
+    const folded = label.normalize("NFKC").replace(/[^\p{L}\p{N}]/gu, "").toUpperCase();
+    return folded === "JJ" ? (actor.email || "unknown") : label;
 }
 
 export class DecisionForbiddenError extends Error {
@@ -186,6 +190,12 @@ async function ownerNotes(
     }
 }
 
+/** The row's current status, read before JJ's decision changes it. */
+async function calendarStatus(rowId: string): Promise<string | null> {
+    const page = await notion.pages.retrieve({ page_id: rowId }) as { properties?: Record<string, unknown> } | undefined;
+    return page ? statusOf(page) : null;
+}
+
 export async function applyCancelloDecision(input: DecisionInput, actor: Actor): Promise<DecisionResult> {
     const { rowId, decision, target = "desk" } = input;
     const comment = typeof input.comment === "string" ? input.comment.trim() : "";
@@ -232,6 +242,7 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor):
                 archived: true,
                 ...(Object.keys(properties).length > 0 ? { properties: properties as never } : {}),
             });
+            if (target === "calendar") withdrawSendOrder(rowId);
             return { rowId, status: "Deleted", archived: true, ...(noteSkipped ? { noteSkipped } : {}) };
         }
 
@@ -248,6 +259,7 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor):
         if (decision === "send") {
             if (target !== "calendar") throw new Error("send applies to calendar rows only");
             const send = await sendRow(rowId, liveDeps, { budget: { immediate: 1 }, retryFailed: true });
+            if (send.outcome === "handed-off") withdrawSendOrder(rowId);
             return { rowId, status: send.calendarStatus ?? "Approved", send };
         }
 
@@ -266,9 +278,9 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor):
 
         const properties: Record<string, unknown> = { Status: { select: { name: status } } };
         let notesText: string | undefined;
-        // A calendar approval always leaves JJ's signed line, comment or not:
-        // since 27 November 2026 that line is what authorises the Buffer
-        // sweep to send the row once the house has staged it (sendAuthorised).
+        // A calendar approval always leaves JJ's signed line in the notes,
+        // comment or not, for the row's history. What authorises the send is
+        // the order recorded below on the cockpit's disk, not this line.
         const signsApproval = target === "calendar" && decision === "approve";
         if (comment || signsApproval) {
             const notes = await ownerNotes(rowId, target, actor, NOTE_KIND[decision] ?? "note", comment, collaboratorPage);
@@ -280,19 +292,29 @@ export async function applyCancelloDecision(input: DecisionInput, actor: Actor):
         if (target === "calendar" && typeof input.date === "string" && input.date.trim()) {
             properties.Date = { date: { start: input.date.trim() } };
         }
+        // What JJ approves is what he sees: the row as it stands in Notion.
+        // Drafts staged earlier (before a send-back and rework, or before a
+        // date change) must not go out in its place, so an approval or a
+        // send-back clears the staging and the house stages the row afresh
+        // (notion-to-sanity-sync picks rows whose Sanity Sync is empty).
+        if (target === "calendar" && actor.role === "admin" && await calendarStatus(rowId) !== "Approved") {
+            properties["Sanity Sync"] = { rich_text: [] };
+        }
         await notion.pages.update({ page_id: rowId, properties: properties as never });
+        if (target === "calendar") {
+            // Any decision of his replaces the one before: an approval records
+            // the order to send, anything else withdraws it.
+            if (signsApproval) recordSendOrder(rowId, actor.email || "JJ");
+            else if (actor.role === "admin") withdrawSendOrder(rowId);
+        }
 
         // JJ's approval is final for every row, whoever proposed it (JJ,
-        // 27 November 2026): if the house has already staged the drafts the
-        // hand-off happens now, otherwise the Buffer sweep sends the row once
-        // staging lands. The sweep knows the row is authorised from the signed
-        // line written above; if that line could not be saved, the row waits
-        // for "Invia a Buffer" and the result says so.
+        // 27 November 2026): if the drafts are staged the hand-off happens
+        // now, otherwise the Buffer sweep sends the row once staging lands,
+        // knowing it from the order recorded above.
         if (signsApproval) {
             const send = await sendRow(rowId, liveDeps, { budget: { immediate: 1 }, retryFailed: false });
-            if (noteSkipped && send.outcome === "awaiting-staging") {
-                return { rowId, status, send, awaitingSecondFlip: true, notes: notesText, noteSkipped };
-            }
+            if (send.outcome === "handed-off") withdrawSendOrder(rowId);
             return { rowId, status: send.calendarStatus ?? status, send, notes: notesText, ...(noteSkipped ? { noteSkipped } : {}) };
         }
         return { rowId, status, notes: notesText, ...(noteSkipped ? { noteSkipped } : {}) };

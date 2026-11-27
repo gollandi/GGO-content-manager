@@ -2,6 +2,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { retrieve, update, create } = vi.hoisted(() => ({ retrieve: vi.fn(), update: vi.fn(), create: vi.fn() }));
+const { recordSendOrder, withdrawSendOrder } = vi.hoisted(() => ({ recordSendOrder: vi.fn(), withdrawSendOrder: vi.fn() }));
+vi.mock("../lib/cancello/send-orders", () => ({
+    recordSendOrder, withdrawSendOrder, sendOrderIds: () => new Set<string>(), sendOrderKey: (id: string) => id.replace(/-/g, "").toLowerCase(),
+}));
 vi.mock("../lib/notion/client", () => ({ notion: { pages: { retrieve, update, create } } }));
 vi.mock("../lib/config", () => ({
     notionConfig: { dbs: { ernestoDesk: () => "desk-db", contentCalendar: () => "calendar-db" } },
@@ -38,6 +42,7 @@ beforeEach(() => {
     retrieve.mockReset(); update.mockReset(); create.mockReset(); sendRow.mockReset(); getRow.mockReset();
     update.mockResolvedValue({});
     sendRow.mockResolvedValue({ outcome: "awaiting-staging", posts: [] });
+    recordSendOrder.mockReset(); withdrawSendOrder.mockReset();
 });
 
 describe("the social media manager in the Cancello", () => {
@@ -149,9 +154,26 @@ describe("JJ's acts are attributed and keep the history", () => {
         const props = update.mock.calls[0][0].properties;
         expect(props.Status).toEqual({ select: { name: "Approved" } });
         expect(props.Notes).toBeUndefined();
-        // Without JJ's signed line the sweep cannot know the row is cleared:
-        // the result says it waits for "Invia a Buffer".
-        expect(result.awaitingSecondFlip).toBe(true);
+        // The send order lives on the cockpit's disk, so a note that did not
+        // fit costs nothing: the approval still orders the send, and the
+        // staging is cleared so the house stages the row as JJ saw it.
+        expect(recordSendOrder).toHaveBeenCalledWith("r", expect.any(String));
+        expect(props["Sanity Sync"]).toEqual({ rich_text: [] });
+    });
+
+    it("a send-back withdraws the send order (the re-approval of the rework clears the staging)", async () => {
+        retrieve.mockResolvedValue(calendarRow("Approved"));
+        await applyCancelloDecision({ rowId: "r", target: "calendar", decision: "modify", comment: "Recut the hook" }, OWNER);
+        expect(withdrawSendOrder).toHaveBeenCalledWith("r");
+        expect(recordSendOrder).not.toHaveBeenCalled();
+    });
+
+    it("a collaborator's note never touches the send order or the staging", async () => {
+        retrieve.mockResolvedValue(calendarRow("Review"));
+        await applyCancelloDecision({ rowId: "r", target: "calendar", decision: "ready", comment: "checked" }, diletta);
+        expect(recordSendOrder).not.toHaveBeenCalled();
+        expect(withdrawSendOrder).not.toHaveBeenCalled();
+        expect(update.mock.calls[0][0].properties["Sanity Sync"]).toBeUndefined();
     });
 
     it("signs JJ's approval even without a comment, and nobody else may sign as JJ", async () => {
