@@ -71,7 +71,11 @@ export const SEAL_CAP = 5;
 
 export interface Sealable {
     family: string;
-    /** Days to the slot or due date; negative once it has passed. */
+    /**
+     * Days since the slot or due date, as Il Cancello computes them
+     * (daysUntil in app/review/page.tsx): positive once it has passed,
+     * zero today, negative while it is still ahead.
+     */
     dueDays: number | null;
     priority?: string | null;
 }
@@ -87,7 +91,8 @@ export function sealRank(e: Sealable): [number, number] {
     const d = e.dueDays;
     if (e.family === "Desk" && e.priority === "Urgent") return [0, -(d ?? 0)];
     if (e.family === "Website") return [1, 0];
-    if (e.family === "Social" && d !== null && d >= 0) return [2, d];
+    // A slot still ahead (or today), nearest first.
+    if (e.family === "Social" && d !== null && d <= 0) return [2, -d];
     if (e.family !== "Social") return [3, -(d ?? 0)];
     return [4, -(d ?? 0)];
 }

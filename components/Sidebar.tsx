@@ -70,7 +70,7 @@ const SOCIAL_LINKS = [
   { href: "/carico", label: "Upload media", hint: "Footage and audio for the team" },
   { href: "/comments", label: "Comments", hint: "YouTube comments and replies" },
   { href: "/briefs", label: "Briefs", hint: "Direct the agents; set the strategy" },
-  { href: "/performance", label: "Performance", hint: "Natascia's readings and the numbers" },
+  { href: "/performance", label: "Performance", hint: "The numbers, with Natascia's readings" },
   { href: "/website", label: "Website", hint: "Every page and its state" },
   { href: "/guida", label: "Guide", hint: "How this works" },
 ];
@@ -114,13 +114,18 @@ function SocialMargin({ name, isActive }: { name: string; isActive: (href: strin
               <span className="block text-[11px] text-plate-foreground-soft max-lg:hidden">{l.hint}</span>
             </Link>
           ))}
-          <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
-            className="act-quiet hidden whitespace-nowrap max-lg:inline-flex"
-            type="button"
-          >
-            Sign out
-          </button>
+          {/* Phone only. Wrapped, because .act-quiet's own display is
+              unlayered and beats Tailwind's \`hidden\` on the same element:
+              the desktop showed two Sign out buttons. */}
+          <div className="hidden max-lg:block">
+            <button
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="act-quiet whitespace-nowrap"
+              type="button"
+            >
+              Sign out
+            </button>
+          </div>
         </nav>
       </div>
       <div className="relative border-t border-plate-rule px-5 py-4 max-lg:hidden">
@@ -276,7 +281,7 @@ export default function Sidebar() {
         </div>
 
         {/* Il Cancello — the one gate. The only oxblood in the margin. */}
-        <div className="border-b border-plate-rule px-4 py-4 max-lg:py-3">
+        <div className={`border-b border-plate-rule px-4 py-4 max-lg:py-3 ${isActive("/review") ? "max-lg:hidden" : ""}`}>
           <Link
             href="/review"
             className="group flex items-center gap-3 border border-seal-deep bg-seal px-3 py-3 text-paper transition-colors hover:bg-seal-bright hover:text-plate"
@@ -329,7 +334,7 @@ export default function Sidebar() {
 
           {/* The old archive, folded. Eleven mirror pages in retirement: one
               row until asked for, so the margin stays the rooms' own. */}
-          <div className="mt-5 max-lg:mt-0 max-lg:flex max-lg:items-center max-lg:gap-1">
+          <div className="mt-5 max-lg:hidden">
             <button
               type="button"
               onClick={toggleArchive}

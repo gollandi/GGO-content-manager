@@ -221,7 +221,7 @@ export default function SettingsPage() {
             <span className="column-label column-label-paper mb-1 block">Email</span>
             <input className={field} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </label>
-          <button type="submit" disabled={busy} className="act-seal">Create link</button>
+          <button type="submit" disabled={busy} className="act-void" style={onPaper}>Create link</button>
         </form>
 
         {link && (
