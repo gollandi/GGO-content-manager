@@ -217,3 +217,17 @@ describe("computeEditorial and computePif", () => {
         expect(p.nextReviewInDays).toBe(10);
     });
 });
+
+describe("the gate shows at most five acts (JJ, 27/11/2026)", () => {
+    it("caps total at SEAL_CAP and reports the rest as held", () => {
+        const state = gate({
+            desk: Array.from({ length: 4 }, (_, i) => desk({ rowId: `p${i}`, type: "publish-approval" })),
+            calendar: Array.from({ length: 6 }, (_, i) => cal({ rowId: `r${i}` })),
+        });
+        const a = computeAwaiting(state, [], NOW);
+        expect(a.total).toBe(5);
+        expect(a.held).toBe(5);
+        expect(a.desk).toBe(4);
+        expect(a.social).toBe(6);
+    });
+});

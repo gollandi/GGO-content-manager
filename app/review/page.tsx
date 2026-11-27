@@ -8,7 +8,7 @@ import MarkdownBlock from "../../components/MarkdownBlock";
 import AssetSheet from "../../components/cancello/AssetSheet";
 import PostPreview from "../../components/cancello/PostPreview";
 import { composePosts } from "../../lib/cancello/post-preview";
-import { deskFamily, gateCalendarIds, shadowedByCalendar } from "../../lib/house/families";
+import { capForSeal, deskFamily, gateCalendarIds, shadowedByCalendar } from "../../lib/house/families";
 import { Guilloche, Socket, Mark, AgeBar, type MarkTone } from "../../components/Registro";
 import { useSession } from "next-auth/react";
 import { latestMark, type CollaboratorMark } from "../../lib/cancello/notes";
@@ -320,8 +320,10 @@ export default function ReviewPage() {
             ...state.desk
                 .filter((row) => row.status === "Pending" && !wallIds.has(row.rowId) && editorial(row))
                 .map(fromDesk),
+            // Only a written patch is JJ's to seal. A proposal with no patch
+            // is Edmondo's work in progress and is listed under the register.
             ...state.website
-                .filter((row) => row.patch || row.proposals.length > 0)
+                .filter((row) => row.patch)
                 .map((row): Entry => ({
                     key: `website:${row.rowId}`,
                     rowId: row.rowId,
@@ -341,10 +343,13 @@ export default function ReviewPage() {
                 }))
         ];
     }, [state, tr]);
-    const entries = useMemo(
-        () => (isSocial ? allEntries.filter((e) => e.family === "Social") : allEntries),
-        [allEntries, isSocial]
-    );
+    // JJ's register shows at most SEAL_CAP acts; the rest wait in a queue
+    // listed under it (JJ, 27/11/2026). The collaborator's queue is unchanged.
+    const { entries, held } = useMemo(() => {
+        if (isSocial) return { entries: allEntries.filter((e) => e.family === "Social"), held: [] as Entry[] };
+        const split = capForSeal(allEntries.map((e) => ({ ...e, priority: e.desk?.priority ?? null })));
+        return { entries: split.shown as Entry[], held: split.held as Entry[] };
+    }, [allEntries, isSocial]);
 
     const open = entries.find((e) => e.key === openKey) ?? null;
     const pendingEntries = entries.filter((e) => !acted[e.key]);
@@ -352,6 +357,16 @@ export default function ReviewPage() {
     const laterSections = useMemo(() => {
         if (!state) return [];
         return [
+            ...(held.length > 0 ? [{
+                label: tr("In coda — salgono man mano che sigilli", "Queued — they rise as you seal"),
+                rows: held.map((e) => ({ key: `h:${e.key}`, title: e.title, state: e.stateLabel, url: e.notionUrl }))
+            }] : []),
+            {
+                label: tr("Sito · proposte senza patch (al lavoro di Edmondo)", "Site · proposals without a patch (Edmondo at work)"),
+                rows: state.website
+                    .filter((r) => !r.patch && r.proposals.length > 0)
+                    .map((r) => ({ key: `w:${r.rowId}`, title: r.title, state: `${r.proposals.length}`, url: r.url }))
+            },
             {
                 label: tr("In lavorazione adesso", "In production now"),
                 rows: [
@@ -376,7 +391,7 @@ export default function ReviewPage() {
                     .map((r) => ({ key: `c:${r.rowId}`, title: r.title, state: r.date ?? "Scheduled", url: r.url }))
             }
         ];
-    }, [state, tr]);
+    }, [state, tr, held]);
 
     /* ── Acts ─────────────────────────────────────────────────────────────── */
 

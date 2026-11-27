@@ -88,9 +88,7 @@ function tiles(s: HouseState): Tile[] {
         : a.total === 0
           ? "niente aspetta il tuo sigillo"
           : [
-              a.social ? `${a.social} social` : null,
-              a.desk ? `${a.desk} desk` : null,
-              a.website ? `${a.website} sito` : null,
+              a.held ? `altri ${a.held} in coda, tenuti dagli agenti` : null,
               a.oldestDays ? `la più vecchia da ${a.oldestDays} gg` : null,
             ]
               .filter(Boolean)
@@ -186,7 +184,7 @@ function calls(s: HouseState): Call[] {
       href: "/review",
       room: "cancello",
       title: `${a.total} ${a.total === 1 ? "atto aspetta" : "atti aspettano"} il tuo sigillo`,
-      fact: [a.social ? `${a.social} social` : null, a.desk ? `${a.desk} desk` : null, a.website ? `${a.website} patch sito` : null]
+      fact: [a.held ? `altri ${a.held} in coda` : null]
         .filter(Boolean)
         .join(" · "),
       days: a.oldestDays,
