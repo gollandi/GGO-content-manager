@@ -94,7 +94,7 @@ export default function GuidePage() {
                     <li>La tua password è tua: nessun altro la conosce. Se la dimentichi, chiedi a JJ un nuovo link.</li>
                     <li>Dopo diverse password sbagliate, l&apos;accesso si blocca per quindici minuti.</li>
                     <li>Tutto quello che fai qui viene registrato con il tuo nome.</li>
-                    <li>Il tuo accordo firmato: <a className="underline" href="/api/contract/signed">scarica la tua copia</a> (si apre con qualsiasi editor di testo e si stampa in PDF), oppure guardane lo stato nella <a className="underline" href="/benvenuto">pagina di benvenuto</a>.</li>
+                    <li>Il tuo accordo firmato: <a className="underline" href="/api/contract/signed">scarica la tua copia</a> (un PDF di GGO Med con il testo firmato e le firme), oppure guardane lo stato nella <a className="underline" href="/benvenuto">pagina di benvenuto</a>.</li>
                 </ul>
             </section>
         </div>

@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // pdfkit reads its own data files at run time; bundling would cut them off.
+  serverExternalPackages: ['pdfkit'],
   turbopack: {
     root: '.'
   },
